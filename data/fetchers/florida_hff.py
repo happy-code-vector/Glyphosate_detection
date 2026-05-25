@@ -46,6 +46,14 @@ FLORIDA_REPORTS = [
         "data_year": 2026,
         "category_hint": "infant_cereal",
     },
+    {
+        "label": "Florida HFF Candy Glyphosate 2026",
+        "url": "https://web.archive.org/web/20260414123704/https://exposingfoodtoxins.com/candy/",
+        "filename": "florida_hff_candy_2026.html",
+        "published_date": "2026-02-01",
+        "data_year": 2026,
+        "category_hint": "corn",
+    },
 ]
 
 # Column header patterns that indicate the ppb/result column
@@ -307,4 +315,8 @@ class FloridaHFFetcher(BaseFetcher):
             return "pasta"
         if any(t in name_lower for t in ["infant", "baby", "formula", "toddler"]):
             return "infant food"
+        if any(t in name_lower for t in ["candy", "gummy", "gummies", "licorice", "twizzler"]):
+            return "corn"
+        if any(t in name_lower for t in ["chocolate", "cocoa"]):
+            return "soybeans"
         return hint
