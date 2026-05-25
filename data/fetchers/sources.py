@@ -599,8 +599,13 @@ class EFSAFetcher(BaseFetcher):
     def fetch(self) -> list[Path]:
         paths = []
         for report in EFSA_REPORTS:
-            path = self._fetch_enforcement(report)
-            paths.append(path)
+            try:
+                path = self._fetch_enforcement(report)
+                paths.append(path)
+            except Exception as e:
+                logger.error(
+                    "EFSA: failed to fetch %s: %s — skipping", report["label"], e
+                )
         return paths
 
     def _fetch_enforcement(self, report: dict) -> Path:
@@ -653,7 +658,11 @@ class EFSAFetcher(BaseFetcher):
 
     def parse(self, files: list[Path]) -> list[dict]:
         all_rows = []
-        for path, report in zip(files, EFSA_REPORTS):
+        file_map = {f.name: f for f in files}
+        for report in EFSA_REPORTS:
+            path = file_map.get(report["filename"])
+            if path is None:
+                continue
             fmt = report.get("format", "enforcement")
             if fmt == "visualisation":
                 rows = self._parse_visualisation(path, report)
