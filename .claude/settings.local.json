@@ -16,13 +16,7 @@
       "Bash(git *)",
       "Bash(sqlite3 residueiq.db \"SELECT COUNT\\(*\\) FROM glyphosate_measurements\")",
       "Bash(sqlite3 *)",
-      "Bash(curl -s \"https://zenodo.org/api/records?q=%22APPENDIX+B%22+%22pesticide+residues%22&sort=mostrecent&size=20\")",
-      "Bash(curl -s \"https://zenodo.org/api/records?q=%22EFSA%22+%22annual+report%22+%22pesticide+residues%22&sort=mostrecent&size=20\")",
-      "Bash(curl -s \"https://zenodo.org/api/records?q=%22pesticide+residues+in+food%22+EFSA&sort=mostrecent&size=20\")",
-      "Bash(curl -s \"https://zenodo.org/api/records?q=%22APPENDIX+B%22+%22EU+Report+on+Pesticide+Residues%22&sort=mostrecent&size=20&all_versions=true\")",
-      "Bash(curl -s \"https://zenodo.org/api/records?q=%22pesticide+residues%22+%22annual+report%22+%22food%22&sort=mostrecent&size=30&communities=knowledge-journal\")",
-      "Bash(curl -s \"https://zenodo.org/api/communities/knowledge-journal/records?q=pesticide+residues&sort=mostrecent&size=30\")",
-      "Bash(curl -s \"https://zenodo.org/api/records?q=%22annual+report+on+pesticide+residues%22&sort=mostrecent&size=20\")"
+      "Bash(curl -s *)"
     ]
   }
 }
