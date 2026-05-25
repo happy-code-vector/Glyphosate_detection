@@ -15,7 +15,10 @@
       "Bash(python *)",
       "Bash(git *)",
       "Bash(sqlite3 residueiq.db \"SELECT COUNT\\(*\\) FROM glyphosate_measurements\")",
-      "Bash(sqlite3 *)"
+      "Bash(sqlite3 *)",
+      "Bash(curl -s \"https://zenodo.org/api/records?q=%22APPENDIX+B%22+%22pesticide+residues%22&sort=mostrecent&size=20\")",
+      "Bash(curl -s \"https://zenodo.org/api/records?q=%22EFSA%22+%22annual+report%22+%22pesticide+residues%22&sort=mostrecent&size=20\")",
+      "Bash(curl -s \"https://zenodo.org/api/records?q=%22pesticide+residues+in+food%22+EFSA&sort=mostrecent&size=20\")"
     ]
   }
 }
