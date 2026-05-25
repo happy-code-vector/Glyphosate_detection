@@ -471,7 +471,8 @@ class CFIAFetcher(BaseFetcher):
 
             row = df.iloc[gi]
             total = int(pd.to_numeric(row.get("col_4"), errors="coerce") or 0)
-            detected = int(pd.to_numeric(row.get("col_5"), errors="coerce") or 0)
+            detected_val = pd.to_numeric(row.get("col_5"), errors="coerce")
+            detected = int(detected_val) if pd.notna(detected_val) else 0
             avg_ppm = pd.to_numeric(row.get("col_6"), errors="coerce")
             max_ppm = pd.to_numeric(row.get("col_8"), errors="coerce")
 
