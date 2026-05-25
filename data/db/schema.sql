@@ -108,6 +108,29 @@ CREATE TABLE IF NOT EXISTS tolerance_limits (
 );
 
 -- ─────────────────────────────────────────────
+-- Biomonitoring data — human exposure measurements
+-- CDC NHANES urine glyphosate levels by population group.
+-- ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS biomonitoring (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    source              TEXT NOT NULL DEFAULT 'CDC_NHANES',
+    cycle               TEXT NOT NULL,
+    analyte             TEXT NOT NULL,
+    population_group    TEXT,
+    sample_size         INTEGER,
+    detected_count      INTEGER,
+    detection_rate      REAL,
+    geometric_mean      REAL,
+    percentile_50       REAL,
+    percentile_75       REAL,
+    percentile_90       REAL,
+    percentile_95       REAL,
+    unit                TEXT DEFAULT 'ng/mL',
+    lod                 REAL,
+    dedup_key           TEXT UNIQUE
+);
+
+-- ─────────────────────────────────────────────
 -- App-facing view: best available data per category
 -- Resolves conflicts when multiple sources cover same category.
 -- Source priority: EWG > FDA > CFIA > EFSA

@@ -31,7 +31,7 @@ logging.basicConfig(
 logger = logging.getLogger("pipeline")
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--source", help="Run only this source: ewg/florida/cfia/efsa/fda/usda_pdp/uk_fsa/ca_dpr/germany_bvl/epa_tolerances")
+parser.add_argument("--source", help="Run only this source: ewg/florida/cfia/efsa/fda/usda_pdp/uk_fsa/ca_dpr/germany_bvl/epa_tolerances/australia_fsnz/codex_mrls/japan_brazil_mrls/academic_papers/detox_project/cdc_nhanes")
 parser.add_argument("--validate", action="store_true")
 args = parser.parse_args()
 
@@ -46,21 +46,33 @@ def run_all():
     from fetchers.ca_dpr import CADPRFetcher
     from fetchers.germany_bvl import GermanyBVLFetcher
     from fetchers.epa_tolerances import EPATolerancesFetcher
+    from fetchers.australia_fsnz import AustraliaFSANZFetcher
+    from fetchers.codex_mrls import CodexMRLsFetcher
+    from fetchers.japan_brazil_mrls import JapanBrazilMRLFetcher
+    from fetchers.academic_papers import AcademicPapersFetcher
+    from fetchers.detox_project import DetoxProjectFetcher
+    from fetchers.cdc_nhanes import CDC_NHANESFetcher
 
     logger.info("Initializing database")
     initialize()
 
     sources = [
-        ("cfia",        CFIAFetcher),
-        ("efsa",        EFSAFetcher),
-        ("fda",         FDAFetcher),
-        ("ewg",         EWGFetcher),
-        ("florida",     FloridaHFFetcher),
-        ("usda_pdp",    USDA_PDPFetcher),
-        ("uk_fsa",      UKFSAFetcher),
-        ("ca_dpr",      CADPRFetcher),
-        ("germany_bvl", GermanyBVLFetcher),
-        ("epa_tolerances", EPATolerancesFetcher),
+        ("cfia",            CFIAFetcher),
+        ("efsa",            EFSAFetcher),
+        ("fda",             FDAFetcher),
+        ("ewg",             EWGFetcher),
+        ("florida",         FloridaHFFetcher),
+        ("usda_pdp",        USDA_PDPFetcher),
+        ("uk_fsa",          UKFSAFetcher),
+        ("ca_dpr",          CADPRFetcher),
+        ("germany_bvl",     GermanyBVLFetcher),
+        ("epa_tolerances",  EPATolerancesFetcher),
+        ("australia_fsnz",  AustraliaFSANZFetcher),
+        ("codex_mrls",      CodexMRLsFetcher),
+        ("japan_brazil_mrls", JapanBrazilMRLFetcher),
+        ("academic_papers", AcademicPapersFetcher),
+        ("detox_project",   DetoxProjectFetcher),
+        ("cdc_nhanes",      CDC_NHANESFetcher),
     ]
 
     totals = {"inserted": 0, "skipped": 0, "failed": 0}
