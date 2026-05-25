@@ -9,7 +9,8 @@
       "Bash(python -c \"from fetchers.florida_hff import FloridaHFFetcher; print\\('florida module OK'\\)\")",
       "Bash(python -c \"from fetchers.sources import CFIAFetcher, EFSAFetcher, FDAFetcher; print\\('sources module OK'\\)\")",
       "Bash(python -c \"from run_pipeline import run_all, validate; print\\('run_pipeline imports OK'\\)\")",
-      "Bash(python -c \"from db.database import initialize; initialize\\(\\); print\\('DB initialized successfully'\\)\")"
+      "Bash(python -c \"from db.database import initialize; initialize\\(\\); print\\('DB initialized successfully'\\)\")",
+      "Bash(python -c ' *c)"
     ]
   }
 }

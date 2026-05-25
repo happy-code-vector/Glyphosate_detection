@@ -75,17 +75,16 @@ class EWGFetcher(BaseFetcher):
         for path, report in zip(files, EWG_REPORTS):
             rows = self._parse_pdf(path, report)
             all_rows.extend(rows)
-            # Derive Tier 2 category aggregate from the Tier 1 rows we just parsed
-            tier2 = self._derive_category_aggregate(rows, report)
-            if tier2:
-                all_rows.append(tier2)
+            tier2_rows = self._derive_category_aggregate(rows, report)
+            all_rows.extend(tier2_rows)
         return all_rows
 
     def _parse_pdf(self, pdf_path: Path, report: dict) -> list[dict]:
         """
         Extract product name + ppb from EWG results table.
-        EWG PDFs have a consistent two-column table: Product Name | ppb value.
-        Raises ValueError if the table structure has changed.
+        EWG PDFs have multi-column tables with product name and up to 3 sample columns.
+        The product name column and ppb columns shift position across reports.
+        We use the header row to find the right columns dynamically.
         """
         rows = []
         found_table = False
@@ -96,40 +95,63 @@ class EWGFetcher(BaseFetcher):
                 if not table:
                     continue
 
+                # Find column indices from the first 2 header rows
+                product_col = None
+                ppb_cols = []
+                for row in table[:2]:
+                    for i, cell in enumerate(row):
+                        if not cell:
+                            continue
+                        lower = cell.lower().strip()
+                        if "product name" in lower and product_col is None:
+                            product_col = i
+                        if lower.startswith("sample"):
+                            ppb_cols.append(i)
+                        if "glyphosate" in lower and "ppb" in lower:
+                            # Header row for ppb section — samples follow on next row
+                            pass
+
+                if product_col is None or not ppb_cols:
+                    continue
+
                 for row_idx, row in enumerate(table):
-                    # Skip empty rows
-                    if not row or not any(row):
+                    # Skip header rows
+                    cells_text = " ".join(str(c or "").lower() for c in row)
+                    if any(h in cells_text for h in ["product name", "sample 1", "glyphosate (ppb)"]):
+                        continue
+                    if "type of product" in cells_text:
                         continue
 
-                    # Skip header rows (contain "product" or "sample" in first cell)
-                    first = str(row[0] or "").lower().strip()
-                    if any(h in first for h in ["product", "sample", "brand", "food", "ppb"]):
+                    # Get product name
+                    if product_col >= len(row):
                         continue
-                    if not first:
+                    product_name = str(row[product_col] or "").strip()
+                    if not product_name or product_name.lower() in ("none", "nan"):
                         continue
 
-                    product_name = str(row[0]).strip()
-                    ppb_raw = str(row[-1]).strip() if len(row) > 1 else ""
-                    ppb_clean = ppb_raw.lower().strip()
+                    # Get ppb values from all sample columns — use the highest
+                    ppb_values = []
+                    all_nd = True
+                    for col in ppb_cols:
+                        if col >= len(row):
+                            continue
+                        raw = str(row[col] or "").strip().lower()
+                        if raw in NOT_DETECTED_PATTERNS or raw.startswith("<"):
+                            continue
+                        numeric = re.sub(r"[^\d.]", "", raw)
+                        if numeric:
+                            ppb_values.append(float(numeric))
+                            all_nd = False
 
-                    if ppb_clean in NOT_DETECTED_PATTERNS or ppb_clean.startswith("<"):
-                        # Result is below detection limit — record as non-detect
+                    if ppb_values:
+                        ppb_value = max(ppb_values)
+                        below_detection = 0
+                    elif all_nd:
                         ppb_value = None
                         below_detection = 1
                     else:
-                        # Remove non-numeric characters except decimal point
-                        numeric = re.sub(r"[^\d.]", "", ppb_raw)
-                        if not numeric:
-                            logger.debug(
-                                "Skipping unparseable ppb '%s' in %s row %d",
-                                ppb_raw, report["filename"], row_idx
-                            )
-                            continue
-                        ppb_value = float(numeric)
-                        below_detection = 0
+                        continue
 
-                    # Determine category: use hint (all EWG PDFs are oat-focused),
-                    # but also try to infer from product name for edge cases
                     food_category = self._infer_category(
                         product_name, report["food_category_hint"]
                     )
@@ -152,7 +174,7 @@ class EWGFetcher(BaseFetcher):
                         "is_organic": int("organic" in product_name.lower()),
                         "methodology_note": (
                             "EWG commissioned independent lab test. "
-                            "Lab: Anresco Laboratories, San Francisco. "
+                            "Up to 3 samples per product; highest value recorded. "
                             "Method: LC-MS/MS."
                         ),
                         "confidence": "high",
@@ -171,24 +193,23 @@ class EWGFetcher(BaseFetcher):
         logger.info("%s: parsed %d product rows from %s", self.SOURCE_NAME, len(rows), pdf_path.name)
         return rows
 
-    def _derive_category_aggregate(self, tier1_rows: list[dict], report: dict) -> dict | None:
+    def _derive_category_aggregate(self, tier1_rows: list[dict], report: dict) -> list[dict]:
         """
         Compute Tier 2 category statistics directly from the Tier 1 product results.
-        This is the correct way — no hardcoded rates.
+        Returns a list of aggregate rows (one per food_category).
         """
         if not tier1_rows:
-            return None
+            return []
 
-        # Group by food_category (handle case where PDF has mixed categories)
         from collections import defaultdict
         by_category = defaultdict(list)
         for row in tier1_rows:
             by_category[row["food_category"]].append(row)
 
         aggregates = []
-        for category, rows in by_category.items():
-            total = len(rows)
-            detected = [r for r in rows if not r["below_detection"] and r["measured_ppb"]]
+        for category, cat_rows in by_category.items():
+            total = len(cat_rows)
+            detected = [r for r in cat_rows if not r["below_detection"] and r["measured_ppb"]]
             n_detected = len(detected)
             detection_rate = round(n_detected / total, 4) if total > 0 else None
             ppb_values = [r["measured_ppb"] for r in detected]
@@ -213,16 +234,16 @@ class EWGFetcher(BaseFetcher):
                 "unit_conversion": 1.0,
                 "methodology_note": (
                     f"Aggregate derived from {total} individual product tests in "
-                    f"{report['label']}. Lab: Anresco Laboratories. Method: LC-MS/MS."
+                    f"{report['label']}. Up to 3 samples per product. Method: LC-MS/MS."
                 ),
                 "confidence": "high",
-                "raw_file_path": str(aggregates[0]["raw_file_path"]) if aggregates else "",
+                "raw_file_path": str(tier1_rows[0]["raw_file_path"]) if tier1_rows else "",
                 "dedup_key": build_dedup_key(
                     "EWG", "aggregate", category, report["data_year"]
                 ),
             })
 
-        return aggregates[0] if len(aggregates) == 1 else aggregates if aggregates else None
+        return aggregates
 
     def _infer_category(self, product_name: str, hint: str) -> str:
         """
