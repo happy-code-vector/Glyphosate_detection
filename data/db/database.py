@@ -130,6 +130,46 @@ def _seed_category_aliases(conn):
         # ── Sunflower ─────────────────────────────────────────────────────
         "sunflower": "sunflower", "sunflower seed": "sunflower",
         "sunflower oil": "sunflower", "helianthus annuus": "sunflower",
+        # ── Butter (from USDA PDP) ────────────────────────────────────────
+        "butter": "butter", "dairy butter": "butter",
+        # ── Blueberries (from USDA PDP) ───────────────────────────────────
+        "blueberry": "blueberries", "blueberries": "blueberries",
+        "cultivated blueberries": "blueberries", "wild blueberries": "blueberries",
+        # ── Canned beets (from USDA PDP) ──────────────────────────────────
+        "canned beets": "canned_beets", "beets canned": "canned_beets",
+        # ── Candy/snacks ──────────────────────────────────────────────────
+        "candy": "corn", "confectionery": "corn",
+        # ── Protein products ─────────────────────────────────────────────
+        "protein bar": "soybeans", "protein powder": "soybeans",
+        "pea protein": "soybeans",
+        # ── UK-specific terms ─────────────────────────────────────────────
+        "cereals": "wheat", "cereal": "wheat",
+        "bread and rolls": "wheat",
+        "breakfast cereal": "oats",
+        # ── Additional grains ─────────────────────────────────────────────
+        "millet": "corn", "sorghum": "corn",
+        # ── Additional produce ────────────────────────────────────────────
+        "strawberries": "fresh_fruit", "grapes": "fresh_fruit",
+        "bananas": "fresh_fruit", "tomatoes": "fresh_vegetables",
+        "potatoes": "fresh_vegetables", "carrots": "fresh_vegetables",
+        "onions": "fresh_vegetables", "peppers": "fresh_vegetables",
+        "cucumbers": "fresh_vegetables", "celery": "fresh_vegetables",
+        "broccoli": "fresh_vegetables", "cabbage": "fresh_vegetables",
+        "mushrooms": "fresh_vegetables",
+        # ── Additional fruit ──────────────────────────────────────────────
+        "oranges": "fresh_fruit", "pears": "fresh_fruit",
+        "peaches": "fresh_fruit", "cherries": "fresh_fruit",
+        "cranberries": "fresh_fruit", "raspberries": "fresh_fruit",
+        # ── German terms (for BVL) ────────────────────────────────────────
+        "getreide": "wheat", "hafer": "oats", "soja": "soybeans",
+        "mais": "corn", "gerste": "barley", "roggen": "rye",
+        "reis": "rice", "hülsenfrüchte": "beans",
+        # ── General produce groups ────────────────────────────────────────
+        "oilseeds": "canola", "nuts": "fresh_fruit",
+        "dried fruit": "fresh_fruit", "juice": "fresh_fruit",
+        "processed food": "wheat", "snacks": "corn",
+        "crackers": "wheat", "chips": "corn",
+        "granola": "oats", "muesli": "oats",
     }
 
     conn.executemany(
