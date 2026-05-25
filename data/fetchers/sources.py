@@ -428,7 +428,7 @@ class CFIAFetcher(BaseFetcher):
         df.columns = [f"col_{i}" for i in range(len(df.columns))]
         logger.info("CFIA NCRMP rows: %d, columns: %d", len(df), len(df.columns))
 
-        skip_labels = {"PESTICIDES", "METAL", "VETERINARY DRUGS", "nan", ""}
+        skip_labels = {"PESTICIDES", "METAL", "METALS", "VETERINARY DRUGS", "nan", ""}
 
         # Filter for glyphosate group + specific test
         gly_mask = (
