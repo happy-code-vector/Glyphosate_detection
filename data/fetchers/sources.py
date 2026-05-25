@@ -850,7 +850,20 @@ class FDAFetcher(BaseFetcher):
         paths = []
         for report in FDA_REPORTS:
             year = report["year"]
-            zip_path = download_file(report["data_zip"], f"fda_{year}_residue.zip")
+            try:
+                zip_path = download_file(report["data_zip"], f"fda_{year}_residue.zip")
+            except Exception as e:
+                logger.warning(
+                    "FDA FY%s direct download failed (%s) — trying source page",
+                    year, e
+                )
+                zip_path = self._fetch_via_source_page(report)
+                if zip_path is None:
+                    logger.error(
+                        "FDA FY%s: could not download data — skipping this year", year
+                    )
+                    continue
+
             txt_path = Path(__file__).parent.parent / "raw_data" / report["data_file"]
             if not txt_path.exists():
                 with zipfile.ZipFile(zip_path) as zf:
@@ -869,9 +882,34 @@ class FDAFetcher(BaseFetcher):
             paths.append(txt_path)
         return paths
 
+    def _fetch_via_source_page(self, report: dict) -> Path | None:
+        """Try to find the download link on the FDA source page."""
+        try:
+            from bs4 import BeautifulSoup
+            html = fetch_page(report["source_url"])
+            soup = BeautifulSoup(html, "html.parser")
+            # Look for links to ZIP or media download files
+            for a in soup.find_all("a", href=True):
+                href = a["href"]
+                if ".zip" in href.lower() or "/media/" in href.lower():
+                    if "download" in href.lower() or "sample" in href.lower() or "residue" in href.lower():
+                        if not href.startswith("http"):
+                            href = "https://www.fda.gov" + href
+                        return download_file(href, f"fda_{report['year']}_residue.zip")
+            logger.warning("No download link found on %s", report["source_url"])
+            return None
+        except Exception as e:
+            logger.warning("Failed to scrape FDA source page for FY%s: %s", report["year"], e)
+            return None
+
     def parse(self, files: list[Path]) -> list[dict]:
         all_rows = []
-        for path, report in zip(files, FDA_REPORTS):
+        # Match files to reports by data_file name
+        file_map = {f.name: f for f in files}
+        for report in FDA_REPORTS:
+            path = file_map.get(report["data_file"])
+            if path is None:
+                continue
             rows = self._parse_fda(path, report)
             all_rows.extend(rows)
         return all_rows
