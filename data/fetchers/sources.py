@@ -213,12 +213,67 @@ class CFIAFetcher(BaseFetcher):
 # substance name, and measured concentration (mg/kg).
 EFSA_REPORTS = [
     {
+        "label": "EFSA EU Pesticide Residue Monitoring 2016",
+        "zenodo_record": "1320312",
+        "filename": "efsa_2016_visualisation.xlsx",
+        "published_date": "2018-07-01",
+        "data_year": 2016,
+        "source_url": "https://zenodo.org/records/1320312",
+        "format": "visualisation",
+    },
+    {
+        "label": "EFSA EU Pesticide Residue Monitoring 2017",
+        "zenodo_record": "3254912",
+        "filename": "efsa_2017_visualisation.xlsx",
+        "published_date": "2019-06-01",
+        "data_year": 2017,
+        "source_url": "https://zenodo.org/records/3254912",
+        "format": "visualisation",
+    },
+    {
+        "label": "EFSA EU Pesticide Residue Monitoring 2020",
+        "zenodo_record": "6410774",
+        "filename": "efsa_2020_enforcement.xlsx",
+        "published_date": "2022-03-01",
+        "data_year": 2020,
+        "source_url": "https://zenodo.org/records/6410774",
+        "format": "enforcement",
+    },
+    {
+        "label": "EFSA EU Pesticide Residue Monitoring 2021",
+        "zenodo_record": "7767236",
+        "filename": "efsa_2021_enforcement.xlsx",
+        "published_date": "2023-04-01",
+        "data_year": 2021,
+        "source_url": "https://zenodo.org/records/7767236",
+        "format": "enforcement",
+    },
+    {
+        "label": "EFSA EU Pesticide Residue Monitoring 2022",
+        "zenodo_record": "10853986",
+        "filename": "efsa_2022_enforcement.xlsx",
+        "published_date": "2024-04-01",
+        "data_year": 2022,
+        "source_url": "https://zenodo.org/records/10853986",
+        "format": "enforcement",
+    },
+    {
         "label": "EFSA EU Pesticide Residue Monitoring 2023",
         "zenodo_record": "14765085",
         "filename": "efsa_2023_enforcement.xlsx",
         "published_date": "2025-01-01",
         "data_year": 2023,
         "source_url": "https://zenodo.org/records/14765085",
+        "format": "enforcement",
+    },
+    {
+        "label": "EFSA EU Pesticide Residue Monitoring 2024",
+        "zenodo_record": "18327007",
+        "filename": "efsa_2024_enforcement.xlsx",
+        "published_date": "2026-05-01",
+        "data_year": 2024,
+        "source_url": "https://zenodo.org/records/18327007",
+        "format": "enforcement",
     },
 ]
 
@@ -236,7 +291,7 @@ class EFSAFetcher(BaseFetcher):
         return paths
 
     def _fetch_enforcement(self, report: dict) -> Path:
-        """Download enforcement data XLSX from Zenodo."""
+        """Download enforcement or visualisation data XLSX from Zenodo."""
         cache_path = Path(__file__).parent.parent / "raw_data" / report["filename"]
 
         if cache_path.exists():
@@ -250,20 +305,33 @@ class EFSAFetcher(BaseFetcher):
         record_data = resp.json()
 
         files = record_data.get("files", [])
-        # Find the enforcement/supporting data XLSX (smallest XLSX, not the huge ZIP)
-        xlsx_files = [
-            f for f in files
-            if f.get("key", "").lower().endswith(".xlsx")
-            and "enforcement" in f.get("key", "").lower()
-        ]
-        if not xlsx_files:
-            xlsx_files = [f for f in files if f.get("key", "").lower().endswith(".xlsx")]
+        fmt = report.get("format", "enforcement")
+
+        if fmt == "enforcement":
+            xlsx_files = [
+                f for f in files
+                if f.get("key", "").lower().endswith(".xlsx")
+                and "enforcement" in f.get("key", "").lower()
+            ]
+            if not xlsx_files:
+                xlsx_files = [f for f in files if f.get("key", "").lower().endswith(".xlsx")]
+        else:
+            xlsx_files = [
+                f for f in files
+                if f.get("key", "").lower().endswith(".xlsx")
+                and "monitoring" in f.get("key", "").lower()
+            ]
+            if not xlsx_files:
+                xlsx_files = [f for f in files if f.get("key", "").lower().endswith(".xlsx")]
 
         if not xlsx_files:
             raise RuntimeError(f"No XLSX files found in Zenodo record {record_id}")
 
-        # Pick the smallest XLSX (enforcement data, not huge exposure assessments)
-        data_file = min(xlsx_files, key=lambda f: f.get("size", 0))
+        if fmt == "enforcement":
+            data_file = min(xlsx_files, key=lambda f: f.get("size", 0))
+        else:
+            data_file = max(xlsx_files, key=lambda f: f.get("size", 0))
+
         download_url = data_file.get("links", {}).get("self")
         if not download_url:
             raise RuntimeError(f"No download URL for {data_file.get('key','')}")
@@ -273,7 +341,11 @@ class EFSAFetcher(BaseFetcher):
     def parse(self, files: list[Path]) -> list[dict]:
         all_rows = []
         for path, report in zip(files, EFSA_REPORTS):
-            rows = self._parse_enforcement(path, report)
+            fmt = report.get("format", "enforcement")
+            if fmt == "visualisation":
+                rows = self._parse_visualisation(path, report)
+            else:
+                rows = self._parse_enforcement(path, report)
             all_rows.extend(rows)
         return all_rows
 
@@ -348,6 +420,102 @@ class EFSAFetcher(BaseFetcher):
 
         logger.info("EFSA: parsed %d category rows from %s", len(rows), xlsx_path.name)
         return rows
+
+    def _parse_visualisation(self, xlsx_path: Path, report: dict) -> list[dict]:
+        """
+        Parse EFSA visualisation XLSX (2016-2017 format).
+        Different structure than enforcement annexes — scans sheets for
+        glyphosate rows with commodity and residue data.
+        """
+        import openpyxl
+
+        wb = openpyxl.load_workbook(xlsx_path, read_only=True, data_only=True)
+        all_rows = []
+
+        for sheet_name in wb.sheetnames:
+            ws = wb[sheet_name]
+            rows_iter = ws.iter_rows(values_only=True)
+
+            headers = None
+            for row in rows_iter:
+                row_str = [str(c).lower() if c else "" for c in row]
+                if any("glyphosate" in s for s in row_str):
+                    headers = [str(c).strip() if c else "" for c in row]
+                    break
+                if (any("substance" in s for s in row_str)
+                        and any(t in " ".join(row_str) for t in ["commodity", "product", "matrix"])):
+                    headers = [str(c).strip() if c else "" for c in row]
+                    break
+
+            if not headers:
+                continue
+
+            headers_lower = [h.lower() for h in headers]
+
+            substance_col = next((i for i, h in enumerate(headers_lower) if "substance" in h), None)
+            commodity_col = next((i for i, h in enumerate(headers_lower) if any(t in h for t in ["commodity", "matrix", "product", "food"])), None)
+            result_col = next((i for i, h in enumerate(headers_lower) if any(t in h for t in ["result", "value", "concentration", "mean", "level"])), None)
+            samples_col = next((i for i, h in enumerate(headers_lower) if any(t in h for t in ["sample", "number", "total", "analysed"])), None)
+
+            if substance_col is None or commodity_col is None:
+                continue
+
+            for row in rows_iter:
+                if row[commodity_col] is None:
+                    continue
+                substance = str(row[substance_col] or "").lower()
+                if "glyphosate" not in substance:
+                    continue
+                # Exclude AMPA (metabolite)
+                words = substance.split()
+                if any("ampa" in w for w in words):
+                    continue
+
+                raw_cat = str(row[commodity_col]).strip()
+                food_category = normalize_category(raw_cat)
+                if not food_category:
+                    continue
+
+                total = int(row[samples_col]) if samples_col is not None and row[samples_col] else None
+                result_val = None
+                if result_col is not None and row[result_col] is not None:
+                    try:
+                        result_val = float(row[result_col])
+                    except (ValueError, TypeError):
+                        pass
+
+                avg_ppb = round(result_val * 1000, 2) if result_val else None
+                max_ppb = avg_ppb
+
+                all_rows.append({
+                    "tier": 2,
+                    "source_name": "EFSA",
+                    "source_url": report["source_url"],
+                    "report_label": report["label"],
+                    "published_date": report["published_date"],
+                    "data_year": report["data_year"],
+                    "food_category": food_category,
+                    "raw_category": raw_cat,
+                    "samples_total": total or 1,
+                    "samples_detected": 1,
+                    "detection_rate": None,
+                    "avg_ppb": avg_ppb,
+                    "max_ppb": max_ppb,
+                    "original_unit": "mg/kg",
+                    "unit_conversion": 1000.0,
+                    "methodology_note": (
+                        f"EFSA visualisation data ({report['data_year']}). "
+                        "Aggregated statistics per commodity. "
+                        "Detection rate not available in this format."
+                    ),
+                    "confidence": "low",
+                    "raw_file_path": str(xlsx_path),
+                    "dedup_key": build_dedup_key("EFSA", food_category, report["data_year"]),
+                })
+
+        wb.close()
+        logger.info("EFSA visualisation: parsed %d rows from %s", len(all_rows), xlsx_path.name)
+        return all_rows
 
     def _find_col(self, df, candidates):
         for col in candidates:
