@@ -93,6 +93,21 @@ CREATE TABLE IF NOT EXISTS ingest_log (
 );
 
 -- ─────────────────────────────────────────────
+-- Regulatory tolerance limits (reference data)
+-- EPA, Codex, and other MRL/tolerance values per commodity.
+-- ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS tolerance_limits (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    food_category       TEXT NOT NULL,
+    raw_commodity       TEXT,
+    tolerance_ppm       REAL NOT NULL,
+    tolerance_ppb       REAL NOT NULL,
+    source              TEXT NOT NULL,
+    regulation_reference TEXT,
+    dedup_key           TEXT UNIQUE
+);
+
+-- ─────────────────────────────────────────────
 -- App-facing view: best available data per category
 -- Resolves conflicts when multiple sources cover same category.
 -- Source priority: EWG > FDA > CFIA > EFSA

@@ -31,7 +31,7 @@ logging.basicConfig(
 logger = logging.getLogger("pipeline")
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--source", help="Run only this source: ewg/florida/cfia/efsa/fda")
+parser.add_argument("--source", help="Run only this source: ewg/florida/cfia/efsa/fda/usda_pdp/uk_fsa/ca_dpr/germany_bvl/epa_tolerances")
 parser.add_argument("--validate", action="store_true")
 args = parser.parse_args()
 
@@ -41,16 +41,26 @@ def run_all():
     from fetchers.ewg import EWGFetcher
     from fetchers.florida_hff import FloridaHFFetcher
     from fetchers.sources import CFIAFetcher, EFSAFetcher, FDAFetcher
+    from fetchers.usda_pdp import USDA_PDPFetcher
+    from fetchers.uk_fsa import UKFSAFetcher
+    from fetchers.ca_dpr import CADPRFetcher
+    from fetchers.germany_bvl import GermanyBVLFetcher
+    from fetchers.epa_tolerances import EPATolerancesFetcher
 
     logger.info("Initializing database")
     initialize()
 
     sources = [
-        ("cfia",    CFIAFetcher),
-        ("efsa",    EFSAFetcher),
-        ("fda",     FDAFetcher),
-        ("ewg",     EWGFetcher),
-        ("florida", FloridaHFFetcher),
+        ("cfia",        CFIAFetcher),
+        ("efsa",        EFSAFetcher),
+        ("fda",         FDAFetcher),
+        ("ewg",         EWGFetcher),
+        ("florida",     FloridaHFFetcher),
+        ("usda_pdp",    USDA_PDPFetcher),
+        ("uk_fsa",      UKFSAFetcher),
+        ("ca_dpr",      CADPRFetcher),
+        ("germany_bvl", GermanyBVLFetcher),
+        ("epa_tolerances", EPATolerancesFetcher),
     ]
 
     totals = {"inserted": 0, "skipped": 0, "failed": 0}
