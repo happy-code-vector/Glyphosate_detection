@@ -2,7 +2,14 @@
   "permissions": {
     "allow": [
       "Bash(python main.py --fallback)",
-      "Bash(python -c ' *)"
+      "Bash(python -c ' *)",
+      "Bash(python -c \"from db.database import initialize, DB_PATH, build_dedup_key, normalize_category, insert_rows; print\\(f'db module OK, DB_PATH={DB_PATH}'\\)\")",
+      "Bash(python -c \"from fetchers.base import BaseFetcher, download_file, fetch_page; print\\('base module OK'\\)\")",
+      "Bash(python -c \"from fetchers.ewg import EWGFetcher; print\\('ewg module OK'\\)\")",
+      "Bash(python -c \"from fetchers.florida_hff import FloridaHFFetcher; print\\('florida module OK'\\)\")",
+      "Bash(python -c \"from fetchers.sources import CFIAFetcher, EFSAFetcher, FDAFetcher; print\\('sources module OK'\\)\")",
+      "Bash(python -c \"from run_pipeline import run_all, validate; print\\('run_pipeline imports OK'\\)\")",
+      "Bash(python -c \"from db.database import initialize; initialize\\(\\); print\\('DB initialized successfully'\\)\")"
     ]
   }
 }
