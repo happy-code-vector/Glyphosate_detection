@@ -27,3 +27,4 @@ data/logs/
 Thumbs.db
 .DS_Store
 *.db*
+.claude
