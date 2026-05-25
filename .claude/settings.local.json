@@ -18,7 +18,8 @@
       "Bash(sqlite3 *)",
       "Bash(curl -s *)",
       "Bash(ls /c/Python*)",
-      "Read(//c/Users/**)"
+      "Read(//c/Users/**)",
+      "Bash(/c/Users/Administrator/AppData/Local/Programs/Python/Python312/python.exe -m pip install PyPDF2)"
     ]
   }
 }
