@@ -26,3 +26,4 @@ data/logs/
 # OS
 Thumbs.db
 .DS_Store
+*.db*
