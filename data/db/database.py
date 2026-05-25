@@ -170,6 +170,28 @@ def _seed_category_aliases(conn):
         "processed food": "wheat", "snacks": "corn",
         "crackers": "wheat", "chips": "corn",
         "granola": "oats", "muesli": "oats",
+        # ── Singular produce names (from NCRMP) ──────────────────────────
+        "carrot": "fresh_vegetables", "apple": "fresh_fruit",
+        "tomato": "fresh_vegetables", "potato": "fresh_vegetables",
+        "mushroom": "fresh_vegetables", "onion": "fresh_vegetables",
+        "pepper": "fresh_vegetables", "cucumber": "fresh_vegetables",
+        # ── NCRMP-specific names ──────────────────────────────────────────
+        "saskatoon berry": "fresh_fruit", "saskatoon": "fresh_fruit",
+        "herb - dill - fresh": "fresh_vegetables", "herb": "fresh_vegetables",
+        "herbs": "fresh_vegetables", "dill": "fresh_vegetables",
+        "misc fruit": "fresh_fruit", "misc vegetable": "fresh_vegetables",
+        "bean - navy": "beans", "bean - black": "beans",
+        "bean - kidney": "beans", "bean - other": "beans",
+        "bean - white": "beans", "bean - pinto": "beans",
+        "juice - orange": "fresh_fruit", "juice - tomato": "fresh_fruit",
+        "juice - apple": "fresh_fruit", "juice": "fresh_fruit",
+        # ── Additional NCRMP commodities ──────────────────────────────────
+        "corn product": "corn", "corn products": "corn",
+        "grain product": "wheat", "grain products": "wheat",
+        "infant formula": "infant_cereal", "baby food": "infant_cereal",
+        "tea": "fresh_fruit", "coffee": "fresh_fruit",
+        "honey": "fresh_fruit", "spice": "fresh_vegetables",
+        "oil": "canola", "vinegar": "fresh_fruit",
     }
 
     conn.executemany(
