@@ -972,16 +972,22 @@ class FDAFetcher(BaseFetcher):
                 try:
                     with zipfile.ZipFile(zip_path) as zf:
                         names = zf.namelist()
+                        year_str = str(year)
                         match = next(
-                            (f for f in names if f.lower() == report["data_file"].lower()), None
+                            (f for f in names
+                             if "countryproductresidue" in f.lower()
+                             and (year_str in f or f.lower() == "countryproductresiduedata.txt")),
+                            None
                         )
                         if not match:
                             logger.error(
-                                "%s not found in zip. Available: %s — skipping year",
-                                report["data_file"], names
+                                "CountryProductResidue file not found in FY%s zip. Available: %s — skipping year",
+                                year, names
                             )
                             continue
-                        txt_path.write_bytes(zf.read(match))
+                        # Save to the canonical filename expected by parser
+                        data = zf.read(match)
+                        txt_path.write_bytes(data)
                         logger.info("Extracted %s from %s", match, zip_path.name)
                 except zipfile.BadZipFile:
                     logger.error("FDA FY%s: downloaded file is not a valid ZIP — skipping", year)
