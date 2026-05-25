@@ -316,6 +316,7 @@ class CFIAFetcher(BaseFetcher):
         pest_col = self._find_col(df, [
             "pesticide", "substance", "param_name", "analyte",
             "chemical", "compound", "pesticide_name", "active_substance",
+            "component", "composant",
         ])
         if not pest_col:
             logger.warning("CFIA: no pesticide column found in %s — skipping", report["label"])
@@ -344,12 +345,12 @@ class CFIAFetcher(BaseFetcher):
 
         result_col = self._find_col(df, [
             "result", "value", "concentration", "level", "residue",
-            "detected_concentration", "measured_value",
+            "detected_concentration", "measured_value", "amount",
         ])
         if not result_col:
             result_col = next((c for c in df.columns if "result" in c or "value" in c), None)
 
-        unit_col = self._find_col(df, ["unit", "units", "result_unit"])
+        unit_col = self._find_col(df, ["unit", "units", "result_unit", "report_unit"])
 
         conversion = 1000.0
         original_unit = "mg/kg"
