@@ -35,8 +35,9 @@ def _build_session() -> requests.Session:
     session.mount("http://", adapter)
     session.headers.update({
         "User-Agent": (
-            "ResidueIQ-DataPipeline/1.0 "
-            "(research data collection; contact@residueiq.app)"
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/125.0.0.0 Safari/537.36"
         )
     })
     return session

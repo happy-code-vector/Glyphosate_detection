@@ -32,8 +32,7 @@ RAW_DATA_DIR = Path(__file__).parent.parent / "raw_data"
 FLORIDA_REPORTS = [
     {
         "label": "Florida HFF Bread Glyphosate 2026",
-        "url": "https://www.exposingfoodtoxins.com/glyphosate-bread",
-        "fallback_url": "https://www.floridahealth.gov",
+        "url": "https://web.archive.org/web/20260414123704/https://exposingfoodtoxins.com/bread/",
         "filename": "florida_hff_bread_2026.html",
         "published_date": "2026-02-01",
         "data_year": 2026,
@@ -41,8 +40,7 @@ FLORIDA_REPORTS = [
     },
     {
         "label": "Florida HFF Infant Formula 2026",
-        "url": "https://www.exposingfoodtoxins.com/glyphosate-infant-formula",
-        "fallback_url": "https://www.floridahealth.gov",
+        "url": "https://web.archive.org/web/20260414123704/https://exposingfoodtoxins.com/food-toxins/",
         "filename": "florida_hff_infant_2026.html",
         "published_date": "2026-01-01",
         "data_year": 2026,
@@ -74,28 +72,10 @@ class FloridaHFFetcher(BaseFetcher):
                 logger.info("Cache hit: %s", report["filename"])
                 paths.append(cache_path)
                 continue
-            try:
-                html = fetch_page(report["url"])
-                cache_path.write_text(html, encoding="utf-8")
-                logger.info("Fetched %s (%d bytes)", report["url"], len(html))
-                paths.append(cache_path)
-            except Exception as e:
-                # Try fallback URL if primary fails
-                if report.get("fallback_url"):
-                    logger.warning(
-                        "Primary URL failed (%s), trying fallback: %s", e, report["fallback_url"]
-                    )
-                    try:
-                        html = fetch_page(report["fallback_url"])
-                        cache_path.write_text(html, encoding="utf-8")
-                        paths.append(cache_path)
-                    except Exception as e2:
-                        logger.error("Both URLs failed for %s: %s", report["label"], e2)
-                        raise RuntimeError(
-                            f"Could not fetch {report['label']}: {e2}"
-                        ) from e2
-                else:
-                    raise
+            html = fetch_page(report["url"])
+            cache_path.write_text(html, encoding="utf-8")
+            logger.info("Fetched %s (%d bytes)", report["url"], len(html))
+            paths.append(cache_path)
         return paths
 
     def parse(self, files: list[Path]) -> list[dict]:
@@ -109,30 +89,112 @@ class FloridaHFFetcher(BaseFetcher):
         html = html_path.read_text(encoding="utf-8")
         soup = BeautifulSoup(html, "html.parser")
 
+        # Try standard HTML tables first
         tables = soup.find_all("table")
-        if not tables:
-            raise ValueError(
-                f"No <table> elements found in {html_path.name}. "
-                "Page structure may have changed."
+        if tables:
+            for table in tables:
+                table_rows = self._parse_table(table, report)
+                if table_rows:
+                    logger.info(
+                        "%s: parsed %d product rows from %s",
+                        self.SOURCE_NAME, len(table_rows), html_path.name
+                    )
+                    return table_rows
+
+        # Try Divi table builder (dvmd_table_maker) — cells are div.dvmd_tm_cdata
+        divi_rows = self._parse_divi_table(soup, report, html_path)
+        if divi_rows:
+            logger.info(
+                "%s: parsed %d product rows from Divi table in %s",
+                self.SOURCE_NAME, len(divi_rows), html_path.name
             )
+            return divi_rows
+
+        raise ValueError(
+            f"No product/ppb data found in {html_path.name}. "
+            "Page structure may have changed."
+        )
+
+    def _parse_divi_table(self, soup, report: dict, html_path: Path = None) -> list[dict]:
+        """Parse Divi table builder cells. Data cells are div.dvmd_tm_cdata."""
+        cells = soup.find_all("div", class_="dvmd_tm_cdata")
+        if len(cells) < 4:
+            return []
+
+        texts = [c.get_text(strip=True) for c in cells]
+
+        # Find repeating group size by looking for the first cell value repeating
+        group_size = 0
+        first_val = texts[0]
+        for i in range(2, min(12, len(texts))):
+            if texts[i] == first_val:
+                group_size = i
+                break
+
+        if group_size == 0:
+            # Fallback: assume numeric values are ppb, extract them with preceding text
+            group_size = 4
 
         rows = []
-        for table in tables:
-            table_rows = self._parse_table(table, report)
-            if table_rows:
-                rows.extend(table_rows)
-                break  # Use first table that yields results
+        for i in range(0, len(texts) - group_size + 1, group_size):
+            group = texts[i:i + group_size]
+            # Find ppb value — the numeric cell with a decimal point
+            ppb_value = None
+            product_name = None
+            brand = None
+            for val in group:
+                numeric = re.sub(r"[^\d.]", "", val)
+                if numeric and "." in val:
+                    try:
+                        ppb_value = float(numeric)
+                    except ValueError:
+                        pass
+            # Product name is the most descriptive non-header, non-numeric cell
+            header_words = {"bread", "brand", "type", "pesticide", "contaminent",
+                          "glyphosate", "food", "infant", "formula", "cereal", "candy"}
+            for val in group:
+                lower = val.lower().strip()
+                if not val or re.match(r'^[\d.]+$', val):
+                    continue
+                if any(lower == hw for hw in header_words):
+                    continue
+                if lower.startswith("pesticide") or lower.startswith("contaminent"):
+                    continue
+                if product_name is None or (len(val) > len(product_name) and ppb_value is not None):
+                    product_name = val
 
-        if not rows:
-            raise ValueError(
-                f"No valid product/ppb rows extracted from {html_path.name}. "
-                "Inspect the page — table structure or column names may have changed."
-            )
+            if not product_name or ppb_value is None:
+                continue
 
-        logger.info(
-            "%s: parsed %d product rows from %s",
-            self.SOURCE_NAME, len(rows), html_path.name
-        )
+            raw_cat = self._infer_raw_category(product_name, report["category_hint"])
+            food_category = normalize_category(raw_cat) or report["category_hint"]
+
+            rows.append({
+                "tier": 1,
+                "source_name": "FloridaHFF",
+                "source_url": report["url"],
+                "report_label": report["label"],
+                "published_date": report["published_date"],
+                "data_year": report["data_year"],
+                "food_category": food_category,
+                "raw_category": raw_cat,
+                "product_name": product_name,
+                "measured_ppb": ppb_value,
+                "below_detection": 0,
+                "original_unit": "ppb",
+                "unit_conversion": 1.0,
+                "is_organic": int("organic" in product_name.lower()),
+                "methodology_note": (
+                    "Florida Healthy Florida First program. "
+                    "Glyphosate test results from exposingfoodtoxins.com."
+                ),
+                "confidence": "high",
+                "raw_file_path": str(html_path) if html_path else "",
+                "dedup_key": build_dedup_key(
+                    "FloridaHFF", product_name, report["data_year"]
+                ),
+            })
+
         return rows
 
     def _parse_table(self, table, report: dict) -> list[dict]:

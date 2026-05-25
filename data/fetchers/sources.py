@@ -360,17 +360,14 @@ class EFSAFetcher(BaseFetcher):
 # FDA
 # ══════════════════════════════════════════════════════════════════════
 
-# FDA Pesticide Residue Monitoring Program — annual TXT files
-# FY2023 is current. Update FDA_REPORTS when new FY data is released.
-FDA_BASE = "https://www.fda.gov/food/pesticides/pesticide-residue-monitoring-report-and-data-fy-"
+# FDA Pesticide Residue Monitoring Program — FY2023 uses aggregated
+# CountryProductResidueData file with per-product per-chemical stats.
 FDA_REPORTS = [
     {
         "label": "FDA Pesticide Monitoring FY2023",
         "year": 2023,
-        "sample_file_url": f"{FDA_BASE}2023",   # landing page — real URLs below
-        "sample_zip": "https://www.fda.gov/media/161430/download",  # SampleData2023.zip
-        "chem_zip":   "https://www.fda.gov/media/161432/download",  # Chemical2023.zip
-        "prod_file":  "https://www.fda.gov/media/161433/download",  # ProdCode.txt
+        "data_zip": "https://www.fda.gov/media/190132/download?attachment",
+        "data_file": "CountryProductResidueData2023.txt",
         "source_url": "https://www.fda.gov/food/pesticides/pesticide-residue-monitoring-report-and-data-fy-2023",
         "published_date": "2025-01-01",
         "data_year": 2023,
@@ -382,127 +379,91 @@ class FDAFetcher(BaseFetcher):
     SOURCE_NAME = "FDA"
 
     def fetch(self) -> list[Path]:
-        raw = Path(__file__).parent.parent / "raw_data"
         paths = []
         for report in FDA_REPORTS:
             year = report["year"]
-            sample_path = self._get_txt_from_zip(
-                report["sample_zip"], f"fda_{year}_samples.zip", f"SampleData{year}.txt"
-            )
-            chem_path = self._get_txt_from_zip(
-                report["chem_zip"], f"fda_{year}_chemical.zip", f"Chemical{year}.txt"
-            )
-            prod_path = download_file(report["prod_file"], f"fda_{year}_prodcode.txt")
-            paths.append((sample_path, chem_path, prod_path, report))
+            zip_path = download_file(report["data_zip"], f"fda_{year}_residue.zip")
+            txt_path = Path(__file__).parent.parent / "raw_data" / report["data_file"]
+            if not txt_path.exists():
+                with zipfile.ZipFile(zip_path) as zf:
+                    names = zf.namelist()
+                    match = next(
+                        (f for f in names if f.lower() == report["data_file"].lower()), None
+                    )
+                    if not match:
+                        raise ValueError(
+                            f"{report['data_file']} not found in zip. Available: {names}"
+                        )
+                    txt_path.write_bytes(zf.read(match))
+                    logger.info("Extracted %s from %s", match, zip_path.name)
+            else:
+                logger.info("Cache hit: %s", txt_path.name)
+            paths.append(txt_path)
         return paths
 
-    def _get_txt_from_zip(self, zip_url: str, zip_name: str, txt_name: str) -> Path:
-        raw = Path(__file__).parent.parent / "raw_data"
-        txt_path = raw / txt_name
-        if txt_path.exists():
-            logger.info("Cache hit: %s", txt_name)
-            return txt_path
-        zip_path = download_file(zip_url, zip_name)
-        with zipfile.ZipFile(zip_path) as zf:
-            if txt_name not in zf.namelist():
-                available = zf.namelist()
-                # Try case-insensitive match
-                match = next(
-                    (f for f in available if f.lower() == txt_name.lower()), None
-                )
-                if not match:
-                    raise ValueError(
-                        f"{txt_name} not found in {zip_name}. "
-                        f"Available files: {available}"
-                    )
-                txt_name = match
-            txt_path.write_bytes(zf.read(txt_name))
-        return txt_path
-
-    def parse(self, files) -> list[dict]:
+    def parse(self, files: list[Path]) -> list[dict]:
         all_rows = []
-        for sample_path, chem_path, prod_path, report in files:
-            rows = self._parse_fda(sample_path, chem_path, prod_path, report)
+        for path, report in zip(files, FDA_REPORTS):
+            rows = self._parse_fda(path, report)
             all_rows.extend(rows)
         return all_rows
 
-    def _parse_fda(self, sample_path, chem_path, prod_path, report) -> list[dict]:
+    def _parse_fda(self, data_path: Path, report: dict) -> list[dict]:
         """
-        FDA files are tab-delimited TXT. Columns documented in FDA User Manual PDF.
-        SampleData: SAMPLE_ID, PROD_CODE, CHEM_CODE, CONCEN, UNIT, ...
-        Chemical:   CHEM_CODE, CHEM_NAME, ...
-        ProdCode:   PROD_CODE, PRODUCT, ...
+        FDA CountryProductResidueData file is tab-delimited, pre-aggregated per
+        product per chemical per country. Columns include:
+          ProdName, ResName, Spls., Pos., Pos%, Mean, Minimum, Median, 90th, Maximum
+        Values are in ppm (mg/kg) — convert to ppb (× 1000).
         """
-        samples  = pd.read_csv(sample_path, sep="\t", low_memory=False)
-        chemicals = pd.read_csv(chem_path,  sep="\t", low_memory=False)
-        products  = pd.read_csv(prod_path,   sep="\t", low_memory=False)
+        df = pd.read_csv(data_path, sep="\t", low_memory=False, encoding="latin-1")
+        df.columns = [c.strip() for c in df.columns]
+        logger.info("FDA columns: %s", list(df.columns))
 
-        # Normalize column names
-        for df in [samples, chemicals, products]:
-            df.columns = [c.upper().strip() for c in df.columns]
+        # Filter to GLYPHOSATE only (exclude N-ACETYLGLYPHOSATE and other metabolites)
+        gly = df[
+            df["ResName"].str.upper().str.strip() == "GLYPHOSATE"
+        ].copy()
 
-        logger.info("FDA sample columns: %s", list(samples.columns))
-        logger.info("FDA chemical columns: %s", list(chemicals.columns))
-        logger.info("FDA product columns: %s", list(products.columns))
-
-        # Find glyphosate chemical code(s)
-        chem_name_col = self._find_col(chemicals, ["CHEM_NAME", "CHEMICAL_NAME", "NAME", "PESTICIDE"])
-        chem_code_col = self._find_col(chemicals, ["CHEM_CODE", "CHEMICAL_CODE", "CODE"])
-        if not chem_name_col or not chem_code_col:
-            raise ValueError(f"Cannot find chemical name/code columns. Available: {list(chemicals.columns)}")
-
-        gly_codes = chemicals[
-            chemicals[chem_name_col].str.lower().str.contains("glyphosate", na=False)
-        ][chem_code_col].tolist()
-
-        if not gly_codes:
-            logger.warning("FDA: no glyphosate rows found in chemical file")
+        if gly.empty:
+            logger.warning("FDA: no glyphosate rows found")
             return []
 
-        logger.info("FDA: glyphosate chemical codes: %s", gly_codes)
+        logger.info("FDA: %d glyphosate product-country rows", len(gly))
 
-        # Filter samples to glyphosate
-        sample_chem_col = self._find_col(samples, ["CHEM_CODE", "CHEMICAL_CODE", "PESTICIDE_CODE"])
-        gly_samples = samples[samples[sample_chem_col].isin(gly_codes)].copy()
+        # Aggregate across countries by product name → canonical category
+        from collections import defaultdict
+        by_category = defaultdict(lambda: {"total": 0, "detected": 0, "ppb_values": [], "raw_cats": []})
 
-        if gly_samples.empty:
-            logger.warning("FDA: no glyphosate sample results found")
-            return []
-
-        # Merge product names
-        prod_code_col_s = self._find_col(gly_samples, ["PROD_CODE", "PRODUCT_CODE"])
-        prod_code_col_p = self._find_col(products, ["PROD_CODE", "PRODUCT_CODE"])
-        prod_name_col   = self._find_col(products, ["PRODUCT", "PROD_NAME", "FOOD_ITEM"])
-        conc_col        = self._find_col(gly_samples, ["CONCEN", "CONCENTRATION", "RESULT"])
-        unit_col        = self._find_col(gly_samples, ["UNIT", "RESULT_UNIT"])
-
-        if prod_code_col_s and prod_code_col_p:
-            gly_samples = gly_samples.merge(
-                products[[prod_code_col_p, prod_name_col]].drop_duplicates(),
-                left_on=prod_code_col_s,
-                right_on=prod_code_col_p,
-                how="left"
-            )
-
-        rows = []
-        for prod_code, group in gly_samples.groupby(prod_code_col_s):
-            raw_cat = str(group[prod_name_col].iloc[0]).strip() if prod_name_col else str(prod_code)
+        for _, row in gly.iterrows():
+            raw_cat = str(row["ProdName"]).strip()
             food_category = normalize_category(raw_cat)
             if not food_category:
-                logger.debug("FDA: no canonical category for '%s'", raw_cat)
                 continue
 
-            total = len(group)
-            conc_values = pd.to_numeric(group[conc_col], errors="coerce") if conc_col else pd.Series([])
-            detected = conc_values[conc_values > 0]
-            n_detected = len(detected)
-            detection_rate = round(n_detected / total, 4) if total > 0 else None
+            total = int(row.get("Spls.", 0) or 0)
+            pos = int(row.get("Pos.", 0) or 0)
+            mean_val = pd.to_numeric(row.get("Mean", 0), errors="coerce") or 0
+            max_val = pd.to_numeric(row.get("Maximum", 0), errors="coerce") or 0
 
-            # FDA concentrations in ppm (mg/kg) → ppb × 1000
-            unit = str(group[unit_col].iloc[0]).lower() if unit_col else "ppm"
-            conversion = 1000.0 if "ppm" in unit or "mg/kg" in unit else 1.0
-            avg_ppb = round(float(detected.mean()) * conversion, 2) if len(detected) > 0 else None
-            max_ppb = round(float(detected.max()) * conversion, 2) if len(detected) > 0 else None
+            cat = by_category[food_category]
+            cat["total"] += total
+            cat["detected"] += pos
+            # FDA Mean is in ppm — convert to ppb
+            if mean_val > 0:
+                cat["ppb_values"].append(mean_val * 1000)
+            if max_val > 0:
+                cat["ppb_values"].append(max_val * 1000)
+            cat["raw_cats"].append(raw_cat)
+
+        rows = []
+        for food_category, stats in by_category.items():
+            if stats["total"] == 0:
+                continue
+            n_detected = stats["detected"]
+            detection_rate = round(n_detected / stats["total"], 4)
+            avg_ppb = round(sum(stats["ppb_values"]) / len(stats["ppb_values"]), 2) if stats["ppb_values"] else None
+            max_ppb = round(max(stats["ppb_values"]), 2) if stats["ppb_values"] else None
+            raw_cat = ", ".join(sorted(set(stats["raw_cats"])))
 
             rows.append({
                 "tier": 2,
@@ -513,16 +474,20 @@ class FDAFetcher(BaseFetcher):
                 "data_year": report["data_year"],
                 "food_category": food_category,
                 "raw_category": raw_cat,
-                "samples_total": total,
+                "samples_total": stats["total"],
                 "samples_detected": n_detected,
                 "detection_rate": detection_rate,
                 "avg_ppb": avg_ppb,
                 "max_ppb": max_ppb,
-                "original_unit": unit,
-                "unit_conversion": conversion,
-                "methodology_note": "FDA Pesticide Residue Monitoring Program. US regulatory monitoring data.",
+                "original_unit": "ppm",
+                "unit_conversion": 1000.0,
+                "methodology_note": (
+                    "FDA Pesticide Residue Monitoring Program FY2023. "
+                    "Aggregated across all countries of origin per product type. "
+                    "Mean and Maximum from FDA summary stats (ppm converted to ppb)."
+                ),
                 "confidence": "high",
-                "raw_file_path": str(sample_path),
+                "raw_file_path": str(data_path),
                 "dedup_key": build_dedup_key("FDA", food_category, report["data_year"]),
             })
 
