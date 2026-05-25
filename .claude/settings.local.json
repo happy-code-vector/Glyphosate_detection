@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python main.py --fallback)",
+      "Bash(python -c ' *)"
+    ]
+  }
+}
