@@ -665,22 +665,54 @@ class EFSAFetcher(BaseFetcher):
 
     def _parse_enforcement(self, xlsx_path: Path, report: dict) -> list[dict]:
         """
-        Parse EFSA enforcement data (Table 2.2) for glyphosate MRL exceedances.
-        These are individual sample results where glyphosate exceeded the legal limit.
-        Table 2.3 provides overall rates but not per-category.
+        Parse EFSA enforcement data for glyphosate MRL exceedances.
+        Sheet name varies by year: Table 2.2 (2023+), Table 3.2 (2020-2022).
+        Column names also vary (e.g. 'Result Value (mg/kg)' vs 'Result (mg/kg)').
         """
+        import openpyxl
+        wb = openpyxl.load_workbook(xlsx_path, read_only=True)
+        sheet_candidates = ["Table 2.2", "Table 3.2"]
+        sheet_name = next((s for s in sheet_candidates if s in wb.sheetnames), None)
+        wb.close()
+        if not sheet_name:
+            logger.warning(
+                "EFSA: no enforcement sheet found in %s (sheets: %s)",
+                xlsx_path.name, wb.sheetnames,
+            )
+            return []
+
         df = pd.read_excel(
-            xlsx_path, sheet_name="Table 2.2",
-            header=None, skiprows=3
+            xlsx_path, sheet_name=sheet_name,
+            header=None,
         )
-        # First row after skip is the actual header
-        header = df.iloc[0].tolist()
-        df = df.iloc[1:].reset_index(drop=True)
+        # Find the header row dynamically — look for "Substance Name"
+        header_idx = None
+        for idx, row in df.iterrows():
+            vals = [str(v).strip() for v in row]
+            if any("Substance Name" in v for v in vals):
+                header_idx = idx
+                break
+        if header_idx is None:
+            logger.warning("EFSA: no header row found in %s", xlsx_path.name)
+            return []
+
+        header = df.iloc[header_idx].tolist()
+        df = df.iloc[header_idx + 1:].reset_index(drop=True)
         df.columns = [str(h).strip() for h in header]
-        logger.info("EFSA Table 2.2 columns: %s", list(df.columns))
+        logger.info("EFSA %s columns: %s", sheet_name, list(df.columns))
+
+        # Resolve column name variations across years
+        substance_col = self._find_col(df, ["Substance Name", "Substance Name*"])
+        result_col = self._find_col(df, ["Result (mg/kg)", "Result Value (mg/kg)"])
+        if substance_col is None or result_col is None:
+            logger.warning(
+                "EFSA: missing expected columns in %s (substance=%s, result=%s)",
+                xlsx_path.name, substance_col, result_col,
+            )
+            return []
 
         # Filter to glyphosate (substance name contains "glyphosate")
-        gly_mask = df["Substance Name"].str.lower().str.contains("glyphosate", na=False)
+        gly_mask = df[substance_col].str.lower().str.contains("glyphosate", na=False)
         gly_df = df[gly_mask].copy()
 
         if gly_df.empty:
@@ -698,7 +730,7 @@ class EFSAFetcher(BaseFetcher):
                 continue
 
             total = len(group)
-            values = pd.to_numeric(group["Result (mg/kg)"], errors="coerce").fillna(0)
+            values = pd.to_numeric(group[result_col], errors="coerce").fillna(0)
             detected = values[values > 0]
             n_detected = len(detected)
 
