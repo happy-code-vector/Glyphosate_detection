@@ -424,33 +424,44 @@ class CFIAFetcher(BaseFetcher):
     def _parse_ncrmp_csv(self, csv_path: Path, report: dict) -> list[dict]:
         """
         Parse NCRMP summary CSV. These are pre-aggregated tables with
-        unnamed columns. Structure (after skiprows=5):
-          Col 0 = food category, Col 2 = substance group, Col 3 = specific test,
-          Col 4 = total samples, Col 5 = positive samples,
-          Col 6 = avg ppm, Col 7 = min ppm, Col 8 = max ppm
+        unnamed columns. Food category is in a section header row ABOVE
+        each data block — we look backwards from each glyphosate row to
+        find the nearest commodity header.
         """
-        df = pd.read_csv(csv_path, low_memory=False, skiprows=5)
+        try:
+            df = pd.read_csv(csv_path, low_memory=False, skiprows=5)
+        except UnicodeDecodeError:
+            df = pd.read_csv(csv_path, low_memory=False, skiprows=5, encoding="latin-1")
         df.columns = [f"col_{i}" for i in range(len(df.columns))]
         logger.info("CFIA NCRMP rows: %d, columns: %d", len(df), len(df.columns))
 
-        # Filter for glyphosate group
-        gly_df = df[df["col_2"].astype(str).str.upper().str.strip() == "GLYPHOSATE"].copy()
-        if gly_df.empty:
+        skip_labels = {"PESTICIDES", "METAL", "VETERINARY DRUGS", "nan", ""}
+
+        # Filter for glyphosate group + specific test
+        gly_mask = (
+            df["col_2"].astype(str).str.upper().str.strip() == "GLYPHOSATE"
+        ) & (
+            df["col_3"].astype(str).str.strip().str.lower() == "glyphosate"
+        )
+        gly_indices = df[gly_mask].index.tolist()
+        if not gly_indices:
             logger.info("CFIA NCRMP: no glyphosate rows in %s", report["label"])
             return []
 
-        # Filter for specific "Glyphosate" test (exclude "Glyphosate Screen" and "AMPA")
-        gly_df = gly_df[gly_df["col_3"].astype(str).str.strip().str.lower() == "glyphosate"].copy()
-        if gly_df.empty:
-            logger.info("CFIA NCRMP: no specific glyphosate measurements in %s", report["label"])
-            return []
-
-        logger.info("CFIA NCRMP: %d glyphosate summary rows in %s", len(gly_df), report["label"])
+        logger.info("CFIA NCRMP: %d glyphosate rows in %s", len(gly_indices), report["label"])
 
         rows = []
-        for _, row in gly_df.iterrows():
-            raw_cat = str(row["col_0"]).strip()
-            if not raw_cat or raw_cat.lower() in ("nan", ""):
+        for gi in gly_indices:
+            # Look backwards for nearest section header (food category)
+            raw_cat = None
+            for j in range(gi - 1, max(0, gi - 30), -1):
+                col0 = str(df.iloc[j]["col_0"]).strip()
+                col1 = df.iloc[j].get("col_1")
+                if col0 and col0 not in skip_labels and (pd.isna(col1) or str(col1).strip() == "nan"):
+                    raw_cat = col0
+                    break
+
+            if not raw_cat:
                 continue
 
             food_category = normalize_category(raw_cat)
@@ -458,12 +469,12 @@ class CFIAFetcher(BaseFetcher):
                 logger.debug("CFIA NCRMP: no canonical category for '%s'", raw_cat)
                 continue
 
+            row = df.iloc[gi]
             total = int(pd.to_numeric(row.get("col_4"), errors="coerce") or 0)
             detected = int(pd.to_numeric(row.get("col_5"), errors="coerce") or 0)
             avg_ppm = pd.to_numeric(row.get("col_6"), errors="coerce")
             max_ppm = pd.to_numeric(row.get("col_8"), errors="coerce")
 
-            # NCRMP values are in ppm — convert to ppb
             avg_ppb = round(float(avg_ppm) * 1000, 2) if pd.notna(avg_ppm) and avg_ppm > 0 else None
             max_ppb = round(float(max_ppm) * 1000, 2) if pd.notna(max_ppm) and max_ppm > 0 else None
             detection_rate = round(detected / total, 4) if total > 0 else None
@@ -491,7 +502,7 @@ class CFIAFetcher(BaseFetcher):
                 ),
                 "confidence": "high",
                 "raw_file_path": str(csv_path),
-                "dedup_key": build_dedup_key("CFIA", food_category, report["data_year"]),
+                "dedup_key": build_dedup_key("CFIA", food_category, raw_cat, report["data_year"]),
             })
 
         logger.info("CFIA NCRMP: parsed %d category rows from %s", len(rows), report["label"])
