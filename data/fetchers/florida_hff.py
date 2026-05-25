@@ -14,13 +14,11 @@ silently returning wrong data.
 
 import logging
 import re
-import sys
 from pathlib import Path
 from datetime import date
 
 from bs4 import BeautifulSoup
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
 from fetchers.base import BaseFetcher, fetch_page
 from db.database import normalize_category, build_dedup_key
 

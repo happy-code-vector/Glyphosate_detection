@@ -12,14 +12,12 @@ All values computed from raw data files, nothing hardcoded.
 import io
 import logging
 import re
-import sys
 import zipfile
 from pathlib import Path
 
 import pandas as pd
 import requests
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
 from fetchers.base import BaseFetcher, download_file, SESSION
 from db.database import normalize_category, build_dedup_key
 
