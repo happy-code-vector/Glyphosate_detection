@@ -275,6 +275,132 @@ CREATE TABLE IF NOT EXISTS tolerance_limits (
 
 ---
 
+### Codex Alimentarius MRLs — International Reference Limits
+
+**Data type:** Regulatory limits (not monitoring)
+
+**Scope:** FAO/WHO international maximum residue limits for glyphosate across 100+ commodities. The global standard that many countries adopt.
+
+**Format:** Web database at `https://www.fao.org/fao-who-codexalimentarius/codex-texts/dbs/pestres/` — search by pesticide name "glyphosate" (ID 158). No bulk CSV download. Requires scraping search results or reverse-engineering the API.
+
+**Implementation:**
+- New fetcher class: `Codex_MRLs(Fetcher)`
+- Scrape the Codex pesticide residue database for glyphosate entries
+- Parse commodity + MRL value pairs
+- Insert into `tolerance_limits` table alongside EPA tolerances
+- Adds international perspective to the US-focused EPA limits
+
+**Expected output:** 100+ tolerance limit records as international reference benchmarks.
+
+**Effort:** Medium. Web scraping of database interface.
+
+---
+
+### Germany BVL — National Pesticide Monitoring (2011-2022)
+
+**Data type:** Government monitoring
+
+**Scope:** Germany's national pesticide residue monitoring reports. Unlike the current EFSA enforcement-only data (which shows only MRL exceedances), BVL provides the full picture: all samples including compliant detections, detection rates, and average levels for glyphosate across food categories.
+
+**Format:** Excel/CSV table downloads ("Tabellen zur Nationalen Berichterstattung") for years 2011-2022. Available at `https://www.bvl.bund.de/` under pesticide residue reporting.
+
+**Implementation:**
+- New fetcher class: `Germany_BVL(Fetcher)`
+- Download annual table files
+- Filter for glyphosate rows (German-language column headers need mapping)
+- Map German commodity names to English canonical categories
+- Tier 2 output (detection rates, avg/max ppb per category)
+- This is a better EU data source than the current EFSA enforcement-only fetcher
+
+**Expected output:** Tier 2 category-level residue statistics across 10+ years of German monitoring. Provides detection rates (not just exceedances).
+
+**Effort:** Medium-High. German-language data parsing + commodity name translation.
+
+---
+
+### The Detox Project — Independent Food Testing
+
+**Data type:** Independent laboratory testing (Tier 1 product data)
+
+**Scope:** Non-profit organization that commissions glyphosate testing on popular grocery products. Broader food category coverage than EWG (includes crackers, chips, protein powders, pulses, cereals, bread).
+
+**Key reports:**
+- "Glyphosate: Unsafe On Any Plate" (2016) — ~30 popular American food products, same Anresco lab as EWG. Products include Cheerios (1,125 ppb), crackers, chips, etc.
+- "The Poison in Our Daily Bread" (2022) — comprehensive testing of bread, pulses, grains, protein bars from major retailers. Found glyphosate in 18 of 26 Non-GMO labeled products.
+- Protein powder testing (2021) — pea protein supplements.
+
+**Format:** Web reports at `https://detoxproject.org/reports/` and `https://detoxproject.org/glyphosate-in-food-water/`. No structured data downloads. Requires web scraping.
+
+**Implementation:**
+- New fetcher class: `DetoxProject(Fetcher)`
+- Scrape report pages for product names and ppb values
+- Parse product-level data (Tier 1)
+- Map product categories to canonical food categories
+- Derive Tier 2 aggregates from Tier 1 data
+
+**Expected output:** ~50-80 additional Tier 1 product records across broader food categories than EWG.
+
+**Effort:** Medium. Web scraping of report pages.
+
+---
+
+### CDC NHANES — Biomonitoring Data (2013-2016)
+
+**Data type:** Human biomonitoring (urine glyphosate levels)
+
+**Scope:** Nationally representative population-level exposure data. Measures glyphosate and AMPA in urine of NHANES participants. Only dataset that answers "how much glyphosate are people actually absorbing?" rather than "how much is in food?"
+
+**Format:** XPT (SAS Transport) files, downloadable from CDC. Readable by pandas (`pd.read_xpt()`).
+
+**Available years:** 2013-2014 (SSGLYP_H, 73.7 KB) and 2015-2016 (SSGLYP_I, 101.4 KB).
+
+**Variables:**
+- SSGLYP = glyphosate concentration in ng/mL (= ppb)
+- SSGLYPL = below-detection flag (0=detected, 1=below LOD)
+- LOD = 0.2 ng/mL
+- Sample weights for national representativeness
+
+**Implementation:**
+- New fetcher class: `CDC_NHANES(Fetcher)`
+- Download XPT files from CDC
+- Parse with pandas, extract glyphosate variables
+- Aggregate by demographics (age group, gender) if available
+- Insert into new `biomonitoring` table
+
+**Database change:** New table:
+```sql
+CREATE TABLE IF NOT EXISTS biomonitoring (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source TEXT NOT NULL DEFAULT 'CDC_NHANES',
+    cycle TEXT NOT NULL,
+    analyte TEXT NOT NULL,
+    population_group TEXT,
+    sample_size INTEGER,
+    detected_count INTEGER,
+    detection_rate REAL,
+    geometric_mean REAL,
+    percentile_50 REAL,
+    percentile_75 REAL,
+    percentile_90 REAL,
+    percentile_95 REAL,
+    unit TEXT DEFAULT 'ng/mL',
+    lod REAL,
+    dedup_key TEXT UNIQUE
+);
+```
+
+**Expected output:** Population-level exposure statistics by demographic group for 2 NHANES cycles.
+
+**Effort:** Medium. New schema table + XPT file parsing.
+
+---
+
+### Sources Considered and Skipped
+
+**EFSA OpenFoodTox 2.0** — Contains toxicological reference values (ADI, NOAEL, LOAEL) for glyphosate, NOT food residue measurements. Does not fit the pipeline's measurement-focused schema. One row per substance, not per food sample.
+
+---
+
 ## Database Changes
 
 ### New Table: `tolerance_limits`
@@ -324,12 +450,16 @@ Potential additions depending on data discovered:
 7. USDA PDP — new fetcher class
 8. UK FSA — new fetcher class
 9. CA DPR — new fetcher class
-10. EPA Tolerances — new fetcher class + new table
+10. Germany BVL — new fetcher class (German-language parsing)
+11. EPA Tolerances — new fetcher class + tolerance_limits table
 
-### Batch 4: Research & Reference
-11. Academic papers — new fetcher with manual data
-12. Australia FSANZ — hardcoded summary data
-13. Brazil/Japan MRLs — reference data entries
+### Batch 4: Research, Reference & Biomonitoring
+12. Codex Alimentarius MRLs — new fetcher (tolerance_limits table)
+13. Academic papers — new fetcher with manual data
+14. The Detox Project — new fetcher (web scraping)
+15. CDC NHANES — new fetcher + biomonitoring table
+16. Australia FSANZ — hardcoded summary data
+17. Brazil/Japan MRLs — reference data entries
 
 ---
 
@@ -343,3 +473,7 @@ Potential additions depending on data discovered:
 | EPA eCFR HTML structure may change | Fuzzy column detection + test regularly |
 | Academic paper data extraction is error-prone | Manual verification of extracted values |
 | EWG PDFs currently inaccessible | Already cached locally; no new EWG data available |
+| Germany BVL tables in German language | Map German commodity/chemical names to English canonical terms |
+| Detox Project web reports have no structured data | Careful scraping with fallback to manual entry |
+| CDC NHANES only covers 2013-2016 for glyphosate | Limited but nationally representative — still valuable |
+| Codex MRL database has no bulk download | Scrape search results or use underlying API |
