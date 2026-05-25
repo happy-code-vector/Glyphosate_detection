@@ -16,7 +16,9 @@
       "Bash(git *)",
       "Bash(sqlite3 residueiq.db \"SELECT COUNT\\(*\\) FROM glyphosate_measurements\")",
       "Bash(sqlite3 *)",
-      "Bash(curl -s *)"
+      "Bash(curl -s *)",
+      "Bash(ls /c/Python*)",
+      "Read(//c/Users/**)"
     ]
   }
 }
