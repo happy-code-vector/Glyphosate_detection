@@ -95,28 +95,45 @@ class CFIAFetcher(BaseFetcher):
 
     def parse(self, files: list[Path]) -> list[dict]:
         df = pd.read_csv(files[0], low_memory=False)
-
-        # Normalize column names: lowercase, strip whitespace, replace spaces with _
         df.columns = [c.lower().strip().replace(" ", "_") for c in df.columns]
         logger.info("CFIA columns: %s", list(df.columns))
 
-        # Identify required columns dynamically
-        category_col = self._find_col(df, ["food_category", "category", "commodity", "food_type"])
-        total_col    = self._find_col(df, ["total_samples", "total", "n_samples", "samples"])
-        detected_col = self._find_col(df, ["samples_detected", "detected", "positive", "n_detected"])
-        mean_col     = self._find_col(df, ["mean", "avg", "mean_concentration", "average"])
-        max_col      = self._find_col(df, ["max", "maximum", "max_concentration"])
+        product_col   = self._find_col(df, ["product", "produit", "commodity", "food_category"])
+        component_col = self._find_col(df, ["component", "composant", "pesticide", "substance"])
+        result_col    = self._find_col(df, ["result", "r_sultat", "concentration", "value"])
+        # Match result column by partial match (encoding-safe)
+        if not result_col:
+            result_col = next((c for c in df.columns if "result" in c or "rsultat" in c), None)
+        unit_col = self._find_col(df, ["reportunit", "unit"])
 
-        if not category_col or not total_col:
+        if not product_col or not component_col or not result_col:
             raise ValueError(
                 f"Required columns not found in CFIA CSV. "
                 f"Available: {list(df.columns)}. "
                 "The CSV structure may have changed — check the source file."
             )
 
+        # Filter to glyphosate only (not AMPA metabolite)
+        gly_df = df[df[component_col].str.lower().str.contains("glyphosate", na=False)].copy()
+        if gly_df.empty:
+            raise ValueError("No glyphosate rows found in CFIA CSV")
+
+        logger.info("CFIA: %d glyphosate sample rows", len(gly_df))
+
+        # Determine unit conversion — CFIA reports in µg/g (= mg/kg = ppm, so ×1000 for ppb)
+        conversion = 1.0
+        original_unit = "µg/g"
+        if unit_col:
+            unit_val = str(gly_df[unit_col].iloc[0]).lower()
+            if "mg/kg" in unit_val or "µg/g" in unit_val or "ug/g" in unit_val:
+                conversion = 1000.0
+                original_unit = unit_val
+
         rows = []
-        for _, row in df.iterrows():
-            raw_cat = str(row[category_col]).strip()
+        # First pass: collect per-product stats, then aggregate by canonical category
+        product_stats = []
+        for product, group in gly_df.groupby(product_col):
+            raw_cat = str(product).strip()
             if not raw_cat or raw_cat.lower() in ("nan", "total", "all"):
                 continue
 
@@ -125,37 +142,51 @@ class CFIAFetcher(BaseFetcher):
                 logger.debug("CFIA: no canonical category for '%s' — skipping", raw_cat)
                 continue
 
-            total = int(row[total_col]) if total_col and pd.notna(row[total_col]) else None
-            detected = int(row[detected_col]) if detected_col and pd.notna(row[detected_col]) else None
-            detection_rate = round(detected / total, 4) if total and detected is not None else None
+            values = pd.to_numeric(group[result_col], errors="coerce").fillna(0)
+            product_stats.append({
+                "food_category": food_category,
+                "raw_cat": raw_cat,
+                "total": len(group),
+                "detected_values": values[values > 0].tolist(),
+            })
 
-            # CFIA reports concentrations in mg/kg — convert to ppb (× 1000)
-            avg_ppb = None
-            if mean_col and pd.notna(row.get(mean_col)):
-                avg_ppb = round(float(row[mean_col]) * 1000, 2)
-            max_ppb = None
-            if max_col and pd.notna(row.get(max_col)):
-                max_ppb = round(float(row[max_col]) * 1000, 2)
+        # Second pass: aggregate across products within same canonical category
+        from collections import defaultdict
+        by_category = defaultdict(lambda: {"total": 0, "detected": [], "raw_cats": []})
+        for ps in product_stats:
+            cat = ps["food_category"]
+            by_category[cat]["total"] += ps["total"]
+            by_category[cat]["detected"].extend(ps["detected_values"])
+            by_category[cat]["raw_cats"].append(ps["raw_cat"])
+
+        for food_category, stats in by_category.items():
+            total = stats["total"]
+            n_detected = len(stats["detected"])
+            detection_rate = round(n_detected / total, 4) if total > 0 else None
+            avg_ppb = round(sum(stats["detected"]) / n_detected * conversion, 2) if n_detected > 0 else None
+            max_ppb = round(max(stats["detected"]) * conversion, 2) if stats["detected"] else None
+            raw_cat = ", ".join(sorted(set(stats["raw_cats"])))
 
             rows.append({
                 "tier": 2,
                 "source_name": "CFIA",
                 "source_url": CFIA_SOURCE_URL,
-                "report_label": "CFIA Glyphosate Testing 2015-2016",
-                "published_date": "2017-04-01",
+                "report_label": "CFIA Glyphosate Testing 2015-2017",
+                "published_date": "2019-04-01",
                 "data_year": 2017,
                 "food_category": food_category,
                 "raw_category": raw_cat,
                 "samples_total": total,
-                "samples_detected": detected,
+                "samples_detected": n_detected,
                 "detection_rate": detection_rate,
                 "avg_ppb": avg_ppb,
                 "max_ppb": max_ppb,
-                "original_unit": "mg/kg",
-                "unit_conversion": 1000.0,
+                "original_unit": original_unit,
+                "unit_conversion": conversion,
                 "methodology_note": (
-                    "CFIA Safeguarding with Science: Glyphosate Testing 2015-2016. "
-                    "LC-MS/MS method. 7,955 domestic and imported samples. "
+                    "CFIA Safeguarding with Science: Glyphosate Testing 2015-2017. "
+                    "Individual sample results aggregated by canonical food category. "
+                    "LC-MS/MS method. Domestic and imported samples. "
                     "No brand names disclosed."
                 ),
                 "confidence": "medium",
@@ -177,22 +208,14 @@ class CFIAFetcher(BaseFetcher):
 # EFSA
 # ══════════════════════════════════════════════════════════════════════
 
-# EFSA publishes raw data as ZIP files on Zenodo.
-# Each ZIP contains multiple CSVs in SSD2 format.
-# Glyphosate substance code: typically contains 'GLY' or 'glyphosate' in param_en.
+# EFSA publishes enforcement data as XLSX on Zenodo.
+# Table 2.2 contains individual MRL exceedance records with food matrix,
+# substance name, and measured concentration (mg/kg).
 EFSA_REPORTS = [
-    {
-        "label": "EFSA EU Pesticide Residue Monitoring 2022",
-        "zenodo_record": "10853986",
-        "filename_prefix": "efsa_2022",
-        "published_date": "2024-04-01",
-        "data_year": 2022,
-        "source_url": "https://zenodo.org/records/10853986",
-    },
     {
         "label": "EFSA EU Pesticide Residue Monitoring 2023",
         "zenodo_record": "14765085",
-        "filename_prefix": "efsa_2023",
+        "filename": "efsa_2023_enforcement.xlsx",
         "published_date": "2025-01-01",
         "data_year": 2023,
         "source_url": "https://zenodo.org/records/14765085",
@@ -208,125 +231,80 @@ class EFSAFetcher(BaseFetcher):
     def fetch(self) -> list[Path]:
         paths = []
         for report in EFSA_REPORTS:
-            path = self._fetch_record(report)
+            path = self._fetch_enforcement(report)
             paths.append(path)
         return paths
 
-    def _fetch_record(self, report: dict) -> Path:
-        """
-        Use Zenodo API to find the correct data CSV inside the record,
-        then download it. This handles Zenodo file naming changes gracefully.
-        """
-        record_id = report["zenodo_record"]
-        cache_path = Path(__file__).parent.parent / "raw_data" / f"{report['filename_prefix']}.csv"
+    def _fetch_enforcement(self, report: dict) -> Path:
+        """Download enforcement data XLSX from Zenodo."""
+        cache_path = Path(__file__).parent.parent / "raw_data" / report["filename"]
 
         if cache_path.exists():
             logger.info("Cache hit: %s", cache_path.name)
             return cache_path
 
-        # Query Zenodo API to get file list for this record
+        record_id = report["zenodo_record"]
         api_url = EFSA_ZENODO_API.format(record_id=record_id)
         resp = SESSION.get(api_url, timeout=30)
         resp.raise_for_status()
         record_data = resp.json()
 
         files = record_data.get("files", [])
-        if not files:
-            raise RuntimeError(f"No files found in Zenodo record {record_id}")
+        # Find the enforcement/supporting data XLSX (smallest XLSX, not the huge ZIP)
+        xlsx_files = [
+            f for f in files
+            if f.get("key", "").lower().endswith(".xlsx")
+            and "enforcement" in f.get("key", "").lower()
+        ]
+        if not xlsx_files:
+            xlsx_files = [f for f in files if f.get("key", "").lower().endswith(".xlsx")]
 
-        # Find the main occurrence/monitoring data file
-        # Priority: files with "occurrence" or "monitoring" in name, or largest CSV
-        data_file = None
-        for f in files:
-            fname = f.get("key", "").lower()
-            if any(kw in fname for kw in ["occurrence", "monitoring", "residue_data"]):
-                if fname.endswith(".csv") or fname.endswith(".zip"):
-                    data_file = f
-                    break
+        if not xlsx_files:
+            raise RuntimeError(f"No XLSX files found in Zenodo record {record_id}")
 
-        if not data_file:
-            # Fallback: largest file (usually the main data file)
-            data_file = max(files, key=lambda f: f.get("size", 0))
-
-        download_url = data_file.get("links", {}).get("self") or data_file.get("links", {}).get("download")
+        # Pick the smallest XLSX (enforcement data, not huge exposure assessments)
+        data_file = min(xlsx_files, key=lambda f: f.get("size", 0))
+        download_url = data_file.get("links", {}).get("self")
         if not download_url:
-            raise RuntimeError(f"Could not find download URL in Zenodo record {record_id}")
+            raise RuntimeError(f"No download URL for {data_file.get('key','')}")
 
-        # If it's a ZIP, download and extract the right CSV
-        fname = data_file.get("key", "")
-        if fname.endswith(".zip"):
-            zip_path = Path(__file__).parent.parent / "raw_data" / f"{report['filename_prefix']}.zip"
-            download_file(download_url, zip_path.name)
-            return self._extract_csv_from_zip(zip_path, cache_path)
-        else:
-            return download_file(download_url, cache_path.name)
-
-    def _extract_csv_from_zip(self, zip_path: Path, dest: Path) -> Path:
-        with zipfile.ZipFile(zip_path) as zf:
-            csv_files = sorted(
-                [f for f in zf.namelist() if f.endswith(".csv")],
-                key=lambda f: zf.getinfo(f).file_size,
-                reverse=True  # largest CSV is most likely the data file
-            )
-            if not csv_files:
-                raise RuntimeError(f"No CSV files found inside {zip_path.name}")
-
-            # Prefer files with "occurrence" or "monitoring" in name
-            target = next(
-                (f for f in csv_files if any(
-                    kw in f.lower() for kw in ["occurrence", "monitoring", "residue"]
-                )),
-                csv_files[0]  # fallback: largest
-            )
-            dest.write_bytes(zf.read(target))
-            logger.info("Extracted %s from %s", target, zip_path.name)
-        return dest
+        return download_file(download_url, report["filename"])
 
     def parse(self, files: list[Path]) -> list[dict]:
         all_rows = []
         for path, report in zip(files, EFSA_REPORTS):
-            rows = self._parse_efsa_csv(path, report)
+            rows = self._parse_enforcement(path, report)
             all_rows.extend(rows)
         return all_rows
 
-    def _parse_efsa_csv(self, csv_path: Path, report: dict) -> list[dict]:
+    def _parse_enforcement(self, xlsx_path: Path, report: dict) -> list[dict]:
         """
-        EFSA SSD2 format. Key columns (may vary slightly by year):
-          param_en / paramText  — pesticide name
-          matrix_en / matrixText — food matrix
-          result_value / resVal  — concentration
-          result_lod / resLOD    — limit of detection
-          unit                   — concentration unit
+        Parse EFSA enforcement data (Table 2.2) for glyphosate MRL exceedances.
+        These are individual sample results where glyphosate exceeded the legal limit.
+        Table 2.3 provides overall rates but not per-category.
         """
-        df = pd.read_csv(csv_path, low_memory=False, sep=None, engine="python")
-        df.columns = [c.lower().strip() for c in df.columns]
-        logger.info("EFSA columns (%s): %s", csv_path.name, list(df.columns))
+        df = pd.read_excel(
+            xlsx_path, sheet_name="Table 2.2",
+            header=None, skiprows=3
+        )
+        # First row after skip is the actual header
+        header = df.iloc[0].tolist()
+        df = df.iloc[1:].reset_index(drop=True)
+        df.columns = [str(h).strip() for h in header]
+        logger.info("EFSA Table 2.2 columns: %s", list(df.columns))
 
-        # Find columns
-        param_col  = self._find_col(df, ["param_en", "paramtext", "param", "pesticide", "substance"])
-        matrix_col = self._find_col(df, ["matrix_en", "matrixtext", "matrix", "commodity"])
-        value_col  = self._find_col(df, ["result_value", "resval", "value", "concentration"])
-        lod_col    = self._find_col(df, ["result_lod", "reslod", "lod"])
-        unit_col   = self._find_col(df, ["unit", "result_unit", "unit_en"])
-
-        if not param_col or not matrix_col or not value_col:
-            raise ValueError(
-                f"Required EFSA columns not found in {csv_path.name}. "
-                f"Available: {list(df.columns)}"
-            )
-
-        # Filter to glyphosate only
-        gly_mask = df[param_col].str.lower().str.contains("glyphosate", na=False)
+        # Filter to glyphosate (substance name contains "glyphosate")
+        gly_mask = df["Substance Name"].str.lower().str.contains("glyphosate", na=False)
         gly_df = df[gly_mask].copy()
 
         if gly_df.empty:
-            logger.warning("No glyphosate rows found in %s", csv_path.name)
+            logger.warning("EFSA: no glyphosate rows found in %s", xlsx_path.name)
             return []
 
-        logger.info("EFSA: %d glyphosate rows found in %s", len(gly_df), csv_path.name)
+        logger.info("EFSA: %d glyphosate MRL exceedance rows", len(gly_df))
 
         rows = []
-        for matrix, group in gly_df.groupby(matrix_col):
+        for matrix, group in gly_df.groupby("Food MATRIX Name"):
             raw_cat = str(matrix).strip()
             food_category = normalize_category(raw_cat)
             if not food_category:
@@ -334,25 +312,13 @@ class EFSAFetcher(BaseFetcher):
                 continue
 
             total = len(group)
-            # "detected" = value above LOD
-            if lod_col and lod_col in group.columns:
-                detected_mask = group[value_col] > group[lod_col].fillna(0)
-            else:
-                detected_mask = group[value_col] > 0
-            n_detected = int(detected_mask.sum())
+            values = pd.to_numeric(group["Result (mg/kg)"], errors="coerce").fillna(0)
+            detected = values[values > 0]
+            n_detected = len(detected)
 
-            detected_values = group.loc[detected_mask, value_col].dropna()
-
-            # Determine unit and convert to ppb
-            unit = ""
-            if unit_col:
-                unit_vals = group[unit_col].dropna().unique()
-                unit = unit_vals[0].lower() if len(unit_vals) > 0 else ""
-            conversion = 1000.0 if "mg/kg" in unit else 1.0
-
-            avg_ppb = round(float(detected_values.mean()) * conversion, 2) if len(detected_values) > 0 else None
-            max_ppb = round(float(detected_values.max()) * conversion, 2) if len(detected_values) > 0 else None
-            detection_rate = round(n_detected / total, 4) if total > 0 else None
+            # mg/kg → ppb (× 1000)
+            avg_ppb = round(float(detected.mean()) * 1000, 2) if len(detected) > 0 else None
+            max_ppb = round(float(detected.max()) * 1000, 2) if len(detected) > 0 else None
 
             rows.append({
                 "tier": 2,
@@ -365,22 +331,22 @@ class EFSAFetcher(BaseFetcher):
                 "raw_category": raw_cat,
                 "samples_total": total,
                 "samples_detected": n_detected,
-                "detection_rate": detection_rate,
+                "detection_rate": None,
                 "avg_ppb": avg_ppb,
                 "max_ppb": max_ppb,
-                "original_unit": unit or "mg/kg",
-                "unit_conversion": conversion,
+                "original_unit": "mg/kg",
+                "unit_conversion": 1000.0,
                 "methodology_note": (
-                    "EFSA EU coordinated control programme. "
-                    "Note: glyphosate requires SRM method — "
-                    "not all EU member states report it."
+                    "EFSA enforcement data: only samples exceeding MRL are reported. "
+                    "Detection rate cannot be computed from exceedance data alone. "
+                    f"{total} MRL exceedance(s) for {raw_cat} across EU member states."
                 ),
-                "confidence": "medium",
-                "raw_file_path": str(csv_path),
+                "confidence": "low",
+                "raw_file_path": str(xlsx_path),
                 "dedup_key": build_dedup_key("EFSA", food_category, report["data_year"]),
             })
 
-        logger.info("EFSA: parsed %d category rows from %s", len(rows), csv_path.name)
+        logger.info("EFSA: parsed %d category rows from %s", len(rows), xlsx_path.name)
         return rows
 
     def _find_col(self, df, candidates):
