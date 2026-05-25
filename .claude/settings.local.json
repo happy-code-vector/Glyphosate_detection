@@ -13,7 +13,9 @@
       "Bash(python -c ' *c)",
       "mcp__ide__executeCode",
       "Bash(python *)",
-      "Bash(git *)"
+      "Bash(git *)",
+      "Bash(sqlite3 residueiq.db \"SELECT COUNT\\(*\\) FROM glyphosate_measurements\")",
+      "Bash(sqlite3 *)"
     ]
   }
 }
