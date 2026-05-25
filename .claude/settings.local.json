@@ -12,7 +12,8 @@
       "Bash(python -c \"from db.database import initialize; initialize\\(\\); print\\('DB initialized successfully'\\)\")",
       "Bash(python -c ' *c)",
       "mcp__ide__executeCode",
-      "Bash(python *)"
+      "Bash(python *)",
+      "Bash(git *)"
     ]
   }
 }
