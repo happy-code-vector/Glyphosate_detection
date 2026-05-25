@@ -969,17 +969,25 @@ class FDAFetcher(BaseFetcher):
 
             txt_path = Path(__file__).parent.parent / "raw_data" / report["data_file"]
             if not txt_path.exists():
-                with zipfile.ZipFile(zip_path) as zf:
-                    names = zf.namelist()
-                    match = next(
-                        (f for f in names if f.lower() == report["data_file"].lower()), None
-                    )
-                    if not match:
-                        raise ValueError(
-                            f"{report['data_file']} not found in zip. Available: {names}"
+                try:
+                    with zipfile.ZipFile(zip_path) as zf:
+                        names = zf.namelist()
+                        match = next(
+                            (f for f in names if f.lower() == report["data_file"].lower()), None
                         )
-                    txt_path.write_bytes(zf.read(match))
-                    logger.info("Extracted %s from %s", match, zip_path.name)
+                        if not match:
+                            logger.error(
+                                "%s not found in zip. Available: %s — skipping year",
+                                report["data_file"], names
+                            )
+                            continue
+                        txt_path.write_bytes(zf.read(match))
+                        logger.info("Extracted %s from %s", match, zip_path.name)
+                except zipfile.BadZipFile:
+                    logger.error("FDA FY%s: downloaded file is not a valid ZIP — skipping", year)
+                    if zip_path.exists():
+                        zip_path.unlink()
+                    continue
             else:
                 logger.info("Cache hit: %s", txt_path.name)
             paths.append(txt_path)
