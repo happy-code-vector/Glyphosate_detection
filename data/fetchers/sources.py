@@ -18,7 +18,7 @@ from pathlib import Path
 import pandas as pd
 import requests
 
-from fetchers.base import BaseFetcher, download_file, SESSION
+from fetchers.base import BaseFetcher, download_file, SESSION, RAW_DATA_DIR, fetch_page
 from db.database import normalize_category, build_dedup_key
 
 logger = logging.getLogger(__name__)
@@ -44,64 +44,176 @@ CFIA_CSV_URL = (
 CFIA_FILENAME = "cfia_glyphosate_2015_2017.csv"
 CFIA_SOURCE_URL = "https://inspection.canada.ca/en/food-safety-industry/food-chemistry-and-microbiology/food-safety-testing-reports-and-journal-articles/executive-summary"
 
+CFIA_REPORTS = [
+    {
+        "label": "CFIA Glyphosate Testing 2015-2017",
+        "type": "glyphosate_csv",
+        "csv_url": (
+            "https://open.canada.ca/data/dataset/"
+            "906cd35c-d396-4999-9a9f-f5351796661f/resource/"
+            "glyphosate_food_residues_2015_2017.csv"
+        ),
+        "portal_url": (
+            "https://open.canada.ca/data/en/dataset/"
+            "906cd35c-d396-4999-9a9f-f5351796661f"
+        ),
+        "filename": "cfia_glyphosate_2015_2017.csv",
+        "published_date": "2019-04-01",
+        "data_year": 2017,
+    },
+    {
+        "label": "CFIA NCRMP 2016-2017",
+        "type": "ncrmp_csv",
+        "portal_url": "https://open.canada.ca/data/en/dataset/95a14ca0-706c-4422-ad42-b9e86998efbe",
+        "filename": "cfia_ncrmp_2016_2017.csv",
+        "published_date": "2018-01-01",
+        "data_year": 2017,
+    },
+    {
+        "label": "CFIA NCRMP 2017-2018",
+        "type": "ncrmp_csv",
+        "portal_url": "https://open.canada.ca/data/en/dataset/c87af563-b3f3-4048-96af-a5d39723ea6b",
+        "filename": "cfia_ncrmp_2017_2018.csv",
+        "published_date": "2019-01-01",
+        "data_year": 2018,
+    },
+    {
+        "label": "CFIA NCRMP 2018-2019",
+        "type": "ncrmp_csv",
+        "portal_url": "https://open.canada.ca/data/en/dataset/a2ea8989-2211-4d19-bc54-199dbd4c78ca",
+        "filename": "cfia_ncrmp_2018_2019.csv",
+        "published_date": "2020-01-01",
+        "data_year": 2019,
+    },
+    {
+        "label": "CFIA NCRMP 2019-2020",
+        "type": "ncrmp_csv",
+        "portal_url": "https://open.canada.ca/data/en/dataset/9e5211c8-c11f-4ebe-a7b2-65a6799a6032",
+        "filename": "cfia_ncrmp_2019_2020.csv",
+        "published_date": "2021-01-01",
+        "data_year": 2020,
+    },
+    {
+        "label": "CFIA NCRMP 2020-2021",
+        "type": "ncrmp_csv",
+        "portal_url": "https://open.canada.ca/data/en/dataset/a5cb7c3c-0371-4a20-ac9a-98fc4c3536bb",
+        "filename": "cfia_ncrmp_2020_2021.csv",
+        "published_date": "2022-01-01",
+        "data_year": 2021,
+    },
+    {
+        "label": "CFIA NCRMP 2021-2022",
+        "type": "ncrmp_csv",
+        "portal_url": "https://open.canada.ca/data/en/dataset/6567ac46-558e-4c95-ab93-e8326ddf8f90",
+        "filename": "cfia_ncrmp_2021_2022.csv",
+        "published_date": "2023-01-01",
+        "data_year": 2022,
+    },
+    {
+        "label": "CFIA Grain Products Survey 2016-2017",
+        "type": "targeted_csv",
+        "portal_url": "https://open.canada.ca/data/en/dataset/21429139-d023-4090-b5de-50384cda44c8",
+        "filename": "cfia_grain_2016_2017.csv",
+        "published_date": "2018-01-01",
+        "data_year": 2017,
+    },
+    {
+        "label": "CFIA Children's Food Project 2017",
+        "type": "targeted_csv",
+        "portal_url": "https://open.canada.ca/data/en/dataset/61a82716-e863-4c20-b1a7-c8e05e70e72d",
+        "filename": "cfia_children_2017.csv",
+        "published_date": "2018-01-01",
+        "data_year": 2017,
+    },
+    {
+        "label": "CFIA Selected Foods Survey 2018-2019",
+        "type": "targeted_csv",
+        "portal_url": "https://open.canada.ca/data/en/dataset/e4194282-102a-40ec-ac4c-0ce20e9a33cf",
+        "filename": "cfia_selected_2018_2019.csv",
+        "published_date": "2020-01-01",
+        "data_year": 2019,
+    },
+]
+
 
 class CFIAFetcher(BaseFetcher):
     SOURCE_NAME = "CFIA"
 
     def fetch(self) -> list[Path]:
-        """
-        Attempt to download the CFIA CSV from Open Government Portal.
-        If direct URL fails (portal URL structure can change), scrape the
-        portal page to find the current CSV resource URL.
-        """
+        paths = []
+        for report in CFIA_REPORTS:
+            rtype = report["type"]
+            if rtype == "glyphosate_csv":
+                path = self._fetch_glyphosate_csv(report)
+            else:
+                path = self._fetch_portal_csv(report)
+            if path:
+                paths.append(path)
+        return paths
+
+    def _fetch_glyphosate_csv(self, report: dict) -> Path:
+        """Download the original glyphosate-specific CSV."""
         try:
-            path = download_file(CFIA_CSV_URL, CFIA_FILENAME)
-            return [path]
+            return download_file(report["csv_url"], report["filename"])
         except Exception as e:
-            logger.warning("Direct CFIA CSV URL failed: %s — trying portal page", e)
-            return [self._fetch_via_portal()]
+            logger.warning("Direct CSV URL failed: %s — trying portal page", e)
+            return self._fetch_portal_csv(report)
 
-    def _fetch_via_portal(self) -> Path:
-        """Scrape Open Government Portal to find the real CSV download link."""
+    def _fetch_portal_csv(self, report: dict) -> Path | None:
+        """Scrape Open Government Portal to find CSV download link."""
         from bs4 import BeautifulSoup
-        from fetchers.base import fetch_page
 
-        html = fetch_page(CFIA_GOV_PORTAL_URL)
-        soup = BeautifulSoup(html, "html.parser")
+        cache_path = RAW_DATA_DIR / report["filename"]
+        if cache_path.exists():
+            logger.info("Cache hit: %s", report["filename"])
+            return cache_path
 
-        # Portal lists resources as links ending in .csv
-        csv_links = [
-            a["href"] for a in soup.find_all("a", href=True)
-            if a["href"].endswith(".csv") and "glyphosate" in a["href"].lower()
-        ]
-        if not csv_links:
-            # Fallback: any .csv resource on the page
+        try:
+            html = fetch_page(report["portal_url"])
+            soup = BeautifulSoup(html, "html.parser")
+
             csv_links = [
                 a["href"] for a in soup.find_all("a", href=True)
                 if a["href"].endswith(".csv")
             ]
+            if not csv_links:
+                logger.warning("No CSV found on portal for %s", report["label"])
+                return None
 
-        if not csv_links:
-            raise RuntimeError(
-                "Could not find CSV download link on CFIA Open Government Portal. "
-                f"Visit {CFIA_GOV_PORTAL_URL} and find the correct CSV URL."
-            )
+            csv_url = csv_links[0]
+            if not csv_url.startswith("http"):
+                csv_url = "https://open.canada.ca" + csv_url
 
-        csv_url = csv_links[0]
-        if not csv_url.startswith("http"):
-            csv_url = "https://open.canada.ca" + csv_url
-
-        return download_file(csv_url, CFIA_FILENAME)
+            return download_file(csv_url, report["filename"])
+        except Exception as e:
+            logger.error("Failed to fetch %s: %s", report["label"], e)
+            return None
 
     def parse(self, files: list[Path]) -> list[dict]:
-        df = pd.read_csv(files[0], low_memory=False)
+        all_rows = []
+        for path, report in zip(files, CFIA_REPORTS):
+            if path is None:
+                continue
+            rtype = report["type"]
+            if rtype == "glyphosate_csv":
+                rows = self._parse_glyphosate_csv(path, report)
+            elif rtype in ("ncrmp_csv", "targeted_csv"):
+                rows = self._parse_multi_pesticide_csv(path, report)
+            else:
+                logger.warning("Unknown CFIA report type: %s", rtype)
+                continue
+            all_rows.extend(rows)
+        return all_rows
+
+    def _parse_glyphosate_csv(self, csv_path: Path, report: dict) -> list[dict]:
+        """Parse the original glyphosate-specific CSV (2015-2017)."""
+        df = pd.read_csv(csv_path, low_memory=False)
         df.columns = [c.lower().strip().replace(" ", "_") for c in df.columns]
         logger.info("CFIA columns: %s", list(df.columns))
 
         product_col   = self._find_col(df, ["product", "produit", "commodity", "food_category"])
         component_col = self._find_col(df, ["component", "composant", "pesticide", "substance"])
         result_col    = self._find_col(df, ["result", "r_sultat", "concentration", "value"])
-        # Match result column by partial match (encoding-safe)
         if not result_col:
             result_col = next((c for c in df.columns if "result" in c or "rsultat" in c), None)
         unit_col = self._find_col(df, ["reportunit", "unit"])
@@ -109,18 +221,15 @@ class CFIAFetcher(BaseFetcher):
         if not product_col or not component_col or not result_col:
             raise ValueError(
                 f"Required columns not found in CFIA CSV. "
-                f"Available: {list(df.columns)}. "
-                "The CSV structure may have changed — check the source file."
+                f"Available: {list(df.columns)}."
             )
 
-        # Filter to glyphosate only (not AMPA metabolite)
         gly_df = df[df[component_col].str.lower().str.contains("glyphosate", na=False)].copy()
         if gly_df.empty:
             raise ValueError("No glyphosate rows found in CFIA CSV")
 
         logger.info("CFIA: %d glyphosate sample rows", len(gly_df))
 
-        # Determine unit conversion — CFIA reports in µg/g (= mg/kg = ppm, so ×1000 for ppb)
         conversion = 1.0
         original_unit = "µg/g"
         if unit_col:
@@ -130,18 +239,14 @@ class CFIAFetcher(BaseFetcher):
                 original_unit = unit_val
 
         rows = []
-        # First pass: collect per-product stats, then aggregate by canonical category
         product_stats = []
         for product, group in gly_df.groupby(product_col):
             raw_cat = str(product).strip()
             if not raw_cat or raw_cat.lower() in ("nan", "total", "all"):
                 continue
-
             food_category = normalize_category(raw_cat)
             if not food_category:
-                logger.debug("CFIA: no canonical category for '%s' — skipping", raw_cat)
                 continue
-
             values = pd.to_numeric(group[result_col], errors="coerce").fillna(0)
             product_stats.append({
                 "food_category": food_category,
@@ -150,7 +255,6 @@ class CFIAFetcher(BaseFetcher):
                 "detected_values": values[values > 0].tolist(),
             })
 
-        # Second pass: aggregate across products within same canonical category
         from collections import defaultdict
         by_category = defaultdict(lambda: {"total": 0, "detected": [], "raw_cats": []})
         for ps in product_stats:
@@ -171,9 +275,9 @@ class CFIAFetcher(BaseFetcher):
                 "tier": 2,
                 "source_name": "CFIA",
                 "source_url": CFIA_SOURCE_URL,
-                "report_label": "CFIA Glyphosate Testing 2015-2017",
-                "published_date": "2019-04-01",
-                "data_year": 2017,
+                "report_label": report["label"],
+                "published_date": report["published_date"],
+                "data_year": report["data_year"],
                 "food_category": food_category,
                 "raw_category": raw_cat,
                 "samples_total": total,
@@ -184,17 +288,132 @@ class CFIAFetcher(BaseFetcher):
                 "original_unit": original_unit,
                 "unit_conversion": conversion,
                 "methodology_note": (
-                    "CFIA Safeguarding with Science: Glyphosate Testing 2015-2017. "
-                    "Individual sample results aggregated by canonical food category. "
-                    "LC-MS/MS method. Domestic and imported samples. "
-                    "No brand names disclosed."
+                    f"{report['label']}. Individual sample results aggregated by "
+                    "canonical food category. LC-MS/MS method."
                 ),
                 "confidence": "medium",
-                "raw_file_path": str(files[0]),
-                "dedup_key": build_dedup_key("CFIA", food_category, "2017"),
+                "raw_file_path": str(csv_path),
+                "dedup_key": build_dedup_key("CFIA", food_category, report["data_year"]),
             })
 
-        logger.info("CFIA: parsed %d category rows", len(rows))
+        logger.info("CFIA: parsed %d category rows from %s", len(rows), report["label"])
+        return rows
+
+    def _parse_multi_pesticide_csv(self, csv_path: Path, report: dict) -> list[dict]:
+        """
+        Parse NCRMP or targeted survey CSVs that contain multiple pesticides.
+        Filters for glyphosate rows only, then aggregates by food category.
+        """
+        df = pd.read_csv(csv_path, low_memory=False)
+        df.columns = [c.lower().strip().replace(" ", "_") for c in df.columns]
+        logger.info("CFIA %s columns: %s", report["type"], list(df.columns))
+
+        pest_col = self._find_col(df, [
+            "pesticide", "substance", "param_name", "analyte",
+            "chemical", "compound", "pesticide_name", "active_substance",
+        ])
+        if not pest_col:
+            logger.warning("CFIA: no pesticide column found in %s — skipping", report["label"])
+            return []
+
+        gly_df = df[df[pest_col].str.lower().str.contains("glyphosate", na=False)].copy()
+        if gly_df.empty:
+            logger.info("CFIA: no glyphosate rows in %s", report["label"])
+            return []
+
+        # Exclude AMPA metabolite
+        gly_df = gly_df[~gly_df[pest_col].str.lower().str.contains("ampa", na=False)]
+        if gly_df.empty:
+            logger.info("CFIA: no glyphosate rows (only AMPA) in %s", report["label"])
+            return []
+
+        logger.info("CFIA: %d glyphosate rows in %s", len(gly_df), report["label"])
+
+        product_col = self._find_col(df, [
+            "product", "commodity", "food", "matrix", "product_name",
+            "commodity_name", "food_product", "sample_type",
+        ])
+        if not product_col:
+            logger.warning("CFIA: no product column found in %s — skipping", report["label"])
+            return []
+
+        result_col = self._find_col(df, [
+            "result", "value", "concentration", "level", "residue",
+            "detected_concentration", "measured_value",
+        ])
+        if not result_col:
+            result_col = next((c for c in df.columns if "result" in c or "value" in c), None)
+
+        unit_col = self._find_col(df, ["unit", "units", "result_unit"])
+
+        conversion = 1000.0
+        original_unit = "mg/kg"
+        if unit_col:
+            unit_val = str(gly_df[unit_col].iloc[0]).lower()
+            if "ppb" in unit_val or "µg/kg" in unit_val or "ug/kg" in unit_val:
+                conversion = 1.0
+                original_unit = unit_val
+            elif "ppm" in unit_val or "mg/kg" in unit_val:
+                conversion = 1000.0
+                original_unit = unit_val
+
+        from collections import defaultdict
+        by_category = defaultdict(lambda: {"total": 0, "detected": [], "raw_cats": []})
+
+        for product, group in gly_df.groupby(product_col):
+            raw_cat = str(product).strip()
+            if not raw_cat or raw_cat.lower() in ("nan", "total", "all"):
+                continue
+            food_category = normalize_category(raw_cat)
+            if not food_category:
+                continue
+
+            total = len(group)
+            if result_col:
+                values = pd.to_numeric(group[result_col], errors="coerce").fillna(0)
+                detected = values[values > 0].tolist()
+            else:
+                detected = []
+
+            by_category[food_category]["total"] += total
+            by_category[food_category]["detected"].extend(detected)
+            by_category[food_category]["raw_cats"].append(raw_cat)
+
+        rows = []
+        for food_category, stats in by_category.items():
+            total = stats["total"]
+            n_detected = len(stats["detected"])
+            detection_rate = round(n_detected / total, 4) if total > 0 else None
+            avg_ppb = round(sum(stats["detected"]) / n_detected * conversion, 2) if n_detected > 0 else None
+            max_ppb = round(max(stats["detected"]) * conversion, 2) if stats["detected"] else None
+            raw_cat = ", ".join(sorted(set(stats["raw_cats"])))
+
+            rows.append({
+                "tier": 2,
+                "source_name": "CFIA",
+                "source_url": report["portal_url"],
+                "report_label": report["label"],
+                "published_date": report["published_date"],
+                "data_year": report["data_year"],
+                "food_category": food_category,
+                "raw_category": raw_cat,
+                "samples_total": total,
+                "samples_detected": n_detected,
+                "detection_rate": detection_rate,
+                "avg_ppb": avg_ppb,
+                "max_ppb": max_ppb,
+                "original_unit": original_unit,
+                "unit_conversion": conversion,
+                "methodology_note": (
+                    f"{report['label']}. Multi-pesticide dataset filtered for glyphosate. "
+                    "Individual sample results aggregated by canonical food category."
+                ),
+                "confidence": "medium",
+                "raw_file_path": str(csv_path),
+                "dedup_key": build_dedup_key("CFIA", food_category, report["data_year"]),
+            })
+
+        logger.info("CFIA: parsed %d category rows from %s", len(rows), report["label"])
         return rows
 
     def _find_col(self, df, candidates: list[str]) -> str | None:
