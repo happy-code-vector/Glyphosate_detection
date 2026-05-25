@@ -110,14 +110,6 @@ CFIA_REPORTS = [
         "data_year": 2022,
     },
     {
-        "label": "CFIA Grain Products Survey 2016-2017",
-        "type": "targeted_csv",
-        "portal_url": "https://open.canada.ca/data/en/dataset/21429139-d023-4090-b5de-50384cda44c8",
-        "filename": "cfia_grain_2016_2017.csv",
-        "published_date": "2018-01-01",
-        "data_year": 2017,
-    },
-    {
         "label": "CFIA Children's Food Project 2017",
         "type": "targeted_csv",
         "portal_url": "https://open.canada.ca/data/en/dataset/61a82716-e863-4c20-b1a7-c8e05e70e72d",
@@ -455,7 +447,7 @@ class CFIAFetcher(BaseFetcher):
         for gi in gly_indices:
             # Look backwards for nearest section header (food category)
             raw_cat = None
-            for j in range(gi - 1, max(0, gi - 30), -1):
+            for j in range(gi - 1, max(0, gi - 50), -1):
                 col0 = str(df.iloc[j]["col_0"]).strip()
                 col1 = df.iloc[j].get("col_1")
                 if col0 and col0 not in skip_labels and (pd.isna(col1) or str(col1).strip() == "nan"):
