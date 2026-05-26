@@ -9,7 +9,7 @@ Source:
   https://www.bvl.bund.de/DE/Arbeitsbereiche/01_Lebensmittel/01_Aufgaben/
       02_AmtlicheLebensmittelueberwachung/07_PSMRueckstaende/lm_nbpsm_node.html
 
-Years: 2011–2022. Format: Excel/CSV with German-language column headers.
+Years: 2011–2024 (excluding 2012, PDF only). Format: Excel/CSV with German-language column headers.
 
 This is a higher-value EU data source than EFSA enforcement data because BVL
 reports ALL detections (not just MRL exceedances), providing both detection
@@ -36,105 +36,165 @@ BVL_OVERVIEW_URL = (
     "07_PSMRueckstaende/lm_nbpsm_node.html"
 )
 
-# Registry of BVL national monitoring reports for 2011–2022.
-# Known direct download URLs are included where available; many will require
-# scraping the overview page because BVL restructures its site frequently.
+# Registry of BVL national monitoring reports for 2011–2024 (excluding 2012, PDF only).
+# Direct download URLs point to the tab-24 / Substanzen surveillance files which
+# contain substance-level data (the files we need for glyphosate lookups).
 GERMANY_BVL_REPORTS = [
     {
         "label": "Germany BVL National Monitoring 2011",
         "year": 2011,
-        "filename": "bvl_2011_national_monitoring.xlsx",
-        "direct_url": "",
+        "filename": "bvl_2011_tab24_surveillance.xls",
+        "direct_url": (
+            "https://www.bvl.bund.de/SharedDocs/Downloads/01_Lebensmittel/"
+            "nbpsm/01_nbpsm_2011/psmr-2011-tab-24-surveillance-xls.xls"
+            "?__blob=publicationFile&v=2"
+        ),
         "published_date": "2013-06-01",
         "data_year": 2011,
     },
     {
-        "label": "Germany BVL National Monitoring 2012",
-        "year": 2012,
-        "filename": "bvl_2012_national_monitoring.xlsx",
-        "direct_url": "",
-        "published_date": "2014-06-01",
-        "data_year": 2012,
-    },
-    {
         "label": "Germany BVL National Monitoring 2013",
         "year": 2013,
-        "filename": "bvl_2013_national_monitoring.xlsx",
-        "direct_url": "",
+        "filename": "bvl_2013_tab24_surveillance.xls",
+        "direct_url": (
+            "https://www.bvl.bund.de/SharedDocs/Downloads/01_Lebensmittel/"
+            "nbpsm/03_nbpsm_2013/psmr-2013-tab-24-surveillance-xls.xls"
+            "?__blob=publicationFile&v=2"
+        ),
         "published_date": "2015-06-01",
         "data_year": 2013,
     },
     {
         "label": "Germany BVL National Monitoring 2014",
         "year": 2014,
-        "filename": "bvl_2014_national_monitoring.xlsx",
-        "direct_url": "",
+        "filename": "bvl_2014_tab24_surveillance.xls",
+        "direct_url": (
+            "https://www.bvl.bund.de/SharedDocs/Downloads/01_Lebensmittel/"
+            "nbpsm/03_nbpsm_2014/07_psmr-2014-tab-24-surveillance-xls.xls"
+            "?__blob=publicationFile&v=2"
+        ),
         "published_date": "2016-06-01",
         "data_year": 2014,
     },
     {
         "label": "Germany BVL National Monitoring 2015",
         "year": 2015,
-        "filename": "bvl_2015_national_monitoring.xlsx",
-        "direct_url": "",
+        "filename": "bvl_2015_tab24_surveillance.xls",
+        "direct_url": (
+            "https://www.bvl.bund.de/SharedDocs/Downloads/01_Lebensmittel/"
+            "nbpsm/05_nbpsm_2015/07_psmr-2015-tab-24-surveillance-xls.xls"
+            "?__blob=publicationFile&v=2"
+        ),
         "published_date": "2017-06-01",
         "data_year": 2015,
     },
     {
         "label": "Germany BVL National Monitoring 2016",
         "year": 2016,
-        "filename": "bvl_2016_national_monitoring.xlsx",
-        "direct_url": "",
+        "filename": "bvl_2016_tab24_surveillance.xls",
+        "direct_url": (
+            "https://www.bvl.bund.de/SharedDocs/Downloads/01_Lebensmittel/"
+            "nbpsm/06_nbpsm_2016/psmr-2016-tab-24-surveillance_xls.xls"
+            "?__blob=publicationFile&v=2"
+        ),
         "published_date": "2018-06-01",
         "data_year": 2016,
     },
     {
         "label": "Germany BVL National Monitoring 2017",
         "year": 2017,
-        "filename": "bvl_2017_national_monitoring.xlsx",
-        "direct_url": "",
+        "filename": "bvl_2017_tab24_surveillance.xlsx",
+        "direct_url": (
+            "https://www.bvl.bund.de/SharedDocs/Downloads/01_Lebensmittel/"
+            "nbpsm/07_nbpsm_2017/psmr-2017-tab-24-surveillance_xls.xlsx"
+            "?__blob=publicationFile&v=2"
+        ),
         "published_date": "2019-06-01",
         "data_year": 2017,
     },
     {
         "label": "Germany BVL National Monitoring 2018",
         "year": 2018,
-        "filename": "bvl_2018_national_monitoring.xlsx",
-        "direct_url": "",
+        "filename": "bvl_2018_tab24_surveillance.xlsx",
+        "direct_url": (
+            "https://www.bvl.bund.de/SharedDocs/Downloads/01_Lebensmittel/"
+            "nbpsm/08_nbpsm_2018/psmr-2018-tab-24-surveillance_xls.xlsx"
+            "?__blob=publicationFile&v=2"
+        ),
         "published_date": "2020-06-01",
         "data_year": 2018,
     },
     {
         "label": "Germany BVL National Monitoring 2019",
         "year": 2019,
-        "filename": "bvl_2019_national_monitoring.xlsx",
-        "direct_url": "",
+        "filename": "bvl_2019_tab24_surveillance.xlsx",
+        "direct_url": (
+            "https://www.bvl.bund.de/SharedDocs/Downloads/01_Lebensmittel/"
+            "nbpsm/09_nbpsm_2019/psmr-2019-tab-24-surveillance_xlsx.xlsx"
+            "?__blob=publicationFile&v=2"
+        ),
         "published_date": "2021-06-01",
         "data_year": 2019,
     },
     {
         "label": "Germany BVL National Monitoring 2020",
         "year": 2020,
-        "filename": "bvl_2020_national_monitoring.xlsx",
-        "direct_url": "",
+        "filename": "bvl_2020_tab24_surveillance.xlsx",
+        "direct_url": (
+            "https://www.bvl.bund.de/SharedDocs/Downloads/01_Lebensmittel/"
+            "nbpsm/09_nbpsm_2020/psmr-2020-tab-24-surveillance_xlsx.xlsx"
+            "?__blob=publicationFile&v=2"
+        ),
         "published_date": "2022-06-01",
         "data_year": 2020,
     },
     {
         "label": "Germany BVL National Monitoring 2021",
         "year": 2021,
-        "filename": "bvl_2021_national_monitoring.xlsx",
-        "direct_url": "",
+        "filename": "bvl_2021_tab24_surveillance.xlsx",
+        "direct_url": (
+            "https://www.bvl.bund.de/SharedDocs/Downloads/01_Lebensmittel/"
+            "nbpsm/09_nbpsm_2021/psmr-2021-tab-24-surveillance_xlsx.xlsx"
+            "?__blob=publicationFile&v=2"
+        ),
         "published_date": "2023-06-01",
         "data_year": 2021,
     },
     {
         "label": "Germany BVL National Monitoring 2022",
         "year": 2022,
-        "filename": "bvl_2022_national_monitoring.xlsx",
-        "direct_url": "",
+        "filename": "bvl_2022_substanzen.xlsx",
+        "direct_url": (
+            "https://www.bvl.bund.de/SharedDocs/Downloads/01_Lebensmittel/"
+            "nbpsm/10_nbpsm_2022/PSMR_Insgesamt_2022_Substanzen.xlsx.xlsx"
+            "?__blob=publicationFile&v=2"
+        ),
         "published_date": "2024-06-01",
         "data_year": 2022,
+    },
+    {
+        "label": "Germany BVL National Monitoring 2023",
+        "year": 2023,
+        "filename": "bvl_2023_substanzen.xlsx",
+        "direct_url": (
+            "https://www.bvl.bund.de/SharedDocs/Downloads/01_Lebensmittel/"
+            "nbpsm/11_nbpsm_2023/PSMR_Insgesamt_2023_Substanzen.xlsx.xlsx"
+            "?__blob=publicationFile&v=2"
+        ),
+        "published_date": "2025-06-01",
+        "data_year": 2023,
+    },
+    {
+        "label": "Germany BVL National Monitoring 2024",
+        "year": 2024,
+        "filename": "bvl_2024_substanzen.xlsx",
+        "direct_url": (
+            "https://www.bvl.bund.de/SharedDocs/Downloads/01_Lebensmittel/"
+            "nbpsm/12_nbpsm_2024/PSMR_Insgesamt_2024_Substanzen.xlsx.xlsx"
+            "?__blob=publicationFile&v=2"
+        ),
+        "published_date": "2026-06-01",
+        "data_year": 2024,
     },
 ]
 
@@ -144,27 +204,34 @@ _EXCLUDED_SUBSTANCES = {
     "aminomethylphosphonsäure",
     "aminomethylphosphonsaeure",
     "n-acetyl-glyphosat",
+    "n-acetylglyphosat",
     "n-acetyl glyphosate",
 }
 
 # German column header patterns for dynamic detection
 _SUBSTANCE_COL_PATTERNS = [
     "wirkstoff", "pflanzenschutzmittel", "substance", "pestizid",
-    "wirkstoffe", "parameter", "analyt",
+    "wirkstoffe", "parameter", "analyt", "substanzen",
 ]
 _COMMODITY_COL_PATTERNS = [
     "lebensmittel", "matrix", " commodity", "produkt", "lebensmittelgruppe",
-    "probe", "warengruppe", "food", "product",
+    "warengruppe", "food", "product",
 ]
 _SAMPLES_COL_PATTERNS = [
     "anzahl prober", "anzahl", "proben", "anzahl_proben", "gesamt",
     "anzahl der prober", "untersuchte prober", "number of samples",
     "gesamtzahl", "anzahl untersuchte",
+    "anzahl der untersuchungen", "anzahl der proben",
 ]
+# Exact-match names for total-sample columns (short names that would
+# cause false positives with substring matching).
+_SAMPLES_EXACT_NAMES = {"n"}
 _RESIDUES_COL_PATTERNS = [
-    "davon mit rückständen", "rückstände", "mit rückständen",
-    "davon mit rueckstaenden", "positiv", "fundhäufigkeit", "detektiert",
-    "mit rückstand", "anzahl positiv", "davon positiv",
+    "mit rückständen", "mit ruckstanden",
+    "davon mit rückständen", "davon mit rueckstaenden",
+    "mit rückstand", "positiv", "fundhäufigkeit", "detektiert",
+    "anzahl positiv", "davon positiv",
+    "mit r",
 ]
 _LEVEL_COL_PATTERNS = [
     "rückstandshöhe", "mittelwert", "mittlere rückstandshöhe",
@@ -195,12 +262,28 @@ class GermanyBVLFetcher(BaseFetcher):
             )
         return paths
 
+    @staticmethod
+    def _is_valid_cache(path: Path) -> bool:
+        """Check that a cached file is a real data file, not an HTML error page."""
+        try:
+            header = path.read_bytes()[:100]
+            return not header.strip().startswith(b"<")
+        except Exception:
+            return False
+
     def _fetch_report(self, report: dict) -> Path | None:
         """Download a single BVL report, with caching and fallback."""
         cache_path = RAW_DATA_DIR / report["filename"]
         if cache_path.exists():
-            logger.info("Cache hit: %s", report["filename"])
-            return cache_path
+            # Validate the cache is not an HTML error page
+            if self._is_valid_cache(cache_path):
+                logger.info("Cache hit: %s", report["filename"])
+                return cache_path
+            logger.warning(
+                "Germany_BVL: cached file %s is corrupted (HTML), re-downloading",
+                report["filename"],
+            )
+            cache_path.unlink()
 
         # Attempt 1: known direct URL
         if report.get("direct_url"):
@@ -336,7 +419,9 @@ class GermanyBVLFetcher(BaseFetcher):
         # Dynamic column detection
         substance_col = self._detect_column(df, _SUBSTANCE_COL_PATTERNS)
         commodity_col = self._detect_column(df, _COMMODITY_COL_PATTERNS)
-        samples_col = self._detect_column(df, _SAMPLES_COL_PATTERNS)
+        samples_col = self._detect_column(
+            df, _SAMPLES_COL_PATTERNS, _SAMPLES_EXACT_NAMES
+        )
         residues_col = self._detect_column(df, _RESIDUES_COL_PATTERNS)
         level_col = self._detect_column(df, _LEVEL_COL_PATTERNS)
 
@@ -348,20 +433,20 @@ class GermanyBVLFetcher(BaseFetcher):
             )
             return []
         if not commodity_col:
-            logger.warning(
-                "Germany_BVL: no commodity column found in %s "
-                "(columns: %s) — skipping",
-                file_path.name, list(df.columns),
+            logger.info(
+                "Germany_BVL: no commodity column in %s — "
+                "using 'all_foods' aggregate",
+                file_path.name,
             )
-            return []
 
         # Filter for glyphosate
         gly_mask = (
             df[substance_col]
+            .fillna("")
             .astype(str)
             .str.lower()
             .str.strip()
-            .apply(lambda s: "glyphosat" in s)
+            .str.contains("glyphosat", na=False)
         )
         gly_df = df[gly_mask].copy()
 
@@ -399,16 +484,20 @@ class GermanyBVLFetcher(BaseFetcher):
         )
 
         for _, row in gly_df.iterrows():
-            raw_commodity = str(row[commodity_col]).strip()
-            if not raw_commodity or raw_commodity.lower() in ("nan", "gesamt", "total", "summe"):
-                continue
-
-            mapped_commodity = self._map_german_commodity(raw_commodity)
-            food_category = normalize_category(mapped_commodity)
-            if not food_category:
-                food_category = mapped_commodity
-            if not food_category:
-                continue
+            if commodity_col:
+                raw_commodity = str(row[commodity_col]).strip()
+                if not raw_commodity or raw_commodity.lower() in ("nan", "gesamt", "total", "summe"):
+                    continue
+                mapped_commodity = self._map_german_commodity(raw_commodity)
+                food_category = normalize_category(mapped_commodity)
+                if not food_category:
+                    food_category = mapped_commodity
+                if not food_category:
+                    continue
+            else:
+                # No commodity column — aggregate across all foods
+                raw_commodity = "all_foods"
+                food_category = "all_foods"
 
             cat = by_category[food_category]
 
@@ -434,7 +523,7 @@ class GermanyBVLFetcher(BaseFetcher):
 
             total = stats["total"]
             n_detected = stats["detected"]
-            detection_rate = round(n_detected / total, 4) if total > 0 else None
+            detection_rate = round(min(n_detected / total, 1.0), 4) if total > 0 else None
             avg_ppb = (
                 round(sum(stats["ppb_values"]) / len(stats["ppb_values"]), 2)
                 if stats["ppb_values"]
@@ -481,13 +570,25 @@ class GermanyBVLFetcher(BaseFetcher):
         return rows
 
     def _read_excel(self, path: Path) -> pd.DataFrame:
-        """Read Excel file, trying different sheet names."""
-        import openpyxl
+        """Read Excel file (.xls or .xlsx), trying different sheet names."""
+        ext = path.suffix.lower()
+        # Use xlrd for old .xls format, openpyxl for .xlsx
+        if ext == ".xls":
+            engine = "xlrd"
+        else:
+            engine = "openpyxl"
 
-        # Try common sheet name patterns for BVL data
-        wb = openpyxl.load_workbook(path, read_only=True)
-        sheet_names = wb.sheetnames
-        wb.close()
+        try:
+            xl = pd.ExcelFile(path, engine=engine)
+        except Exception:
+            # Fallback: try the other engine
+            fallback = "openpyxl" if engine == "xlrd" else "xlrd"
+            try:
+                xl = pd.ExcelFile(path, engine=fallback)
+            except Exception as e:
+                raise ValueError(f"Cannot read {path.name}: {e}")
+
+        sheet_names = xl.sheet_names
 
         preferred_sheets = [
             "Tabelle 1", "Tabelle1", "Daten", "Ergebnisse",
@@ -507,7 +608,7 @@ class GermanyBVLFetcher(BaseFetcher):
         if target_sheet is None:
             return pd.DataFrame()
 
-        df = pd.read_excel(path, sheet_name=target_sheet, header=None)
+        df = pd.read_excel(xl, sheet_name=target_sheet, header=None)
 
         # Find the header row — look for known German column headers
         header_idx = self._find_header_row(df)
@@ -541,32 +642,66 @@ class GermanyBVLFetcher(BaseFetcher):
     def _find_header_row(self, df: pd.DataFrame) -> int | None:
         """
         Find the header row in a dataframe by scanning for known German
-        column header keywords.
+        column header keywords.  Prefers rows where most cells are non-null
+        (actual column headers) over title/merged rows (single long text).
         """
         all_patterns = (
             _SUBSTANCE_COL_PATTERNS
             + _COMMODITY_COL_PATTERNS
             + _SAMPLES_COL_PATTERNS
         )
+        best_idx = None
+        best_score = 0
         for idx, row in df.iterrows():
+            non_null = sum(1 for v in row if pd.notna(v) and str(v).strip())
+            # Title/merged rows typically have 1-2 non-null cells spanning
+            # the whole row; real header rows have a value in every column.
+            if non_null < max(2, len(row) // 2):
+                continue
             row_text = " ".join(str(v).lower() for v in row if pd.notna(v))
             matches = sum(
                 1 for p in all_patterns if p.lower() in row_text
             )
-            if matches >= 2:
-                return int(idx)
-        return None
+            if matches >= 2 and matches > best_score:
+                best_score = matches
+                best_idx = int(idx)
+        return best_idx
 
     @staticmethod
-    def _detect_column(df: pd.DataFrame, patterns: list[str]) -> str | None:
+    def _is_valid_cache(path: Path) -> bool:
+        """Check that a cached file is a valid Excel/CSV, not an HTML error page."""
+        try:
+            with open(path, "rb") as f:
+                header = f.read(500)
+            header_lower = header.lower()
+            if b"<html" in header_lower or b"<!doctype" in header_lower:
+                return False
+            return True
+        except OSError:
+            return False
+
+    @staticmethod
+    def _detect_column(
+        df: pd.DataFrame,
+        patterns: list[str],
+        exact_names: set[str] | None = None,
+    ) -> str | None:
         """
         Find a column whose name matches any of the given patterns.
         Checks both original and lowercased column names.
+        If *exact_names* is provided, also checks for exact (case-insensitive)
+        matches against that set — useful for short column names like "N".
+        Newlines in column names are collapsed to spaces before matching.
         """
         for col in df.columns:
             col_lower = col.lower().strip()
+            col_normalized = col_lower.replace("\n", " ").replace("  ", " ")
+            # Exact match first (higher priority)
+            if exact_names and col_normalized in exact_names:
+                return col
+            # Substring match on normalized name
             for pattern in patterns:
-                if pattern.lower() in col_lower:
+                if pattern.lower() in col_normalized:
                     return col
         return None
 

@@ -36,21 +36,13 @@ logger = logging.getLogger(__name__)
 NHANES_CYCLES = [
     {
         "cycle": "2013-2014",
-        "filename": "SSGLYP_H.XPT",
-        "url": "https://wwwn.cdc.gov/nchs/nhanes/2013-2014/SSGLYP_H.XPT",
-        "data_page": (
-            "https://wwwn.cdc.gov/nchs/nhanes/search/datapage.aspx"
-            "?Component=Laboratory&CycleBeginYear=2013"
-        ),
+        "filename": "SSGLYP_H.xpt",
+        "url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2013/DataFiles/SSGLYP_H.xpt",
     },
     {
         "cycle": "2015-2016",
-        "filename": "SSGLYP_I.XPT",
-        "url": "https://wwwn.cdc.gov/nchs/nhanes/2015-2016/SSGLYP_I.XPT",
-        "data_page": (
-            "https://wwwn.cdc.gov/nchs/nhanes/search/datapage.aspx"
-            "?Component=Laboratory&CycleBeginYear=2015"
-        ),
+        "filename": "SSGLYP_I.xpt",
+        "url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2015/DataFiles/SSGLYP_I.xpt",
     },
 ]
 
@@ -339,7 +331,7 @@ class CDC_NHANESFetcher(BaseFetcher):
 
         # Detection status
         if has_flag:
-            detected_mask = valid_mask & (below_flag == 0)
+            detected_mask = valid_mask & (below_flag < 0.5)
         else:
             # If no flag column, treat values > LOD as detected
             detected_mask = valid_mask & (glyphosate > LOD)

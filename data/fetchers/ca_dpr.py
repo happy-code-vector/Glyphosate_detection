@@ -13,21 +13,34 @@ and residue level data. This fetcher downloads per-year data files (CSV or
 Excel), filters for glyphosate detections, and aggregates by canonical
 food category.
 
-NOTE: The old /docs/pml/ URLs were retired when DPR restructured its site
-(c. 2024).  Data files are now accessed through the reports directory or
-by scraping the residue monitoring landing page.
+MANUAL DATA SOURCE (as of 2025-05):
+  DPR restructured its website around 2024.  The old /docs/pml/ URLs are all
+  404.  The new site does NOT expose machine-downloadable CSV/XLSX files for
+  residue monitoring data.  The reports directory is a client-side JavaScript
+  application that lists entries like "Annual Residue Data 2020/2021/2022" but
+  provides no direct download links.  No pesticide residue food monitoring
+  dataset exists on data.ca.gov.
+
+  TO USE THIS FETCHER: manually download annual residue data files from
+  DPR's reports directory (https://www.cdpr.ca.gov/reports-directory/ —
+  filter by Category: Residue) or via a public records request through
+  DPR's NextRequest portal.  Place the files in data/raw_data/ named as
+  specified in CA_DPR_REPORTS (e.g. ca_dpr_2020_residue.csv,
+  ca_dpr_2021_residue.csv, etc.).
+
+  The fetcher will detect and parse any manually placed files.  If no data
+  files are found, it logs a clear warning and returns zero rows.
 
 No values are hardcoded. All residue levels come from downloaded data files.
 """
 
 import logging
-import re
 from collections import defaultdict
 from pathlib import Path
 
 import pandas as pd
 
-from fetchers.base import BaseFetcher, download_file, fetch_page, RAW_DATA_DIR
+from fetchers.base import BaseFetcher, RAW_DATA_DIR
 from db.database import normalize_category, build_dedup_key
 
 logger = logging.getLogger(__name__)
@@ -36,16 +49,16 @@ logger = logging.getLogger(__name__)
 # CA DPR reports registry — one entry per monitoring year.
 # Add new entries as DPR publishes new annual data.
 #
-# NOTE (2025-05): The old /docs/pml/ URLs are all 404.  DPR restructured
-# its website around 2024.  The current entry points are:
-#   - Landing page:  https://www.cdpr.ca.gov/data-and-reports/residue-monitoring/
-#   - Reports dir:   https://www.cdpr.ca.gov/reports-directory/  (filter: Residue)
+# MANUAL DATA REQUIRED (as of 2025-05):
+#   DPR's restructured website does not expose direct CSV/XLSX download
+#   links for residue data.  To populate this source, manually download
+#   data from the reports directory or via a DPR public records request
+#   and place files in data/raw_data/ with the filenames listed below.
 #
-# Annual residue data entries found in the reports directory include:
-#   "Annual Residue Data 2020" (Jan 2020), "Annual Residue Data 2021" (Jan 2025),
-#   "Annual Residue Data 2022" (Jan 2022), plus annual program reports.
-# Direct CSV download URLs have not been confirmed; the fetcher relies on
-# scraping the reports directory or landing page for download links.
+#   Reports directory (filter: Category = Residue):
+#     https://www.cdpr.ca.gov/reports-directory/
+#   Public records portal:
+#     https://cdpr.nextrequest.com/
 # ─────────────────────────────────────────────────────────────────────
 CA_DPR_REPORTS = [
     {
@@ -82,19 +95,14 @@ CA_DPR_REPORTS = [
     },
 ]
 
-# Known URL patterns for CA DPR residue data files.
-# The old /docs/pml/ paths are all 404 after DPR's site restructuring.
-# Current patterns point to the new site structure.
+# Reference URLs for manual data retrieval.
 CA_DPR_URL_PATTERNS = {
     "residue_landing": "https://www.cdpr.ca.gov/data-and-reports/residue-monitoring/",
     "reports_directory": "https://www.cdpr.ca.gov/reports-directory/",
-    # Legacy patterns (all 404, kept for reference only):
-    # "residue_dir": "https://www.cdpr.ca.gov/docs/pml/residue/{year}/",
-    # "pmrc_html": "https://www.cdpr.ca.gov/docs/pml/pmrchtm/{year}pmrc.htm",
-    # "reports_page": "https://www.cdpr.ca.gov/docs/pml/reports.htm",
+    "public_records_portal": "https://cdpr.nextrequest.com/",
 }
 
-# Common file name patterns DPR uses for downloadable data.
+# Supported data file extensions for manual placement.
 _DPR_FILE_EXTENSIONS = [".csv", ".xlsx", ".xls"]
 
 # CA DPR commodity name → raw category hint for normalize_category.
@@ -199,159 +207,113 @@ _UNIT_COL_PATTERNS = [
 
 
 class CADPRFetcher(BaseFetcher):
-    """California DPR Marketplace Surveillance residue monitoring fetcher."""
+    """California DPR Marketplace Surveillance residue monitoring fetcher.
+
+    As of 2025-05, DPR does not expose machine-downloadable residue data files.
+    This fetcher checks for manually placed data files in raw_data/ and parses
+    them if found.  It does NOT attempt to scrape DPR's website because:
+      - The landing page has no data download links.
+      - The reports directory is client-side rendered (JavaScript) with no
+        direct CSV/XLSX download links for residue data entries.
+      - All legacy /docs/pml/ URLs return 404.
+
+    To populate this source, manually place data files in raw_data/ named as
+    specified in CA_DPR_REPORTS (e.g. ca_dpr_2020_residue.csv).
+    """
 
     SOURCE_NAME = "CA_DPR"
 
     def fetch(self) -> list[Path]:
         """
-        Download CA DPR residue data files for each registered year.
-        Tries known URL patterns; falls back to scraping the reports page.
-        Returns list of local file paths (may be fewer than registered years
-        if some years have no downloadable data).
+        Check for manually placed CA DPR residue data files in raw_data/.
+        Also checks for alternative extensions (.xlsx, .xls) if the primary
+        filename is not found.
+
+        Returns list of local file paths (may be empty if no data files
+        have been manually placed).
         """
         paths = []
         for report in CA_DPR_REPORTS:
+            # Check primary filename (e.g. ca_dpr_2020_residue.csv).
             cache_path = RAW_DATA_DIR / report["filename"]
             if cache_path.exists():
                 logger.info("Cache hit: %s", report["filename"])
                 paths.append(cache_path)
                 continue
 
-            path = self._try_fetch_year(report)
-            if path is not None:
-                paths.append(path)
-            else:
+            # Check alternative extensions (e.g. .xlsx, .xls).
+            found = False
+            for ext in _DPR_FILE_EXTENSIONS:
+                if ext == ".csv":
+                    continue  # Already checked above.
+                alt_path = RAW_DATA_DIR / report["filename"].replace(".csv", ext)
+                if alt_path.exists():
+                    logger.info("Cache hit: %s", alt_path.name)
+                    paths.append(alt_path)
+                    found = True
+                    break
+
+            if not found:
                 logger.warning(
-                    "CA DPR: could not download data for %d — skipping year",
+                    "CA DPR: no data file for %d — "
+                    "manually place '%s' (or .xlsx/.xls) in %s. "
+                    "Source: %s — filter: Residue, or request via %s",
                     report["year"],
+                    report["filename"],
+                    RAW_DATA_DIR,
+                    CA_DPR_URL_PATTERNS["reports_directory"],
+                    CA_DPR_URL_PATTERNS["public_records_portal"],
                 )
-        return paths
 
-    def _try_fetch_year(self, report: dict) -> Path | None:
-        """
-        Attempt multiple strategies to download data for a given year.
-        Strategy 1: Scrape the reports directory for year-specific data links.
-        Strategy 2: Scrape the residue monitoring landing page for data links.
-        Returns the local file path or None.
-        """
-        year = report["year"]
-
-        # Strategy 1: Scrape the reports directory for download links.
-        path = self._scrape_reports_directory(report)
-        if path is not None:
-            return path
-
-        # Strategy 2: Scrape the residue monitoring landing page for links.
-        path = self._scrape_landing_page(report)
-        return path
-
-    def _scrape_reports_directory(self, report: dict) -> Path | None:
-        """Scrape the DPR reports directory for download links matching this year."""
-        try:
-            from bs4 import BeautifulSoup
-
-            html = fetch_page(CA_DPR_URL_PATTERNS["reports_directory"])
-            soup = BeautifulSoup(html, "html.parser")
-            year_str = str(report["year"])
-
-            # Look for links that reference this year's data.
-            for a in soup.find_all("a", href=True):
-                href = a["href"]
-                text = a.get_text(strip=True).lower()
-                if year_str not in href and year_str not in text:
-                    continue
-                # Match data file links (CSV, XLSX, XLS).
-                if not any(href.lower().endswith(ext) for ext in _DPR_FILE_EXTENSIONS):
-                    continue
-                if not href.startswith("http"):
-                    href = f"https://www.cdpr.ca.gov{href}"
-                try:
-                    path = download_file(href, report["filename"])
-                    logger.info(
-                        "CA DPR %d: found data link on reports directory: %s",
-                        report["year"], href,
-                    )
-                    return path
-                except Exception as e:
-                    logger.debug("CA DPR: download failed for %s: %s", href, e)
-                    continue
-
-            logger.info("CA DPR: no data link found on reports directory for %d", report["year"])
-            return None
-        except Exception as e:
-            logger.warning("CA DPR: failed to scrape reports directory: %s", e)
-            return None
-
-    def _scrape_landing_page(self, report: dict) -> Path | None:
-        """Scrape the DPR residue monitoring landing page for linked data files."""
-        try:
-            from bs4 import BeautifulSoup
-
-            url = CA_DPR_URL_PATTERNS["residue_landing"]
-            html = fetch_page(url)
-            soup = BeautifulSoup(html, "html.parser")
-            year_str = str(report["year"])
-
-            # Look for links referencing this year's residue data.
-            for a in soup.find_all("a", href=True):
-                href = a["href"]
-                text = a.get_text(strip=True).lower()
-                if year_str not in href and year_str not in text:
-                    continue
-                if not any(href.lower().endswith(ext) for ext in _DPR_FILE_EXTENSIONS):
-                    continue
-                if not href.startswith("http"):
-                    href = f"https://www.cdpr.ca.gov{href}"
-                try:
-                    path = download_file(href, report["filename"])
-                    logger.info(
-                        "CA DPR %d: found data link on landing page: %s",
-                        report["year"], href,
-                    )
-                    return path
-                except Exception as e:
-                    logger.debug("CA DPR: download failed for %s: %s", href, e)
-                    continue
-
-            # Save the HTML itself as a fallback for inline tables.
-            cache_path = RAW_DATA_DIR / report["filename"].replace(".csv", ".html")
-            cache_path.write_text(html, encoding="utf-8")
-            logger.info(
-                "CA DPR %d: saved landing page HTML (%d bytes) for inline parsing",
-                report["year"], len(html),
+        if not paths:
+            logger.warning(
+                "CA DPR: no residue data files found in %s. "
+                "This source requires manual data file placement. "
+                "See fetcher documentation for instructions.",
+                RAW_DATA_DIR,
             )
-            return cache_path
-        except Exception as e:
-            logger.warning("CA DPR: failed to fetch landing page for %d: %s", report["year"], e)
-            return None
+
+        return paths
 
     def parse(self, files: list[Path]) -> list[dict]:
         """
         Parse downloaded CA DPR data files into Tier 2 aggregate rows.
-        Handles CSV, XLSX, XLS, and HTML formats.
+        Handles CSV, XLSX, and XLS formats.
         Filters for glyphosate, aggregates by commodity category.
         """
         all_rows = []
+        if not files:
+            logger.info(
+                "CA DPR: no data files to parse — skipping. "
+                "Place residue data files in %s to enable this source.",
+                RAW_DATA_DIR,
+            )
+            return all_rows
+
         # Build a map from filename to report metadata.
-        # Also try HTML fallback names (year.csv -> year.html).
+        # Support both .csv and .xlsx/.xls variants.
         file_map = {}
         for f in files:
             file_map[f.name] = f
-            # Register HTML fallback name if it was saved.
-            if f.suffix == ".html":
-                csv_name = f.name.replace(".html", ".csv")
-                file_map[csv_name] = f
 
         for report in CA_DPR_REPORTS:
             path = file_map.get(report["filename"])
             if path is None:
-                logger.warning("CA DPR: no file for %s — skipping", report["label"])
+                # Check for .xlsx/.xls variants.
+                for ext in _DPR_FILE_EXTENSIONS:
+                    if ext == ".csv":
+                        continue
+                    alt_name = report["filename"].replace(".csv", ext)
+                    alt_path = file_map.get(alt_name)
+                    if alt_path is not None:
+                        path = alt_path
+                        break
+
+            if path is None:
+                logger.debug("CA DPR: no file for %s — skipping", report["label"])
                 continue
 
-            if path.suffix == ".html":
-                rows = self._parse_html_file(path, report)
-            elif path.suffix in (".xlsx", ".xls"):
+            if path.suffix in (".xlsx", ".xls"):
                 rows = self._parse_excel_file(path, report)
             elif path.suffix == ".csv":
                 rows = self._parse_csv_file(path, report)
@@ -377,33 +339,6 @@ class CADPRFetcher(BaseFetcher):
         """Parse an Excel data file from CA DPR."""
         df = pd.read_excel(xlsx_path, sheet_name=0)
         return self._parse_dataframe(df, xlsx_path, report)
-
-    def _parse_html_file(self, html_path: Path, report: dict) -> list[dict]:
-        """
-        Parse HTML data — either inline tables from the PMRC page or
-        tables from the saved reports page.
-        """
-        try:
-            tables = pd.read_html(html_path, flavor="html5lib")
-        except ValueError:
-            logger.warning("CA DPR: no tables found in %s", html_path.name)
-            return []
-
-        all_rows = []
-        for table in tables:
-            if table.empty:
-                continue
-            rows = self._parse_dataframe(table, html_path, report)
-            if rows:
-                all_rows.extend(rows)
-                return all_rows  # Use the first table that yields glyphosate data.
-
-        if not all_rows:
-            logger.warning(
-                "CA DPR: no glyphosate data found in any table in %s",
-                html_path.name,
-            )
-        return all_rows
 
     def _parse_dataframe(
         self, df: pd.DataFrame, file_path: Path, report: dict

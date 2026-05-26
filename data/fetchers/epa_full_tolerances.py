@@ -75,11 +75,6 @@ CREATE TABLE IF NOT EXISTS tolerance_limits (
 # the dedicated epa_tolerances.py fetcher.
 REPORTS = [
     {
-        "section": "180.344",
-        "pesticide": "Atrazine",
-        "regulation": "40 CFR 180.344",
-    },
-    {
         "section": "180.258",
         "pesticide": "Chlorpyrifos",
         "regulation": "40 CFR 180.258",
@@ -90,29 +85,14 @@ REPORTS = [
         "regulation": "40 CFR 180.185",
     },
     {
-        "section": "180.105",
-        "pesticide": "2,4-D",
-        "regulation": "40 CFR 180.105",
-    },
-    {
         "section": "180.368",
         "pesticide": "Glufosinate",
         "regulation": "40 CFR 180.368",
     },
     {
-        "section": "180.115",
-        "pesticide": "Bentazon",
-        "regulation": "40 CFR 180.115",
-    },
-    {
         "section": "180.169",
         "pesticide": "Clopyralid",
         "regulation": "40 CFR 180.169",
-    },
-    {
-        "section": "180.282",
-        "pesticide": "Fluazifop",
-        "regulation": "40 CFR 180.282",
     },
     {
         "section": "180.213",
@@ -123,11 +103,6 @@ REPORTS = [
         "section": "180.341",
         "pesticide": "Acetochlor",
         "regulation": "40 CFR 180.341",
-    },
-    {
-        "section": "180.338",
-        "pesticide": "Alachlor",
-        "regulation": "40 CFR 180.338",
     },
     {
         "section": "180.350",
@@ -144,12 +119,11 @@ REPORTS = [
         "pesticide": "Clethodim",
         "regulation": "40 CFR 180.153",
     },
-    {
-        "section": "180.091",
-        "pesticide": "Aminopyralid",
-        "regulation": "40 CFR 180.091",
-    },
 ]
+
+# Sections blocked by eCFR rate-limiting (CAPTCHA). Keep for manual retry.
+# 180.344 (Atrazine), 180.105 (2,4-D), 180.115 (Bentazon),
+# 180.282 (Fluazifop), 180.338 (Alachlor), 180.091 (Aminopyralid)
 
 
 def _ecfr_url(section: str) -> str:

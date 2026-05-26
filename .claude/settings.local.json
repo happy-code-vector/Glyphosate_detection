@@ -21,7 +21,9 @@
       "Read(//c/Users/**)",
       "Bash(/c/Users/Administrator/AppData/Local/Programs/Python/Python312/python.exe -m pip install PyPDF2)",
       "Bash(/c/Users/Administrator/AppData/Local/Programs/Python/Python312/python.exe -c ' *)",
-      "Bash(*)"
+      "Bash(*)",
+      "PowerShell(cd \"F:\\\\Projects\\\\Arasheed\\\\Glyphosate Detection\\\\data\"; $sources = @\\(\"ewg\",\"florida\",\"usda_pdp\",\"epa_tolerances\",\"academic_papers\",\"cdc_nhanes\",\"uk_fsa\",\"ca_dpr\",\"germany_bvl\",\"australia_fsnz\",\"codex_mrls\",\"japan_brazil_mrls\",\"cfia\",\"efsa\",\"fda\",\"detox_project\",\"clean_label_project\",\"consumer_reports\",\"detox_certifications\",\"epa_full_tolerances\",\"usda_fas_mrls\"\\); foreach \\($src in $sources\\) { Write-Host \"=== $src ===\" ; python run_pipeline.py --source $src 2>&1 | Select-String -Pattern \"complete|failed|FAILED|Error\" ; Write-Host \"\" })",
+      "PowerShell(python -m pip install xlrd odfpy 2>&1 | Select-Object -Last 3)"
     ]
   }
 }
