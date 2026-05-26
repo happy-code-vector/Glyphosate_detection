@@ -34,6 +34,8 @@ logger = logging.getLogger(__name__)
 # NHANES cycle registry
 # ─────────────────────────────────────────────────────────────────────
 NHANES_CYCLES = [
+    # CDC publishes glyphosate-specific XPT files only for certain cycles.
+    # 2019-2020 and 2021-2022 cycles do not have separate glyphosate files.
     {
         "cycle": "2013-2014",
         "filename": "SSGLYP_H.xpt",
@@ -43,6 +45,11 @@ NHANES_CYCLES = [
         "cycle": "2015-2016",
         "filename": "SSGLYP_I.xpt",
         "url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2015/DataFiles/SSGLYP_I.xpt",
+    },
+    {
+        "cycle": "2017-2018",
+        "filename": "SSGLYP_J.xpt",
+        "url": "https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2017/DataFiles/SSGLYP_J.xpt",
     },
 ]
 

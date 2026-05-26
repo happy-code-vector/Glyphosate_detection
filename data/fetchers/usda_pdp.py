@@ -37,27 +37,19 @@ logger = logging.getLogger(__name__)
 # annual ZIP archives published by USDA AMS.
 
 USDA_PDP_REPORTS = [
-    {
-        "label": "USDA PDP 2011",
-        "url": "https://www.ams.usda.gov/sites/default/files/media/2011PDPDatabase.zip",
-        "zip_filename": "usda_pdp_2011.zip",
-        "data_year": 2011,
-        "published_date": "2013-01-01",
-    },
-    {
-        "label": "USDA PDP 2021",
-        "url": "https://www.ams.usda.gov/sites/default/files/media/2021PDPDatabase.zip",
-        "zip_filename": "usda_pdp_2021.zip",
-        "data_year": 2021,
-        "published_date": "2023-01-01",
-    },
-    {
-        "label": "USDA PDP 2022",
-        "url": "https://www.ams.usda.gov/sites/default/files/media/2022PDPDatabase.zip",
-        "zip_filename": "usda_pdp_2022.zip",
-        "data_year": 2022,
-        "published_date": "2024-01-01",
-    },
+    {"label": "USDA PDP 2011", "url": "https://www.ams.usda.gov/sites/default/files/media/2011PDPDatabase.zip", "zip_filename": "usda_pdp_2011.zip", "data_year": 2011, "published_date": "2013-01-01"},
+    {"label": "USDA PDP 2012", "url": "https://www.ams.usda.gov/sites/default/files/media/2012PDPDatabase.zip", "zip_filename": "usda_pdp_2012.zip", "data_year": 2012, "published_date": "2014-01-01"},
+    {"label": "USDA PDP 2013", "url": "https://www.ams.usda.gov/sites/default/files/media/2013PDPDatabase.zip", "zip_filename": "usda_pdp_2013.zip", "data_year": 2013, "published_date": "2015-01-01"},
+    {"label": "USDA PDP 2014", "url": "https://www.ams.usda.gov/sites/default/files/media/2014PDPDatabase.zip", "zip_filename": "usda_pdp_2014.zip", "data_year": 2014, "published_date": "2016-01-01"},
+    {"label": "USDA PDP 2015", "url": "https://www.ams.usda.gov/sites/default/files/media/2015PDPDatabase.zip", "zip_filename": "usda_pdp_2015.zip", "data_year": 2015, "published_date": "2017-01-01"},
+    {"label": "USDA PDP 2016", "url": "https://www.ams.usda.gov/sites/default/files/media/2016PDPDatabase.zip", "zip_filename": "usda_pdp_2016.zip", "data_year": 2016, "published_date": "2018-01-01"},
+    {"label": "USDA PDP 2017", "url": "https://www.ams.usda.gov/sites/default/files/media/2017PDPDatabase.zip", "zip_filename": "usda_pdp_2017.zip", "data_year": 2017, "published_date": "2019-01-01"},
+    {"label": "USDA PDP 2018", "url": "https://www.ams.usda.gov/sites/default/files/media/2018PDPDatabase.zip", "zip_filename": "usda_pdp_2018.zip", "data_year": 2018, "published_date": "2020-01-01"},
+    {"label": "USDA PDP 2019", "url": "https://www.ams.usda.gov/sites/default/files/media/2019PDPDatabase.zip", "zip_filename": "usda_pdp_2019.zip", "data_year": 2019, "published_date": "2021-01-01"},
+    {"label": "USDA PDP 2020", "url": "https://www.ams.usda.gov/sites/default/files/media/2020PDPDatabase.zip", "zip_filename": "usda_pdp_2020.zip", "data_year": 2020, "published_date": "2022-01-01"},
+    {"label": "USDA PDP 2021", "url": "https://www.ams.usda.gov/sites/default/files/media/2021PDPDatabase.zip", "zip_filename": "usda_pdp_2021.zip", "data_year": 2021, "published_date": "2023-01-01"},
+    {"label": "USDA PDP 2022", "url": "https://www.ams.usda.gov/sites/default/files/media/2022PDPDatabase.zip", "zip_filename": "usda_pdp_2022.zip", "data_year": 2022, "published_date": "2024-01-01"},
+    {"label": "USDA PDP 2023", "url": "https://www.ams.usda.gov/sites/default/files/media/2023PDPDatabase.zip", "zip_filename": "usda_pdp_2023.zip", "data_year": 2023, "published_date": "2025-01-01"},
 ]
 
 # PDP pesticide codes
@@ -68,30 +60,70 @@ AMPA_CODE = 957  # Aminomethylphosphonic acid — glyphosate metabolite, exclude
 # PDP uses uppercase commodity names. Map to lowercase canonical keys
 # used throughout the pipeline.
 COMMODITY_MAP = {
-    # PDP 2-letter commodity codes (primary key used in Results files)
+    # PDP 2-letter commodity codes
     "SY": "soybeans",       # Soybean Grain
     "CO": "corn",           # Corn Grain
     "BT": "canned_beets",   # Beets, Canned
     "BB": "blueberries",    # Blueberries, Cultivated
     "BZ": "blueberries",    # Blueberries, Frozen
     "BU": "butter",         # Butter
-    # Full commodity names (for reference / fallback)
-    "SOYBEANS": "soybeans",
-    "SOYBEAN": "soybeans",
-    "SOYBEAN GRAIN": "soybeans",
-    "CORN GRAIN": "corn",
-    "CORN, SWEET, FROZEN": "corn",
-    "CORN, SWEET, CANNED": "corn",
-    "CORN, SWEET": "corn",
-    "SWEET CORN": "corn",
-    "CORN": "corn",
-    "BEETS, CANNED": "canned_beets",
-    "CANNED BEETS": "canned_beets",
-    "BLUEBERRIES": "blueberries",
-    "BLUEBERRY": "blueberries",
-    "BLUEBERRIES, FROZEN": "blueberries",
-    "BLUEBERRIES, WILD": "blueberries",
+    "WH": "wheat",          # Wheat Flour
+    "OA": "oats",           # Oats
+    "RC": "rice",           # Rice
+    "BA": "barley",         # Barley
+    "BN": "beans",          # Beans
+    "GP": "grapes",         # Grapes
+    "ST": "strawberries",   # Strawberries
+    "AP": "fresh_fruit",    # Apples
+    "BJ": "fresh_fruit",    # Apple Juice
+    "PB": "fresh_fruit",    # Peaches
+    "PR": "fresh_fruit",    # Pears
+    "CT": "fresh_fruit",    # Cantaloupe
+    "SP": "fresh_vegetables",  # Spinach
+    "PT": "fresh_vegetables",  # Potatoes
+    "TM": "fresh_vegetables",  # Tomatoes
+    "TP": "fresh_vegetables",  # Tomato Paste
+    "TK": "fresh_vegetables",  # Tomato Ketchup/Catsup
+    "CJ": "fresh_vegetables",  # Celery
+    "PK": "fresh_vegetables",  # Kale
+    "LT": "fresh_vegetables",  # Lettuce
+    "CU": "fresh_vegetables",  # Cucumber
+    "CA": "fresh_vegetables",  # Carrots
+    "OP": "infant_cereal",    # Oat Products, Infant
+    "IF": "infant_cereal",    # Infant Formula
+    # Full commodity names (for fallback)
+    "SOYBEANS": "soybeans", "SOYBEAN": "soybeans", "SOYBEAN GRAIN": "soybeans",
+    "CORN GRAIN": "corn", "CORN, SWEET, FROZEN": "corn", "CORN, SWEET, CANNED": "corn",
+    "CORN, SWEET": "corn", "SWEET CORN": "corn", "CORN": "corn",
+    "BEETS, CANNED": "canned_beets", "CANNED BEETS": "canned_beets",
+    "BLUEBERRIES": "blueberries", "BLUEBERRY": "blueberries",
+    "BLUEBERRIES, FROZEN": "blueberries", "BLUEBERRIES, WILD": "blueberries",
     "BUTTER": "butter",
+    "WHEAT FLOUR": "wheat", "WHEAT, FLOUR": "wheat", "WHEAT": "wheat",
+    "OATS": "oats", "OAT PRODUCTS": "oats", "OAT, ROLLED": "oats",
+    "RICE": "rice", "RICE, BROWN": "rice", "RICE, WHITE": "rice",
+    "BARLEY": "barley", "BARLEY, PEARLED": "barley",
+    "BEANS": "beans", "BEANS, DRY": "beans", "BEANS, GREEN, CANNED": "beans",
+    "BEANS, SNAP": "fresh_vegetables", "BEANS, LIMA, FROZEN": "beans",
+    "GRAPES": "fresh_fruit", "GRAPE JUICE": "fresh_fruit",
+    "STRAWBERRIES": "fresh_fruit",
+    "APPLES": "fresh_fruit", "APPLE JUICE": "fresh_fruit",
+    "PEACHES": "fresh_fruit", "PEARS": "fresh_fruit",
+    "CANTALOUPE": "fresh_fruit",
+    "SPINACH": "fresh_vegetables", "SPINACH, FROZEN": "fresh_vegetables",
+    "POTATOES": "fresh_vegetables", "POTATOES, SWEET": "fresh_vegetables",
+    "TOMATOES": "fresh_vegetables", "TOMATO PASTE": "fresh_vegetables",
+    "TOMATOES, CANNED": "fresh_vegetables",
+    "CELERY": "fresh_vegetables",
+    "KALE": "fresh_vegetables",
+    "LETTUCE": "fresh_vegetables", "LETTUCE, HEAD": "fresh_vegetables",
+    "CUCUMBER": "fresh_vegetables",
+    "CARROTS": "fresh_vegetables",
+    "PEPPERS, BELL": "fresh_vegetables",
+    "ONIONS": "fresh_vegetables",
+    "INFANT FORMULA": "infant_cereal",
+    "OAT PRODUCTS, INFANT/TODDLER": "infant_cereal",
+    "OAT PRODUCTS,INFANT/TODDLER": "infant_cereal",
 }
 
 PDP_SOURCE_URL = "https://www.ams.usda.gov/datasets/pdp/pdpdata"

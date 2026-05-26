@@ -517,24 +517,9 @@ class CFIAFetcher(BaseFetcher):
 # Table 2.2 contains individual MRL exceedance records with food matrix,
 # substance name, and measured concentration (mg/kg).
 EFSA_REPORTS = [
-    {
-        "label": "EFSA EU Pesticide Residue Monitoring 2016",
-        "zenodo_record": "1320312",
-        "filename": "efsa_2016_visualisation.xlsx",
-        "published_date": "2018-07-01",
-        "data_year": 2016,
-        "source_url": "https://zenodo.org/records/1320312",
-        "format": "visualisation",
-    },
-    {
-        "label": "EFSA EU Pesticide Residue Monitoring 2017",
-        "zenodo_record": "3254912",
-        "filename": "efsa_2017_visualisation.xlsx",
-        "published_date": "2019-06-01",
-        "data_year": 2017,
-        "source_url": "https://zenodo.org/records/3254912",
-        "format": "visualisation",
-    },
+    # NOTE: EFSA 2016-2019 visualisation data is sample-level aggregate counts
+    # without individual pesticide residue values — unusable for glyphosate ppb.
+    # Only enforcement annexes (2020+) contain substance-specific MRL exceedance data.
     {
         "label": "EFSA EU Pesticide Residue Monitoring 2020",
         "zenodo_record": "6410774",
