@@ -38,8 +38,8 @@ def initialize():
     """Create all tables. Safe to call on every run — idempotent."""
     with get_connection() as conn:
         _migrate_legacy(conn)
-        _migrate_add_contaminant_column(conn)
         conn.executescript(SCHEMA_PATH.read_text(encoding='utf-8'))
+        _migrate_add_contaminant_column(conn)
         _seed_category_aliases(conn)
     logger.info("Database initialized at %s", DB_PATH)
 

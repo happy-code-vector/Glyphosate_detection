@@ -38,6 +38,14 @@ CONTAMINANTS = {
         "type": "heavy_metal",
         "cas_number": "7439-92-1",
         "wqp_characteristic": "Lead",
+        "wqp_params_override": {
+            "sampleMedia": "water",
+        },
+        "wqp_date_ranges": [
+            ("01-01-2018", "12-31-2023"),
+            ("01-01-2012", "12-31-2017"),
+            ("01-01-2006", "12-31-2011"),
+        ],
         "pdp_codes": [],
         "fda_search": "Lead",
         "units": "ppb",

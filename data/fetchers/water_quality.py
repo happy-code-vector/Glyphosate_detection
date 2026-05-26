@@ -133,29 +133,67 @@ class WaterQualityFetcher(BaseFetcher):
             logger.info("Cache hit: %s", self.wqp_filename)
             return cache_path
 
-        params = {
+        base_params = {
             "characteristicName": self.config["wqp_characteristic"],
             "sampleMedia": "Water",
             "mimeType": "csv",
             "sorted": "no",
             "providers": "STORET,NWIS",
         }
+        # Allow per-contaminant param overrides (e.g., sampleMedia casing)
+        base_params.update(self.config.get("wqp_params_override", {}))
 
+        # Try unbounded query first
         try:
             logger.info("Downloading USGS WQP %s water data...", self.contaminant)
-            resp = SESSION.get(WQP_BASE_URL, params=params, timeout=300)
-            resp.raise_for_status()
-
-            if len(resp.content) < 100:
-                logger.warning("WQP returned very little data for %s", self.contaminant)
-                return None
-
-            cache_path.write_bytes(resp.content)
-            logger.info("WQP %s download: %d bytes", self.contaminant, len(resp.content))
-            return cache_path
+            resp = SESSION.get(WQP_BASE_URL, params=base_params, timeout=300)
+            if resp.status_code == 200 and len(resp.content) > 1000:
+                cache_path.write_bytes(resp.content)
+                logger.info("WQP %s download: %d bytes", self.contaminant, len(resp.content))
+                return cache_path
+            logger.warning("WQP unbounded query for %s returned %d (%d bytes), trying date ranges",
+                           self.contaminant, resp.status_code, len(resp.content))
         except Exception as e:
-            logger.error("WQP %s download failed: %s", self.contaminant, e)
+            logger.warning("WQP unbounded query for %s failed: %s, trying date ranges",
+                           self.contaminant, e)
+
+        # Fall back to date-range queries for large datasets (e.g., lead)
+        date_ranges = self.config.get("wqp_date_ranges", [])
+        if not date_ranges:
+            logger.error("WQP %s: no date ranges configured and unbounded query failed",
+                         self.contaminant)
             return None
+
+        all_content = None
+        for start, end in date_ranges:
+            params = {**base_params, "startDateLo": start, "startDateHi": end}
+            try:
+                logger.info("WQP %s: fetching %s to %s...", self.contaminant, start, end)
+                resp = SESSION.get(WQP_BASE_URL, params=params, timeout=300)
+                if resp.status_code == 200 and len(resp.content) > 1000:
+                    if all_content is None:
+                        all_content = resp.content
+                    else:
+                        # Merge: skip header from subsequent chunks
+                        lines = resp.content.split(b"\n", 1)
+                        if len(lines) > 1:
+                            all_content += b"\n" + lines[1]
+                    logger.info("WQP %s %s-%s: %d bytes", self.contaminant, start, end,
+                                len(resp.content))
+                else:
+                    logger.warning("WQP %s %s-%s: status %d (%d bytes)",
+                                   self.contaminant, start, end, resp.status_code,
+                                   len(resp.content))
+            except Exception as e:
+                logger.warning("WQP %s %s-%s failed: %s", self.contaminant, start, end, e)
+
+        if all_content and len(all_content) > 1000:
+            cache_path.write_bytes(all_content)
+            logger.info("WQP %s total download: %d bytes", self.contaminant, len(all_content))
+            return cache_path
+
+        logger.error("WQP %s: all queries returned empty data", self.contaminant)
+        return None
 
     def parse(self, files: list[Path]) -> list[dict]:
         all_rows = []
