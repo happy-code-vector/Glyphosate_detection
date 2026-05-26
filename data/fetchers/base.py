@@ -108,6 +108,7 @@ class BaseFetcher(ABC):
     Implement fetch() and parse() — runner calls both.
     """
     SOURCE_NAME: str = ""
+    CONTAMINANT: str = "glyphosate"
 
     @abstractmethod
     def fetch(self) -> list[Path]:
