@@ -221,11 +221,15 @@ def insert_rows(rows: list[dict], source_name: str, source_file: str = "") -> di
                 failed += 1
                 continue
             try:
-                tier = row.get("tier", 1)
-                if tier == 1:
-                    changes = _insert_product(conn, row)
+                table = row.get("table", "food")
+                if table == "water":
+                    changes = _insert_water(conn, row)
                 else:
-                    changes = _insert_category(conn, row)
+                    tier = row.get("tier", 1)
+                    if tier == 1:
+                        changes = _insert_product(conn, row)
+                    else:
+                        changes = _insert_category(conn, row)
 
                 if changes:
                     inserted += 1
@@ -262,6 +266,38 @@ def _insert_product(conn, row: dict) -> int:
             :measured_ppb, :below_detection, :limit_of_detection,
             :original_unit, :unit_conversion, :is_organic, :is_grf_certified,
             :methodology_note, :confidence, :dedup_key, :raw_file_path
+        )
+    """, r)
+    return conn.execute("SELECT changes()").fetchone()[0]
+
+
+def _insert_water(conn, row: dict) -> int:
+    """Insert a water_tests row."""
+    defaults = {
+        "state": None, "county": None, "site_type": None, "site_id": None,
+        "latitude": None, "longitude": None,
+        "measured_ppb": None, "below_detection": 0, "detection_limit_ppb": None,
+        "analytical_method": None, "sample_date": None,
+        "is_aggregate": 0, "samples_total": None, "samples_detected": None,
+        "detection_rate": None, "avg_ppb": None, "max_ppb": None,
+        "methodology_note": None, "confidence": None,
+    }
+    r = {**defaults, **row}
+    conn.execute("""
+        INSERT OR IGNORE INTO water_tests (
+            source_name, source_url, report_label, data_year,
+            state, county, site_type, site_id, latitude, longitude,
+            water_type, measured_ppb, below_detection, detection_limit_ppb,
+            analytical_method, sample_date, is_aggregate,
+            samples_total, samples_detected, detection_rate, avg_ppb, max_ppb,
+            methodology_note, confidence, dedup_key
+        ) VALUES (
+            :source_name, :source_url, :report_label, :data_year,
+            :state, :county, :site_type, :site_id, :latitude, :longitude,
+            :water_type, :measured_ppb, :below_detection, :detection_limit_ppb,
+            :analytical_method, :sample_date, :is_aggregate,
+            :samples_total, :samples_detected, :detection_rate, :avg_ppb, :max_ppb,
+            :methodology_note, :confidence, :dedup_key
         )
     """, r)
     return conn.execute("SELECT changes()").fetchone()[0]

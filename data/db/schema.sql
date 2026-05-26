@@ -484,3 +484,81 @@ FROM international_mrls im
 LEFT JOIN category_summaries cs
     ON im.food_category = cs.food_category
 ORDER BY im.food_category, im.mrl_ppb ASC;
+
+-- ═════════════════════════════════════════════
+-- WATER TESTS
+-- ═════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS water_tests (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_name         TEXT    NOT NULL,
+    source_url          TEXT,
+    report_label        TEXT    NOT NULL,
+    data_year           INTEGER NOT NULL,
+
+    -- Location
+    state               TEXT,
+    county              TEXT,
+    site_type           TEXT,
+    site_id             TEXT,
+    latitude            REAL,
+    longitude           REAL,
+
+    -- Measurement
+    water_type          TEXT    NOT NULL,
+    measured_ppb        REAL,
+    below_detection     INTEGER DEFAULT 0,
+    detection_limit_ppb REAL,
+    analytical_method   TEXT,
+
+    -- Aggregation
+    sample_date         TEXT,
+    is_aggregate        INTEGER DEFAULT 0,
+    samples_total       INTEGER,
+    samples_detected    INTEGER,
+    detection_rate      REAL,
+    avg_ppb             REAL,
+    max_ppb             REAL,
+
+    -- Quality
+    methodology_note    TEXT,
+    confidence          TEXT    CHECK (confidence IN ('high', 'medium', 'low')),
+
+    -- Dedup / housekeeping
+    dedup_key           TEXT UNIQUE NOT NULL,
+    ingested_at         TEXT    DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_wt_state       ON water_tests(state);
+CREATE INDEX IF NOT EXISTS idx_wt_water_type  ON water_tests(water_type);
+CREATE INDEX IF NOT EXISTS idx_wt_data_year   ON water_tests(data_year);
+CREATE INDEX IF NOT EXISTS idx_wt_source      ON water_tests(source_name);
+CREATE INDEX IF NOT EXISTS idx_wt_aggregate   ON water_tests(is_aggregate);
+
+-- ─────────────────────────────────────────────
+-- app_water_overview: Aggregated water stats by state
+-- ─────────────────────────────────────────────
+DROP VIEW IF EXISTS app_water_overview;
+CREATE VIEW app_water_overview AS
+SELECT
+    wt.state,
+    wt.water_type,
+    wt.source_name,
+    wt.report_label,
+    wt.data_year,
+    wt.samples_total,
+    wt.samples_detected,
+    wt.detection_rate,
+    wt.avg_ppb,
+    wt.max_ppb,
+    tl.tolerance_ppb       AS epa_mcl_ppb,
+    CASE
+        WHEN tl.tolerance_ppb > 0 AND wt.max_ppb IS NOT NULL
+        THEN ROUND(wt.max_ppb / tl.tolerance_ppb * 100, 1)
+        ELSE NULL
+    END AS pct_of_mcl
+FROM water_tests wt
+LEFT JOIN tolerance_limits tl
+    ON tl.food_category = 'drinking_water' AND tl.source = 'EPA_MCL'
+WHERE wt.is_aggregate = 1
+ORDER BY wt.state, wt.water_type, wt.data_year DESC;
