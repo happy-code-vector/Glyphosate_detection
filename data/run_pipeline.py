@@ -116,33 +116,45 @@ def validate():
     conn.row_factory = sqlite3.Row
     issues = []
 
+    # Tier 2: check detection rates in category_summaries
     bad_rates = conn.execute("""
         SELECT id, source_name, food_category, detection_rate
-        FROM glyphosate_measurements
-        WHERE detection_rate IS NOT NULL AND (detection_rate < 0 OR detection_rate > 1)
+        FROM category_summaries
+        WHERE detection_rate < 0 OR detection_rate > 1
     """).fetchall()
     issues += [f"Invalid detection_rate {r['detection_rate']} in row {r['id']}" for r in bad_rates]
 
+    # Check negative ppb in both tables
     neg_ppb = conn.execute("""
-        SELECT id FROM glyphosate_measurements
-        WHERE (measured_ppb IS NOT NULL AND measured_ppb < 0)
-           OR (avg_ppb IS NOT NULL AND avg_ppb < 0)
+        SELECT id FROM product_tests
+        WHERE measured_ppb IS NOT NULL AND measured_ppb < 0
+    """).fetchall()
+    neg_ppb += conn.execute("""
+        SELECT id FROM category_summaries
+        WHERE (avg_ppb IS NOT NULL AND avg_ppb < 0)
+           OR (max_ppb IS NOT NULL AND max_ppb < 0)
     """).fetchall()
     issues += [f"Negative ppb in row {r['id']}" for r in neg_ppb]
 
+    # Check missing required fields in both tables
     missing = conn.execute("""
-        SELECT id, source_name FROM glyphosate_measurements
+        SELECT id, source_name FROM product_tests
+        WHERE food_category IS NULL OR food_category = ''
+           OR product_name IS NULL OR source_name IS NULL
+           OR published_date IS NULL OR confidence IS NULL
+    """).fetchall()
+    missing += conn.execute("""
+        SELECT id, source_name FROM category_summaries
         WHERE food_category IS NULL OR food_category = ''
            OR source_name IS NULL OR published_date IS NULL OR confidence IS NULL
     """).fetchall()
     issues += [f"Missing required fields row {r['id']} ({r['source_name']})" for r in missing]
 
-    total = conn.execute("SELECT COUNT(*) FROM glyphosate_measurements").fetchone()[0]
-    t1    = conn.execute("SELECT COUNT(*) FROM glyphosate_measurements WHERE tier=1").fetchone()[0]
-    t2    = conn.execute("SELECT COUNT(*) FROM glyphosate_measurements WHERE tier=2").fetchone()[0]
-    cats  = conn.execute("SELECT COUNT(DISTINCT food_category) FROM glyphosate_measurements WHERE tier=2").fetchone()[0]
+    t1    = conn.execute("SELECT COUNT(*) FROM product_tests").fetchone()[0]
+    t2    = conn.execute("SELECT COUNT(*) FROM category_summaries").fetchone()[0]
+    cats  = conn.execute("SELECT COUNT(DISTINCT food_category) FROM category_summaries").fetchone()[0]
 
-    logger.info("DB summary: total=%d tier1=%d tier2=%d categories=%d", total, t1, t2, cats)
+    logger.info("DB summary: product_tests=%d category_summaries=%d categories=%d", t1, t2, cats)
 
     if issues:
         logger.error("VALIDATION FAILED: %d issues", len(issues))

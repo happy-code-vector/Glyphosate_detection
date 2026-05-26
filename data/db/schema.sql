@@ -5,74 +5,139 @@ PRAGMA journal_mode=WAL;
 PRAGMA foreign_keys=ON;
 
 -- ─────────────────────────────────────────────
--- Core data table
--- Every row is one measurement from one source.
--- Tier 1 = named product with measured ppb.
--- Tier 2 = food category with detection rate.
+-- Tier 1: Individual product test results
+-- Every row is one measurement of one named product.
 -- ─────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS glyphosate_measurements (
+CREATE TABLE IF NOT EXISTS product_tests (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
 
-    -- Classification
-    tier                INTEGER NOT NULL CHECK (tier IN (1, 2)),
-    source_name         TEXT    NOT NULL,   -- 'EWG' | 'FloridaHFF' | 'CFIA' | 'EFSA' | 'FDA'
+    -- Source metadata
+    source_name         TEXT    NOT NULL,
     source_url          TEXT    NOT NULL,
-    report_label        TEXT    NOT NULL,   -- e.g. 'EWG Oat Test 2023', 'CFIA 2015-2016'
-    published_date      TEXT    NOT NULL,   -- ISO date: '2023-04-01'
+    report_label        TEXT    NOT NULL,
+    published_date      TEXT    NOT NULL,
     data_year           INTEGER NOT NULL,
 
     -- Food classification
-    food_category       TEXT    NOT NULL,   -- canonical key from category map
-    raw_category        TEXT    NOT NULL,   -- original string from source, never modified
+    food_category       TEXT    NOT NULL,
+    raw_category        TEXT    NOT NULL,
 
-    -- Tier 1 fields (product-specific measurements)
-    -- NULL for Tier 2 rows
-    product_name        TEXT,
-    measured_ppb        REAL,               -- actual measured value
-    below_detection     INTEGER DEFAULT 0,  -- 1 if result was <LOD (not zero, just undetected)
+    -- Product-specific measurement
+    product_name        TEXT    NOT NULL,
+    measured_ppb        REAL,
+    below_detection     INTEGER DEFAULT 0,
+    limit_of_detection  REAL,               -- LOD in ppb if reported
 
-    -- Tier 2 fields (category aggregate statistics)
-    -- NULL for Tier 1 rows
-    samples_total       INTEGER,
-    samples_detected    INTEGER,
-    detection_rate      REAL,               -- 0.0–1.0, computed from samples_detected/samples_total
-    avg_ppb             REAL,               -- mean across detected samples only
-    max_ppb             REAL,
-    p95_ppb             REAL,               -- 95th percentile if source provides it
-
-    -- Units (always stored internally as ppb / µg/kg)
-    -- Source values are converted on ingest. Conversion factor stored for audit.
-    original_unit       TEXT,               -- e.g. 'mg/kg', 'ppb', 'µg/kg'
-    unit_conversion     REAL DEFAULT 1.0,   -- multiplier applied to get ppb
+    -- Units (always stored internally as ppb)
+    original_unit       TEXT    DEFAULT 'ppb',
+    unit_conversion     REAL    DEFAULT 1.0,
 
     -- Quality flags
-    is_organic          INTEGER DEFAULT 0,  -- 1 if product/category is organic
-    is_grf_certified    INTEGER DEFAULT 0,  -- 1 if Glyphosate Residue Free certified
-    methodology_note    TEXT,               -- lab method, caveats, limitations
-    confidence          TEXT NOT NULL       -- 'high' | 'medium' | 'low'
-                        CHECK (confidence IN ('high', 'medium', 'low')),
+    is_organic          INTEGER DEFAULT 0,
+    is_grf_certified    INTEGER DEFAULT 0,
+    methodology_note    TEXT,
+    confidence          TEXT    NOT NULL CHECK (confidence IN ('high', 'medium', 'low')),
 
-    -- Deduplication key — prevents re-inserting same data on re-runs
+    -- Deduplication
     dedup_key           TEXT UNIQUE NOT NULL,
 
     -- Housekeeping
-    ingested_at         TEXT DEFAULT (datetime('now')),
-    raw_file_path       TEXT                -- path to source file used for this row
+    ingested_at         TEXT    DEFAULT (datetime('now')),
+    updated_at          TEXT    DEFAULT (datetime('now')),
+    raw_file_path       TEXT
 );
 
-CREATE INDEX IF NOT EXISTS idx_food_category  ON glyphosate_measurements(food_category);
-CREATE INDEX IF NOT EXISTS idx_tier           ON glyphosate_measurements(tier);
-CREATE INDEX IF NOT EXISTS idx_source         ON glyphosate_measurements(source_name);
-CREATE INDEX IF NOT EXISTS idx_data_year      ON glyphosate_measurements(data_year);
-CREATE INDEX IF NOT EXISTS idx_product_name   ON glyphosate_measurements(product_name);
+CREATE INDEX IF NOT EXISTS idx_pt_food_category   ON product_tests(food_category);
+CREATE INDEX IF NOT EXISTS idx_pt_source          ON product_tests(source_name);
+CREATE INDEX IF NOT EXISTS idx_pt_data_year       ON product_tests(data_year);
+CREATE INDEX IF NOT EXISTS idx_pt_product_name    ON product_tests(product_name);
+CREATE INDEX IF NOT EXISTS idx_pt_organic         ON product_tests(is_organic);
+
+-- ─────────────────────────────────────────────
+-- Tier 2: Category-level aggregate summaries
+-- Every row is one aggregate statistic per food category per source.
+-- ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS category_summaries (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+
+    -- Source metadata
+    source_name         TEXT    NOT NULL,
+    source_url          TEXT    NOT NULL,
+    report_label        TEXT    NOT NULL,
+    published_date      TEXT    NOT NULL,
+    data_year           INTEGER NOT NULL,
+
+    -- Food classification
+    food_category       TEXT    NOT NULL,
+    raw_category        TEXT    NOT NULL,
+
+    -- Aggregate statistics
+    samples_total       INTEGER NOT NULL,
+    samples_detected    INTEGER NOT NULL,
+    detection_rate      REAL    NOT NULL,   -- 0.0–1.0
+    avg_ppb             REAL,
+    max_ppb             REAL,
+    p95_ppb             REAL,
+    median_ppb          REAL,
+    min_ppb             REAL,
+
+    -- Units
+    original_unit       TEXT    DEFAULT 'ppb',
+    unit_conversion     REAL    DEFAULT 1.0,
+
+    -- Quality flags
+    is_organic          INTEGER DEFAULT 0,
+    methodology_note    TEXT,
+    confidence          TEXT    NOT NULL CHECK (confidence IN ('high', 'medium', 'low')),
+
+    -- Deduplication
+    dedup_key           TEXT UNIQUE NOT NULL,
+
+    -- Housekeeping
+    ingested_at         TEXT    DEFAULT (datetime('now')),
+    updated_at          TEXT    DEFAULT (datetime('now')),
+    raw_file_path       TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_cs_food_category   ON category_summaries(food_category);
+CREATE INDEX IF NOT EXISTS idx_cs_source          ON category_summaries(source_name);
+CREATE INDEX IF NOT EXISTS idx_cs_data_year       ON category_summaries(data_year);
+CREATE INDEX IF NOT EXISTS idx_cs_detection_rate  ON category_summaries(detection_rate);
+
+-- ─────────────────────────────────────────────
+-- Backward-compat view: glyphosate_measurements
+-- Unions both tables so existing queries still work during migration.
+-- ─────────────────────────────────────────────
+DROP VIEW IF EXISTS glyphosate_measurements;
+CREATE VIEW glyphosate_measurements AS
+SELECT
+    id, 1 AS tier, source_name, source_url, report_label, published_date, data_year,
+    food_category, raw_category,
+    product_name, measured_ppb, below_detection,
+    NULL AS samples_total, NULL AS samples_detected, NULL AS detection_rate,
+    NULL AS avg_ppb, NULL AS max_ppb, NULL AS p95_ppb,
+    original_unit, unit_conversion,
+    is_organic, is_grf_certified, methodology_note, confidence,
+    dedup_key, ingested_at, raw_file_path
+FROM product_tests
+UNION ALL
+SELECT
+    id, 2 AS tier, source_name, source_url, report_label, published_date, data_year,
+    food_category, raw_category,
+    NULL AS product_name, NULL AS measured_ppb, 0 AS below_detection,
+    samples_total, samples_detected, detection_rate,
+    avg_ppb, max_ppb, p95_ppb,
+    original_unit, unit_conversion,
+    is_organic, 0 AS is_grf_certified, methodology_note, confidence,
+    dedup_key, ingested_at, raw_file_path
+FROM category_summaries;
 
 -- ─────────────────────────────────────────────
 -- Category map — authoritative list of canonical keys
--- and every known alias that maps to them
 -- ─────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS category_aliases (
-    alias               TEXT PRIMARY KEY,   -- lowercased raw string from any source
-    canonical_key       TEXT NOT NULL       -- key used in glyphosate_measurements.food_category
+    alias               TEXT PRIMARY KEY,
+    canonical_key       TEXT NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_canonical ON category_aliases(canonical_key);
@@ -86,15 +151,31 @@ CREATE TABLE IF NOT EXISTS ingest_log (
     run_at              TEXT DEFAULT (datetime('now')),
     status              TEXT NOT NULL CHECK (status IN ('success', 'failed', 'partial')),
     rows_inserted       INTEGER DEFAULT 0,
-    rows_skipped        INTEGER DEFAULT 0,   -- dedup hits
+    rows_skipped        INTEGER DEFAULT 0,
     rows_failed         INTEGER DEFAULT 0,
     error_message       TEXT,
-    source_file         TEXT                 -- path or URL fetched
+    source_file         TEXT
 );
 
 -- ─────────────────────────────────────────────
--- Regulatory tolerance limits (reference data)
--- EPA, Codex, and other MRL/tolerance values per commodity.
+-- Data versioning — track what changed and when
+-- ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS data_versions (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    table_name          TEXT NOT NULL,
+    row_id              INTEGER NOT NULL,
+    field_name          TEXT NOT NULL,
+    old_value           TEXT,
+    new_value           TEXT,
+    changed_at          TEXT DEFAULT (datetime('now')),
+    changed_by          TEXT DEFAULT 'pipeline',
+    dedup_key           TEXT UNIQUE
+);
+
+CREATE INDEX IF NOT EXISTS idx_dv_table_row ON data_versions(table_name, row_id);
+
+-- ─────────────────────────────────────────────
+-- Regulatory tolerance limits
 -- ─────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS tolerance_limits (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -104,12 +185,12 @@ CREATE TABLE IF NOT EXISTS tolerance_limits (
     tolerance_ppb       REAL NOT NULL,
     source              TEXT NOT NULL,
     regulation_reference TEXT,
+    updated_at          TEXT DEFAULT (datetime('now')),
     dedup_key           TEXT UNIQUE
 );
 
 -- ─────────────────────────────────────────────
--- Biomonitoring data — human exposure measurements
--- CDC NHANES urine glyphosate levels by population group.
+-- Biomonitoring data
 -- ─────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS biomonitoring (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -127,12 +208,12 @@ CREATE TABLE IF NOT EXISTS biomonitoring (
     percentile_95       REAL,
     unit                TEXT DEFAULT 'ng/mL',
     lod                 REAL,
+    updated_at          TEXT DEFAULT (datetime('now')),
     dedup_key           TEXT UNIQUE
 );
 
 -- ─────────────────────────────────────────────
--- Certified products — Glyphosate Residue Free certifications
--- Detox Project and similar certification directories.
+-- Certified products
 -- ─────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS certified_products (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -145,6 +226,7 @@ CREATE TABLE IF NOT EXISTS certified_products (
     source              TEXT NOT NULL DEFAULT 'DetoxProject',
     source_url          TEXT,
     verified_date       TEXT,
+    updated_at          TEXT DEFAULT (datetime('now')),
     dedup_key           TEXT UNIQUE
 );
 
@@ -153,8 +235,7 @@ CREATE INDEX IF NOT EXISTS idx_cert_products_category ON certified_products(food
 CREATE INDEX IF NOT EXISTS idx_cert_products_source ON certified_products(source);
 
 -- ─────────────────────────────────────────────
--- International MRLs — cross-country regulatory comparisons
--- USDA FAS MRL Database, separate from tolerance_limits.
+-- International MRLs
 -- ─────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS international_mrls (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -166,16 +247,19 @@ CREATE TABLE IF NOT EXISTS international_mrls (
     mrl_ppb             REAL NOT NULL,
     regulatory_body     TEXT,
     source_url          TEXT,
+    updated_at          TEXT DEFAULT (datetime('now')),
     dedup_key           TEXT UNIQUE
 );
 
+-- ═════════════════════════════════════════════
+-- APP-FACING VIEWS
+-- ═════════════════════════════════════════════
+
 -- ─────────────────────────────────────────────
--- App-facing view: best available data per category
--- Resolves conflicts when multiple sources cover same category.
--- Source priority: EWG > FDA > CFIA > EFSA
--- Within same source: most recent data_year wins.
+-- Legacy view: category_risk (updated for new tables)
 -- ─────────────────────────────────────────────
-CREATE VIEW IF NOT EXISTS category_risk AS
+DROP VIEW IF EXISTS category_risk;
+CREATE VIEW category_risk AS
 SELECT
     food_category,
     source_name,
@@ -195,27 +279,26 @@ SELECT
         WHEN detection_rate >  0.0  THEN 'low'
         ELSE 'none'
     END AS risk_level
-FROM glyphosate_measurements
-WHERE tier = 2
-  AND food_category IN (
-      SELECT food_category FROM glyphosate_measurements
-      WHERE tier = 2
-      GROUP BY food_category
-      HAVING MAX(
-          CASE source_name
-              WHEN 'EWG' THEN 4
-              WHEN 'FDA' THEN 3
-              WHEN 'CFIA' THEN 2
-              WHEN 'EFSA' THEN 1
-              ELSE 0
-          END
-      )
-  );
+FROM category_summaries
+WHERE food_category IN (
+    SELECT cs.food_category FROM category_summaries cs
+    GROUP BY cs.food_category
+    HAVING MAX(
+        CASE cs.source_name
+            WHEN 'EWG' THEN 4
+            WHEN 'FDA' THEN 3
+            WHEN 'CFIA' THEN 2
+            WHEN 'EFSA' THEN 1
+            ELSE 0
+        END
+    )
+);
 
 -- ─────────────────────────────────────────────
--- App-facing view: Tier 1 product results
+-- Legacy view: product_results (updated for new tables)
 -- ─────────────────────────────────────────────
-CREATE VIEW IF NOT EXISTS product_results AS
+DROP VIEW IF EXISTS product_results;
+CREATE VIEW product_results AS
 SELECT
     product_name,
     food_category,
@@ -236,5 +319,168 @@ SELECT
         WHEN measured_ppb >  0    THEN 'low'
         ELSE 'unknown'
     END AS risk_level
-FROM glyphosate_measurements
-WHERE tier = 1;
+FROM product_tests;
+
+-- ─────────────────────────────────────────────
+-- app_food_overview: One row per food category
+-- Best-available stats with source priority resolution.
+-- ─────────────────────────────────────────────
+DROP VIEW IF EXISTS app_food_overview;
+CREATE VIEW app_food_overview AS
+WITH best_summary AS (
+    SELECT
+        cs.food_category,
+        cs.source_name,
+        cs.report_label,
+        cs.data_year,
+        cs.samples_total,
+        cs.samples_detected,
+        cs.detection_rate,
+        cs.avg_ppb,
+        cs.max_ppb,
+        cs.confidence,
+        CASE
+            WHEN cs.detection_rate >= 0.66 THEN 'high'
+            WHEN cs.detection_rate >= 0.31 THEN 'medium'
+            WHEN cs.detection_rate >  0.0  THEN 'low'
+            ELSE 'none'
+        END AS risk_level,
+        ROW_NUMBER() OVER (
+            PARTITION BY cs.food_category
+            ORDER BY
+                CASE cs.source_name
+                    WHEN 'EWG' THEN 4
+                    WHEN 'FDA' THEN 3
+                    WHEN 'CFIA' THEN 2
+                    WHEN 'EFSA' THEN 1
+                    ELSE 0
+                END DESC,
+                cs.data_year DESC
+        ) AS rn
+    FROM category_summaries cs
+),
+product_stats AS (
+    SELECT
+        pt.food_category,
+        COUNT(*) AS total_products_tested,
+        SUM(CASE WHEN pt.below_detection = 0 THEN 1 ELSE 0 END) AS products_with_detection,
+        ROUND(AVG(pt.measured_ppb), 1) AS avg_product_ppb,
+        MAX(pt.measured_ppb) AS max_product_ppb
+    FROM product_tests pt
+    GROUP BY pt.food_category
+),
+cert_count AS (
+    SELECT
+        cp.food_category,
+        COUNT(*) AS certified_product_count
+    FROM certified_products cp
+    GROUP BY cp.food_category
+)
+SELECT
+    bs.food_category,
+    bs.source_name          AS best_source,
+    bs.data_year            AS best_data_year,
+    bs.detection_rate       AS detection_rate,
+    bs.avg_ppb              AS avg_ppb,
+    bs.max_ppb              AS max_ppb,
+    bs.samples_total,
+    bs.samples_detected,
+    bs.risk_level,
+    bs.confidence,
+    COALESCE(ps.total_products_tested, 0)    AS total_products_tested,
+    COALESCE(ps.products_with_detection, 0)  AS products_with_detection,
+    COALESCE(ps.avg_product_ppb, 0)          AS avg_product_ppb,
+    COALESCE(ps.max_product_ppb, 0)          AS max_product_ppb,
+    COALESCE(cc.certified_product_count, 0)  AS certified_products_available
+FROM best_summary bs
+LEFT JOIN product_stats ps ON bs.food_category = ps.food_category
+LEFT JOIN cert_count cc    ON bs.food_category = cc.food_category
+WHERE bs.rn = 1;
+
+-- ─────────────────────────────────────────────
+-- app_product_lookup: Optimized for barcode/name search
+-- All individual product results with category context.
+-- ─────────────────────────────────────────────
+DROP VIEW IF EXISTS app_product_lookup;
+CREATE VIEW app_product_lookup AS
+SELECT
+    pt.product_name,
+    pt.food_category,
+    pt.source_name,
+    pt.report_label,
+    pt.data_year,
+    pt.measured_ppb,
+    pt.below_detection,
+    pt.limit_of_detection,
+    pt.is_organic,
+    pt.is_grf_certified,
+    pt.confidence,
+    pt.methodology_note,
+    pt.source_url,
+    pt.updated_at,
+    CASE
+        WHEN pt.is_grf_certified = 1 THEN 'certified_grf'
+        WHEN pt.is_organic = 1 AND pt.below_detection = 1 THEN 'organic_clean'
+        WHEN pt.is_organic = 1 THEN 'organic_detected'
+        WHEN pt.below_detection = 1 THEN 'none'
+        WHEN pt.measured_ppb >= 500 THEN 'high'
+        WHEN pt.measured_ppb >= 100 THEN 'medium'
+        WHEN pt.measured_ppb > 0 THEN 'low'
+        ELSE 'unknown'
+    END AS risk_level
+FROM product_tests pt
+ORDER BY pt.food_category, pt.product_name;
+
+-- ─────────────────────────────────────────────
+-- app_regulatory_limits: Tolerance limits + measurements
+-- Shows how detection levels compare to legal limits.
+-- ─────────────────────────────────────────────
+DROP VIEW IF EXISTS app_regulatory_limits;
+CREATE VIEW app_regulatory_limits AS
+SELECT
+    cs.food_category,
+    cs.source_name,
+    cs.data_year,
+    cs.detection_rate,
+    cs.max_ppb              AS measured_max_ppb,
+    cs.avg_ppb              AS measured_avg_ppb,
+    tl.tolerance_ppb        AS epa_tolerance_ppb,
+    tl.tolerance_ppm        AS epa_tolerance_ppm,
+    tl.source               AS tolerance_source,
+    tl.regulation_reference,
+    CASE
+        WHEN tl.tolerance_ppb > 0 AND cs.max_ppb IS NOT NULL
+        THEN ROUND(cs.max_ppb / tl.tolerance_ppb * 100, 1)
+        ELSE NULL
+    END AS pct_of_tolerance
+FROM category_summaries cs
+LEFT JOIN tolerance_limits tl
+    ON cs.food_category = tl.food_category
+WHERE cs.detection_rate > 0
+ORDER BY cs.food_category, cs.data_year DESC;
+
+-- ─────────────────────────────────────────────
+-- app_international_comparison: Side-by-side MRL comparison
+-- Compare regulatory limits across countries.
+-- ─────────────────────────────────────────────
+DROP VIEW IF EXISTS app_international_comparison;
+CREATE VIEW app_international_comparison AS
+SELECT
+    im.food_category,
+    im.raw_commodity,
+    im.country_region,
+    im.mrl_ppm,
+    im.mrl_ppb,
+    im.regulatory_body,
+    im.source_url,
+    cs.detection_rate,
+    cs.max_ppb              AS measured_max_ppb,
+    CASE
+        WHEN im.mrl_ppb > 0 AND cs.max_ppb IS NOT NULL
+        THEN ROUND(cs.max_ppb / im.mrl_ppb * 100, 1)
+        ELSE NULL
+    END AS pct_of_mrl
+FROM international_mrls im
+LEFT JOIN category_summaries cs
+    ON im.food_category = cs.food_category
+ORDER BY im.food_category, im.mrl_ppb ASC;

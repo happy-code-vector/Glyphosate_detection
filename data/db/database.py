@@ -3,10 +3,10 @@ db/database.py
 Core database operations. All pipeline code imports from here.
 """
 
+import csv
 import sqlite3
 import hashlib
 import logging
-import json
 from pathlib import Path
 from contextlib import contextmanager
 from typing import Optional
@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 DB_PATH = Path(__file__).parent.parent / "residueiq.db"
 SCHEMA_PATH = Path(__file__).parent / "schema.sql"
+ALIASES_PATH = Path(__file__).parent / "category_aliases.csv"
 
 
 @contextmanager
@@ -36,169 +37,137 @@ def get_connection():
 def initialize():
     """Create all tables. Safe to call on every run — idempotent."""
     with get_connection() as conn:
-        conn.executescript(SCHEMA_PATH.read_text())
+        _migrate_legacy(conn)
+        conn.executescript(SCHEMA_PATH.read_text(encoding='utf-8'))
         _seed_category_aliases(conn)
     logger.info("Database initialized at %s", DB_PATH)
 
 
+def _migrate_legacy(conn):
+    """Migrate data from old glyphosate_measurements table to new split tables."""
+    # Check if legacy table exists
+    legacy = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='glyphosate_measurements'"
+    ).fetchone()
+    if not legacy:
+        return
+
+    # Check if migration already done (new tables exist with data)
+    new_tables = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('product_tests', 'category_summaries')"
+    ).fetchall()
+    if len(new_tables) == 2:
+        # Check if new tables already have data — if so, migration done
+        pt_count = conn.execute("SELECT COUNT(*) FROM product_tests").fetchone()[0]
+        cs_count = conn.execute("SELECT COUNT(*) FROM category_summaries").fetchone()[0]
+        if pt_count > 0 or cs_count > 0:
+            logger.info("Legacy migration already complete (product_tests=%d, category_summaries=%d)",
+                        pt_count, cs_count)
+            return
+
+    logger.info("Migrating legacy glyphosate_measurements to product_tests + category_summaries...")
+
+    # Create new tables if they don't exist yet
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS product_tests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source_name TEXT NOT NULL, source_url TEXT NOT NULL, report_label TEXT NOT NULL,
+            published_date TEXT NOT NULL, data_year INTEGER NOT NULL,
+            food_category TEXT NOT NULL, raw_category TEXT NOT NULL,
+            product_name TEXT NOT NULL, measured_ppb REAL, below_detection INTEGER DEFAULT 0,
+            limit_of_detection REAL,
+            original_unit TEXT DEFAULT 'ppb', unit_conversion REAL DEFAULT 1.0,
+            is_organic INTEGER DEFAULT 0, is_grf_certified INTEGER DEFAULT 0,
+            methodology_note TEXT, confidence TEXT NOT NULL,
+            dedup_key TEXT UNIQUE NOT NULL,
+            ingested_at TEXT DEFAULT (datetime('now')), updated_at TEXT DEFAULT (datetime('now')),
+            raw_file_path TEXT
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS category_summaries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source_name TEXT NOT NULL, source_url TEXT NOT NULL, report_label TEXT NOT NULL,
+            published_date TEXT NOT NULL, data_year INTEGER NOT NULL,
+            food_category TEXT NOT NULL, raw_category TEXT NOT NULL,
+            samples_total INTEGER NOT NULL, samples_detected INTEGER NOT NULL,
+            detection_rate REAL NOT NULL, avg_ppb REAL, max_ppb REAL, p95_ppb REAL,
+            median_ppb REAL, min_ppb REAL,
+            original_unit TEXT DEFAULT 'ppb', unit_conversion REAL DEFAULT 1.0,
+            is_organic INTEGER DEFAULT 0, methodology_note TEXT, confidence TEXT NOT NULL,
+            dedup_key TEXT UNIQUE NOT NULL,
+            ingested_at TEXT DEFAULT (datetime('now')), updated_at TEXT DEFAULT (datetime('now')),
+            raw_file_path TEXT
+        )
+    """)
+
+    # Migrate Tier 1
+    conn.execute("""
+        INSERT OR IGNORE INTO product_tests (
+            source_name, source_url, report_label, published_date, data_year,
+            food_category, raw_category, product_name, measured_ppb, below_detection,
+            original_unit, unit_conversion, is_organic, is_grf_certified,
+            methodology_note, confidence, dedup_key, ingested_at, raw_file_path
+        )
+        SELECT
+            source_name, source_url, report_label, published_date, data_year,
+            food_category, raw_category, product_name, measured_ppb, below_detection,
+            original_unit, unit_conversion, is_organic, is_grf_certified,
+            methodology_note, confidence, dedup_key, ingested_at, raw_file_path
+        FROM glyphosate_measurements
+        WHERE tier = 1
+    """)
+    t1_migrated = conn.execute("SELECT changes()").fetchone()[0]
+
+    # Migrate Tier 2
+    conn.execute("""
+        INSERT OR IGNORE INTO category_summaries (
+            source_name, source_url, report_label, published_date, data_year,
+            food_category, raw_category,
+            samples_total, samples_detected, detection_rate, avg_ppb, max_ppb, p95_ppb,
+            original_unit, unit_conversion, is_organic, methodology_note, confidence,
+            dedup_key, ingested_at, raw_file_path
+        )
+        SELECT
+            source_name, source_url, report_label, published_date, data_year,
+            food_category, raw_category,
+            COALESCE(samples_total, 0), COALESCE(samples_detected, 0),
+            COALESCE(detection_rate, 0), avg_ppb, max_ppb, p95_ppb,
+            original_unit, unit_conversion, is_organic, methodology_note, confidence,
+            dedup_key, ingested_at, raw_file_path
+        FROM glyphosate_measurements
+        WHERE tier = 2
+    """)
+    t2_migrated = conn.execute("SELECT changes()").fetchone()[0]
+
+    conn.commit()
+    logger.info("Migrated %d Tier 1 rows to product_tests, %d Tier 2 rows to category_summaries",
+                t1_migrated, t2_migrated)
+
+    # Drop legacy table — the schema.sql will create the backward-compat view
+    conn.execute("DROP TABLE IF EXISTS glyphosate_measurements")
+    logger.info("Dropped legacy glyphosate_measurements table")
+
+
 def _seed_category_aliases(conn):
     """
-    Load all known aliases into category_aliases table.
-    This is the single authoritative mapping — every alias any source
-    might produce maps to one canonical key.
-    Extend this dict when a new source introduces a new spelling.
+    Load aliases from category_aliases.csv.
+    Extend the CSV when a new source introduces a new spelling — no code change needed.
     """
-    aliases = {
-        # ── Oats ──────────────────────────────────────────────────────────
-        "oat": "oats", "oats": "oats", "rolled oats": "oats",
-        "oat cereal": "oats", "oat-based": "oats", "oat flour": "oats",
-        "oat bran": "oats", "oat grain": "oats", "oatmeal": "oats",
-        "oat-based products": "oats", "oat based": "oats",
-        "oats (avena sativa)": "oats", "whole oats": "oats",
-        "quick oats": "oats", "instant oats": "oats",
-        # ── Wheat ─────────────────────────────────────────────────────────
-        "wheat": "wheat", "wheat grain": "wheat", "wheat flour": "wheat",
-        "whole wheat": "wheat", "bread wheat": "wheat", "wheat bran": "wheat",
-        "wheat germ": "wheat", "durum wheat": "wheat", "semolina": "wheat",
-        "pasta": "wheat", "bread": "wheat", "flour": "wheat",
-        "soft wheat": "wheat", "hard wheat": "wheat",
-        "triticum aestivum": "wheat",
-        # ── Soy ───────────────────────────────────────────────────────────
-        "soy": "soybeans", "soya": "soybeans", "soybean": "soybeans",
-        "soybeans": "soybeans", "soy-based": "soybeans",
-        "soy products": "soybeans", "soy flour": "soybeans",
-        "glycine max": "soybeans", "edamame": "soybeans",
-        # ── Corn / Maize ───────────────────────────────────────────────────
-        "corn": "corn", "maize": "corn", "cornstarch": "corn",
-        "corn flour": "corn", "corn grain": "corn", "corn meal": "corn",
-        "zea mays": "corn", "hominy": "corn",
-        # ── Chickpeas ─────────────────────────────────────────────────────
-        "chickpea": "chickpeas", "chickpeas": "chickpeas",
-        "garbanzo": "chickpeas", "garbanzo bean": "chickpeas",
-        "hummus": "chickpeas", "chickpea products": "chickpeas",
-        "cicer arietinum": "chickpeas",
-        # ── Lentils ────────────────────────────────────────────────────────
-        "lentil": "lentils", "lentils": "lentils",
-        "dried lentils": "lentils", "lens culinaris": "lentils",
-        "red lentils": "lentils", "green lentils": "lentils",
-        # ── Beans ─────────────────────────────────────────────────────────
-        "bean": "beans", "beans": "beans", "pinto bean": "beans",
-        "kidney bean": "beans", "black bean": "beans",
-        "navy bean": "beans", "dried beans": "beans",
-        "pulse products": "beans",
-        # ── Peas ──────────────────────────────────────────────────────────
-        "pea": "peas", "peas": "peas", "dried peas": "peas",
-        "split peas": "peas", "pisum sativum": "peas",
-        "field peas": "peas",
-        # ── Barley ────────────────────────────────────────────────────────
-        "barley": "barley", "barley grain": "barley",
-        "barley flour": "barley", "malted barley": "barley",
-        "hordeum vulgare": "barley",
-        # ── Canola / Rapeseed ─────────────────────────────────────────────
-        "canola": "canola", "canola oil": "canola",
-        "rapeseed": "canola", "rape": "canola",
-        "colza": "canola", "brassica napus": "canola",
-        # ── Sugar beet ────────────────────────────────────────────────────
-        "sugar beet": "sugar_beets", "sugar beets": "sugar_beets",
-        "beet sugar": "sugar_beets", "beta vulgaris": "sugar_beets",
-        # ── Buckwheat ─────────────────────────────────────────────────────
-        "buckwheat": "buckwheat", "buckwheat flour": "buckwheat",
-        "buckwheat grain": "buckwheat", "fagopyrum esculentum": "buckwheat",
-        # ── Quinoa ────────────────────────────────────────────────────────
-        "quinoa": "quinoa", "quinoa grain": "quinoa",
-        "chenopodium quinoa": "quinoa",
-        # ── Rye ───────────────────────────────────────────────────────────
-        "rye": "rye", "rye grain": "rye", "rye flour": "rye",
-        "secale cereale": "rye",
-        # ── Rice ──────────────────────────────────────────────────────────
-        "rice": "rice", "white rice": "rice", "brown rice": "rice",
-        "rice flour": "rice", "oryza sativa": "rice", "paddy rice": "rice",
-        # ── Infant food ───────────────────────────────────────────────────
-        "infant food": "infant_cereal", "baby food": "infant_cereal",
-        "infant cereal": "infant_cereal", "children cereal": "infant_cereal",
-        "infant formula": "infant_cereal", "toddler food": "infant_cereal",
-        # ── Fresh vegetables ──────────────────────────────────────────────
-        "fresh vegetables": "fresh_vegetables",
-        "vegetables": "fresh_vegetables",
-        "lettuce": "fresh_vegetables", "spinach": "fresh_vegetables",
-        "root vegetables": "fresh_vegetables",
-        "leafy vegetables": "fresh_vegetables",
-        # ── Fresh fruit ───────────────────────────────────────────────────
-        "fresh fruit": "fresh_fruit", "fruit": "fresh_fruit",
-        "apples": "fresh_fruit", "citrus": "fresh_fruit",
-        "stone fruit": "fresh_fruit", "berries": "fresh_fruit",
-        # ── Sunflower ─────────────────────────────────────────────────────
-        "sunflower": "sunflower", "sunflower seed": "sunflower",
-        "sunflower oil": "sunflower", "helianthus annuus": "sunflower",
-        # ── Butter (from USDA PDP) ────────────────────────────────────────
-        "butter": "butter", "dairy butter": "butter",
-        # ── Blueberries (from USDA PDP) ───────────────────────────────────
-        "blueberry": "blueberries", "blueberries": "blueberries",
-        "cultivated blueberries": "blueberries", "wild blueberries": "blueberries",
-        # ── Canned beets (from USDA PDP) ──────────────────────────────────
-        "canned beets": "canned_beets", "beets canned": "canned_beets",
-        # ── Candy/snacks ──────────────────────────────────────────────────
-        "candy": "corn", "confectionery": "corn",
-        # ── Protein products ─────────────────────────────────────────────
-        "protein bar": "soybeans", "protein powder": "soybeans",
-        "pea protein": "soybeans",
-        # ── UK-specific terms ─────────────────────────────────────────────
-        "cereals": "wheat", "cereal": "wheat",
-        "bread and rolls": "wheat",
-        "breakfast cereal": "oats",
-        # ── Additional grains ─────────────────────────────────────────────
-        "millet": "corn", "sorghum": "corn",
-        # ── Additional produce ────────────────────────────────────────────
-        "strawberries": "fresh_fruit", "grapes": "fresh_fruit",
-        "bananas": "fresh_fruit", "tomatoes": "fresh_vegetables",
-        "potatoes": "fresh_vegetables", "carrots": "fresh_vegetables",
-        "onions": "fresh_vegetables", "peppers": "fresh_vegetables",
-        "cucumbers": "fresh_vegetables", "celery": "fresh_vegetables",
-        "broccoli": "fresh_vegetables", "cabbage": "fresh_vegetables",
-        "mushrooms": "fresh_vegetables",
-        # ── Additional fruit ──────────────────────────────────────────────
-        "oranges": "fresh_fruit", "pears": "fresh_fruit",
-        "peaches": "fresh_fruit", "cherries": "fresh_fruit",
-        "cranberries": "fresh_fruit", "raspberries": "fresh_fruit",
-        # ── German terms (for BVL) ────────────────────────────────────────
-        "getreide": "wheat", "hafer": "oats", "soja": "soybeans",
-        "mais": "corn", "gerste": "barley", "roggen": "rye",
-        "reis": "rice", "hülsenfrüchte": "beans",
-        # ── General produce groups ────────────────────────────────────────
-        "oilseeds": "canola", "nuts": "fresh_fruit",
-        "dried fruit": "fresh_fruit", "juice": "fresh_fruit",
-        "processed food": "wheat", "snacks": "corn",
-        "crackers": "wheat", "chips": "corn",
-        "granola": "oats", "muesli": "oats",
-        # ── Singular produce names (from NCRMP) ──────────────────────────
-        "carrot": "fresh_vegetables", "apple": "fresh_fruit",
-        "tomato": "fresh_vegetables", "potato": "fresh_vegetables",
-        "mushroom": "fresh_vegetables", "onion": "fresh_vegetables",
-        "pepper": "fresh_vegetables", "cucumber": "fresh_vegetables",
-        # ── NCRMP-specific names ──────────────────────────────────────────
-        "saskatoon berry": "fresh_fruit", "saskatoon": "fresh_fruit",
-        "herb - dill - fresh": "fresh_vegetables", "herb": "fresh_vegetables",
-        "herbs": "fresh_vegetables", "dill": "fresh_vegetables",
-        "misc fruit": "fresh_fruit", "misc vegetable": "fresh_vegetables",
-        "bean - navy": "beans", "bean - black": "beans",
-        "bean - kidney": "beans", "bean - other": "beans",
-        "bean - white": "beans", "bean - pinto": "beans",
-        "juice - orange": "fresh_fruit", "juice - tomato": "fresh_fruit",
-        "juice - apple": "fresh_fruit", "juice": "fresh_fruit",
-        # ── Additional NCRMP commodities ──────────────────────────────────
-        "corn product": "corn", "corn products": "corn",
-        "grain product": "wheat", "grain products": "wheat",
-        "infant formula": "infant_cereal", "baby food": "infant_cereal",
-        "tea": "fresh_fruit", "coffee": "fresh_fruit",
-        "honey": "fresh_fruit", "spice": "fresh_vegetables",
-        "oil": "canola", "vinegar": "fresh_fruit",
-    }
+    if not ALIASES_PATH.exists():
+        logger.warning("category_aliases.csv not found at %s", ALIASES_PATH)
+        return
+
+    with open(ALIASES_PATH, newline='', encoding='utf-8') as f:
+        reader = csv.reader(f)
+        next(reader)  # skip header
+        aliases = [(row[0].strip(), row[1].strip()) for row in reader if len(row) >= 2]
 
     conn.executemany(
         "INSERT OR IGNORE INTO category_aliases (alias, canonical_key) VALUES (?, ?)",
-        aliases.items()
+        aliases,
     )
-    logger.info("Seeded %d category aliases", len(aliases))
+    logger.info("Seeded %d category aliases from CSV", len(aliases))
 
 
 def normalize_category(raw: str, conn=None) -> Optional[str]:
@@ -239,7 +208,9 @@ def build_dedup_key(*parts) -> str:
 
 def insert_rows(rows: list[dict], source_name: str, source_file: str = "") -> dict:
     """
-    Insert a batch of normalized rows. Skips duplicates via dedup_key.
+    Insert a batch of normalized rows. Routes to product_tests (Tier 1)
+    or category_summaries (Tier 2) based on the 'tier' field.
+    Skips duplicates via dedup_key.
     Returns counts: {inserted, skipped, failed}
     """
     inserted = skipped = failed = 0
@@ -250,24 +221,12 @@ def insert_rows(rows: list[dict], source_name: str, source_file: str = "") -> di
                 failed += 1
                 continue
             try:
-                conn.execute("""
-                    INSERT OR IGNORE INTO glyphosate_measurements (
-                        tier, source_name, source_url, report_label, published_date,
-                        data_year, food_category, raw_category, product_name,
-                        measured_ppb, below_detection, samples_total, samples_detected,
-                        detection_rate, avg_ppb, max_ppb, p95_ppb,
-                        original_unit, unit_conversion, is_organic, is_grf_certified,
-                        methodology_note, confidence, dedup_key, raw_file_path
-                    ) VALUES (
-                        :tier, :source_name, :source_url, :report_label, :published_date,
-                        :data_year, :food_category, :raw_category, :product_name,
-                        :measured_ppb, :below_detection, :samples_total, :samples_detected,
-                        :detection_rate, :avg_ppb, :max_ppb, :p95_ppb,
-                        :original_unit, :unit_conversion, :is_organic, :is_grf_certified,
-                        :methodology_note, :confidence, :dedup_key, :raw_file_path
-                    )
-                """, {**_defaults(), **row})
-                changes = conn.execute("SELECT changes()").fetchone()[0]
+                tier = row.get("tier", 1)
+                if tier == 1:
+                    changes = _insert_product(conn, row)
+                else:
+                    changes = _insert_category(conn, row)
+
                 if changes:
                     inserted += 1
                 else:
@@ -281,6 +240,63 @@ def insert_rows(rows: list[dict], source_name: str, source_file: str = "") -> di
     return {"inserted": inserted, "skipped": skipped, "failed": failed}
 
 
+def _insert_product(conn, row: dict) -> int:
+    """Insert a Tier 1 product test row."""
+    defaults = {
+        "measured_ppb": None, "below_detection": 0, "limit_of_detection": None,
+        "original_unit": "ppb", "unit_conversion": 1.0,
+        "is_organic": 0, "is_grf_certified": 0,
+        "methodology_note": None, "raw_file_path": None,
+    }
+    r = {**defaults, **row}
+    conn.execute("""
+        INSERT OR IGNORE INTO product_tests (
+            source_name, source_url, report_label, published_date, data_year,
+            food_category, raw_category, product_name,
+            measured_ppb, below_detection, limit_of_detection,
+            original_unit, unit_conversion, is_organic, is_grf_certified,
+            methodology_note, confidence, dedup_key, raw_file_path
+        ) VALUES (
+            :source_name, :source_url, :report_label, :published_date, :data_year,
+            :food_category, :raw_category, :product_name,
+            :measured_ppb, :below_detection, :limit_of_detection,
+            :original_unit, :unit_conversion, :is_organic, :is_grf_certified,
+            :methodology_note, :confidence, :dedup_key, :raw_file_path
+        )
+    """, r)
+    return conn.execute("SELECT changes()").fetchone()[0]
+
+
+def _insert_category(conn, row: dict) -> int:
+    """Insert a Tier 2 category summary row."""
+    defaults = {
+        "samples_total": 0, "samples_detected": 0, "detection_rate": 0.0,
+        "avg_ppb": None, "max_ppb": None, "p95_ppb": None,
+        "median_ppb": None, "min_ppb": None,
+        "original_unit": "ppb", "unit_conversion": 1.0,
+        "is_organic": 0, "methodology_note": None, "raw_file_path": None,
+    }
+    r = {**defaults, **row}
+    conn.execute("""
+        INSERT OR IGNORE INTO category_summaries (
+            source_name, source_url, report_label, published_date, data_year,
+            food_category, raw_category,
+            samples_total, samples_detected, detection_rate, avg_ppb, max_ppb, p95_ppb,
+            median_ppb, min_ppb,
+            original_unit, unit_conversion, is_organic,
+            methodology_note, confidence, dedup_key, raw_file_path
+        ) VALUES (
+            :source_name, :source_url, :report_label, :published_date, :data_year,
+            :food_category, :raw_category,
+            :samples_total, :samples_detected, :detection_rate, :avg_ppb, :max_ppb, :p95_ppb,
+            :median_ppb, :min_ppb,
+            :original_unit, :unit_conversion, :is_organic,
+            :methodology_note, :confidence, :dedup_key, :raw_file_path
+        )
+    """, r)
+    return conn.execute("SELECT changes()").fetchone()[0]
+
+
 def log_ingest(source_name, status, inserted=0, skipped=0, failed=0,
                error_message=None, source_file=""):
     with get_connection() as conn:
@@ -290,14 +306,3 @@ def log_ingest(source_name, status, inserted=0, skipped=0, failed=0,
                  error_message, source_file)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (source_name, status, inserted, skipped, failed, error_message, source_file))
-
-
-def _defaults() -> dict:
-    return {
-        "product_name": None, "measured_ppb": None, "below_detection": 0,
-        "samples_total": None, "samples_detected": None, "detection_rate": None,
-        "avg_ppb": None, "max_ppb": None, "p95_ppb": None,
-        "original_unit": "ppb", "unit_conversion": 1.0,
-        "is_organic": 0, "is_grf_certified": 0,
-        "methodology_note": None, "raw_file_path": None,
-    }
