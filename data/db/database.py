@@ -38,9 +38,30 @@ def initialize():
     """Create all tables. Safe to call on every run — idempotent."""
     with get_connection() as conn:
         _migrate_legacy(conn)
+        _migrate_add_contaminant_column(conn)
         conn.executescript(SCHEMA_PATH.read_text(encoding='utf-8'))
         _seed_category_aliases(conn)
     logger.info("Database initialized at %s", DB_PATH)
+
+
+def _migrate_add_contaminant_column(conn):
+    """Add contaminant column to existing tables if missing."""
+    tables_to_migrate = [
+        "product_tests",
+        "category_summaries",
+        "water_tests",
+        "tolerance_limits",
+    ]
+    for table in tables_to_migrate:
+        cols = conn.execute(f"PRAGMA table_info({table})").fetchall()
+        col_names = [c[1] for c in cols]
+        if "contaminant" not in col_names:
+            logger.info("Adding contaminant column to %s", table)
+            conn.execute(
+                f"ALTER TABLE {table} ADD COLUMN contaminant TEXT NOT NULL DEFAULT 'glyphosate'"
+            )
+    conn.executescript(SCHEMA_PATH.read_text(encoding='utf-8'))
+    logger.info("Contaminant column migration complete")
 
 
 def _migrate_legacy(conn):
@@ -247,6 +268,7 @@ def insert_rows(rows: list[dict], source_name: str, source_file: str = "") -> di
 def _insert_product(conn, row: dict) -> int:
     """Insert a Tier 1 product test row."""
     defaults = {
+        "contaminant": "glyphosate",
         "measured_ppb": None, "below_detection": 0, "limit_of_detection": None,
         "original_unit": "ppb", "unit_conversion": 1.0,
         "is_organic": 0, "is_grf_certified": 0,
@@ -256,13 +278,13 @@ def _insert_product(conn, row: dict) -> int:
     conn.execute("""
         INSERT OR IGNORE INTO product_tests (
             source_name, source_url, report_label, published_date, data_year,
-            food_category, raw_category, product_name,
+            food_category, raw_category, contaminant, product_name,
             measured_ppb, below_detection, limit_of_detection,
             original_unit, unit_conversion, is_organic, is_grf_certified,
             methodology_note, confidence, dedup_key, raw_file_path
         ) VALUES (
             :source_name, :source_url, :report_label, :published_date, :data_year,
-            :food_category, :raw_category, :product_name,
+            :food_category, :raw_category, :contaminant, :product_name,
             :measured_ppb, :below_detection, :limit_of_detection,
             :original_unit, :unit_conversion, :is_organic, :is_grf_certified,
             :methodology_note, :confidence, :dedup_key, :raw_file_path
@@ -274,6 +296,7 @@ def _insert_product(conn, row: dict) -> int:
 def _insert_water(conn, row: dict) -> int:
     """Insert a water_tests row."""
     defaults = {
+        "contaminant": "glyphosate",
         "state": None, "county": None, "site_type": None, "site_id": None,
         "latitude": None, "longitude": None,
         "measured_ppb": None, "below_detection": 0, "detection_limit_ppb": None,
@@ -286,6 +309,7 @@ def _insert_water(conn, row: dict) -> int:
     conn.execute("""
         INSERT OR IGNORE INTO water_tests (
             source_name, source_url, report_label, data_year,
+            contaminant,
             state, county, site_type, site_id, latitude, longitude,
             water_type, measured_ppb, below_detection, detection_limit_ppb,
             analytical_method, sample_date, is_aggregate,
@@ -293,6 +317,7 @@ def _insert_water(conn, row: dict) -> int:
             methodology_note, confidence, dedup_key
         ) VALUES (
             :source_name, :source_url, :report_label, :data_year,
+            :contaminant,
             :state, :county, :site_type, :site_id, :latitude, :longitude,
             :water_type, :measured_ppb, :below_detection, :detection_limit_ppb,
             :analytical_method, :sample_date, :is_aggregate,
@@ -306,6 +331,7 @@ def _insert_water(conn, row: dict) -> int:
 def _insert_category(conn, row: dict) -> int:
     """Insert a Tier 2 category summary row."""
     defaults = {
+        "contaminant": "glyphosate",
         "samples_total": 0, "samples_detected": 0, "detection_rate": 0.0,
         "avg_ppb": None, "max_ppb": None, "p95_ppb": None,
         "median_ppb": None, "min_ppb": None,
@@ -316,14 +342,14 @@ def _insert_category(conn, row: dict) -> int:
     conn.execute("""
         INSERT OR IGNORE INTO category_summaries (
             source_name, source_url, report_label, published_date, data_year,
-            food_category, raw_category,
+            food_category, raw_category, contaminant,
             samples_total, samples_detected, detection_rate, avg_ppb, max_ppb, p95_ppb,
             median_ppb, min_ppb,
             original_unit, unit_conversion, is_organic,
             methodology_note, confidence, dedup_key, raw_file_path
         ) VALUES (
             :source_name, :source_url, :report_label, :published_date, :data_year,
-            :food_category, :raw_category,
+            :food_category, :raw_category, :contaminant,
             :samples_total, :samples_detected, :detection_rate, :avg_ppb, :max_ppb, :p95_ppb,
             :median_ppb, :min_ppb,
             :original_unit, :unit_conversion, :is_organic,
