@@ -1,0 +1,220 @@
+alias,canonical_key
+oat,oats
+oats,oats
+rolled oats,oats
+oat cereal,oats
+oat-based,oats
+oat flour,oats
+oat bran,oats
+oat grain,oats
+oatmeal,oats
+oat-based products,oats
+oat based,oats
+oats (avena sativa),oats
+whole oats,oats
+quick oats,oats
+instant oats,oats
+breakfast cereal,oats
+granola,oats
+muesli,oats
+wheat,wheat
+wheat grain,wheat
+wheat flour,wheat
+whole wheat,wheat
+bread wheat,wheat
+wheat bran,wheat
+wheat germ,wheat
+durum wheat,wheat
+semolina,wheat
+pasta,wheat
+bread,wheat
+flour,wheat
+soft wheat,wheat
+hard wheat,wheat
+triticum aestivum,wheat
+cereals,wheat
+cereal,wheat
+bread and rolls,wheat
+crackers,wheat
+grain product,wheat
+grain products,wheat
+processed food,wheat
+soy,soybeans
+soya,soybeans
+soybean,soybeans
+soybeans,soybeans
+soy-based,soybeans
+soy products,soybeans
+soy flour,soybeans
+glycine max,soybeans
+edamame,soybeans
+protein bar,soybeans
+protein powder,soybeans
+pea protein,soybeans
+corn,corn
+maize,corn
+cornstarch,corn
+corn flour,corn
+corn grain,corn
+corn meal,corn
+zea mays,corn
+hominy,corn
+candy,corn
+confectionery,corn
+millet,corn
+sorghum,corn
+snacks,corn
+chips,corn
+corn product,corn
+corn products,corn
+chickpea,chickpeas
+chickpeas,chickpeas
+garbanzo,chickpeas
+garbanzo bean,chickpeas
+hummus,chickpeas
+chickpea products,chickpeas
+cicer arietinum,chickpeas
+lentil,lentils
+lentils,lentils
+dried lentils,lentils
+lens culinaris,lentils
+red lentils,lentils
+green lentils,lentils
+bean,beans
+beans,beans
+pinto bean,beans
+kidney bean,beans
+black bean,beans
+navy bean,beans
+dried beans,beans
+pulse products,beans
+bean - navy,beans
+bean - black,beans
+bean - kidney,beans
+bean - other,beans
+bean - white,beans
+bean - pinto,beans
+pea,peas
+peas,peas
+dried peas,peas
+split peas,peas
+pisum sativum,peas
+field peas,peas
+barley,barley
+barley grain,barley
+barley flour,barley
+malted barley,barley
+hordeum vulgare,barley
+canola,canola
+canola oil,canola
+rapeseed,canola
+rape,canola
+colza,canola
+brassica napus,canola
+oilseeds,canola
+oil,canola
+sugar beet,sugar_beets
+sugar beets,sugar_beets
+beet sugar,sugar_beets
+beta vulgaris,sugar_beets
+buckwheat,buckwheat
+buckwheat flour,buckwheat
+buckwheat grain,buckwheat
+fagopyrum esculentum,buckwheat
+quinoa,quinoa
+quinoa grain,quinoa
+chenopodium quinoa,quinoa
+rye,rye
+rye grain,rye
+rye flour,rye
+secale cereale,rye
+rice,rice
+white rice,rice
+brown rice,rice
+rice flour,rice
+oryza sativa,rice
+paddy rice,rice
+infant food,infant_cereal
+baby food,infant_cereal
+infant cereal,infant_cereal
+children cereal,infant_cereal
+infant formula,infant_cereal
+toddler food,infant_cereal
+fresh vegetables,fresh_vegetables
+vegetables,fresh_vegetables
+lettuce,fresh_vegetables
+spinach,fresh_vegetables
+root vegetables,fresh_vegetables
+leafy vegetables,fresh_vegetables
+strawberries,fresh_vegetables
+potatoes,fresh_vegetables
+carrots,fresh_vegetables
+onions,fresh_vegetables
+peppers,fresh_vegetables
+cucumbers,fresh_vegetables
+celery,fresh_vegetables
+broccoli,fresh_vegetables
+cabbage,fresh_vegetables
+mushrooms,fresh_vegetables
+tomatoes,fresh_vegetables
+carrot,fresh_vegetables
+tomato,fresh_vegetables
+potato,fresh_vegetables
+mushroom,fresh_vegetables
+onion,fresh_vegetables
+pepper,fresh_vegetables
+cucumber,fresh_vegetables
+herb - dill - fresh,fresh_vegetables
+herb,fresh_vegetables
+herbs,fresh_vegetables
+dill,fresh_vegetables
+misc vegetable,fresh_vegetables
+spice,fresh_vegetables
+fresh fruit,fresh_fruit
+fruit,fresh_fruit
+apples,fresh_fruit
+citrus,fresh_fruit
+stone fruit,fresh_fruit
+berries,fresh_fruit
+oranges,fresh_fruit
+pears,fresh_fruit
+peaches,fresh_fruit
+cherries,fresh_fruit
+cranberries,fresh_fruit
+raspberries,fresh_fruit
+apple,fresh_fruit
+saskatoon berry,fresh_fruit
+saskatoon,fresh_fruit
+misc fruit,fresh_fruit
+juice - orange,fresh_fruit
+juice - tomato,fresh_fruit
+juice - apple,fresh_fruit
+juice,fresh_fruit
+tea,fresh_fruit
+coffee,fresh_fruit
+honey,fresh_fruit
+vinegar,fresh_fruit
+nuts,fresh_fruit
+dried fruit,fresh_fruit
+grapes,fresh_fruit
+bananas,fresh_fruit
+sunflower,sunflower
+sunflower seed,sunflower
+sunflower oil,sunflower
+helianthus annuus,sunflower
+butter,butter
+dairy butter,butter
+blueberry,blueberries
+blueberries,blueberries
+cultivated blueberries,blueberries
+wild blueberries,blueberries
+canned beets,canned_beets
+beets canned,canned_beets
+getreide,wheat
+hafer,oats
+soja,soybeans
+mais,corn
+gerste,barley
+roggen,rye
+reis,rice
+hülsenfrüchte,beans
