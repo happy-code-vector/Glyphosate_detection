@@ -668,19 +668,6 @@ class GermanyBVLFetcher(BaseFetcher):
         return best_idx
 
     @staticmethod
-    def _is_valid_cache(path: Path) -> bool:
-        """Check that a cached file is a valid Excel/CSV, not an HTML error page."""
-        try:
-            with open(path, "rb") as f:
-                header = f.read(500)
-            header_lower = header.lower()
-            if b"<html" in header_lower or b"<!doctype" in header_lower:
-                return False
-            return True
-        except OSError:
-            return False
-
-    @staticmethod
     def _detect_column(
         df: pd.DataFrame,
         patterns: list[str],
