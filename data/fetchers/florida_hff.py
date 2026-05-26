@@ -1,11 +1,12 @@
 """
 fetchers/florida_hff.py
 
-Florida Healthy Florida First — Tier 1 named product ppb values.
+Healthy Florida First — Tier 1 named product ppb values.
 
-Florida publishes glyphosate test results as HTML tables in press releases
-on floridahealth.gov and exposingfoodtoxins.com. This fetcher scrapes
-those tables and extracts all product results.
+Source: exposingfoodtoxins.com — an advocacy site (not a Florida government
+agency) that publishes independent lab test results for food toxins.
+Only the bread page measures glyphosate; the candy page measures arsenic
+and the infant formula page has no numeric results, so those are excluded.
 
 No values are hardcoded. All ppb values come from the live pages.
 If a page structure changes, the parser raises ValueError rather than
@@ -38,22 +39,10 @@ FLORIDA_REPORTS = [
         "data_year": 2026,
         "category_hint": "wheat",
     },
-    {
-        "label": "Florida HFF Infant Formula 2026",
-        "url": "https://web.archive.org/web/20260414123704/https://exposingfoodtoxins.com/food-toxins/",
-        "filename": "florida_hff_infant_2026.html",
-        "published_date": "2026-01-01",
-        "data_year": 2026,
-        "category_hint": "infant_cereal",
-    },
-    {
-        "label": "Florida HFF Candy Glyphosate 2026",
-        "url": "https://web.archive.org/web/20260414123704/https://exposingfoodtoxins.com/candy/",
-        "filename": "florida_hff_candy_2026.html",
-        "published_date": "2026-02-01",
-        "data_year": 2026,
-        "category_hint": "corn",
-    },
+    # NOTE: The candy page measures ARSENIC, not glyphosate — excluded.
+    # NOTE: The infant formula page has no numeric ppb values — excluded.
+    # Source: exposingfoodtoxins.com is a 2025-2026 advocacy site by
+    # "Healthy Florida First", not a Florida government agency.
 ]
 
 # Column header patterns that indicate the ppb/result column
@@ -286,7 +275,7 @@ class FloridaHFFetcher(BaseFetcher):
                 "unit_conversion": unit_conversion if "unit_conversion" in dir() else 1.0,
                 "is_organic": int("organic" in product_name.lower()),
                 "methodology_note": (
-                    "Florida Dept of Health Healthy Florida First program lab test. "
+                    "Healthy Florida First (exposingfoodtoxins.com) independent lab test. "
                     "Note: detailed methodology not fully disclosed in public report."
                 ),
                 "confidence": "high",
