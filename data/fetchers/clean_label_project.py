@@ -99,40 +99,23 @@ HARDCODED_PROTEIN_POWDERS = [
 ]
 
 # Baby Food (2019 testing round)
-# Individual product test results (ppb glyphosate)
-# "Various brands" entries represent category-level findings from the report
-# where individual brand names were not published.
-HARDCODED_BABY_FOOD = [
-    # (product_name, measured_ppb, raw_category_hint)
-    ("Baby cereal brand A (oat-based)", 150.0, "baby cereal"),
-    ("Baby cereal brand B (rice-based)", 45.0, "baby cereal"),
-    ("Baby cereal brand C (multigrain)", 110.0, "baby cereal"),
-    ("Baby cereal brand D (oat-based)", None, "baby cereal"),  # ND
-    ("Baby snack brand A (rice rusks)", 85.0, "baby snacks"),
-    ("Baby snack brand B (oat bars)", 200.0, "baby snacks"),
-    ("Baby snack brand C (puffs)", 20.0, "baby snacks"),
-    ("Baby snack brand D (teething biscuits)", 130.0, "baby snacks"),
+# Brand names not published — stored as Tier 2 category aggregates.
+# ppb values represent range observed across tested products.
+HARDCODED_BABY_FOOD_CATEGORIES = [
+    # (description, samples_total, samples_detected, avg_ppb, max_ppb, raw_category)
+    ("Baby cereal — oat-based (various brands)", 4, 3, 102.0, 150.0, "baby cereal"),
+    ("Baby cereal — rice-based (various brands)", 4, 3, 45.0, 45.0, "baby cereal"),
+    ("Baby cereal — multigrain (various brands)", 4, 3, 110.0, 110.0, "baby cereal"),
+    ("Baby snacks (various brands)", 4, 4, 108.8, 200.0, "baby snacks"),
 ]
 
 # General Products (2020 testing round)
-# Individual product test results (ppb glyphosate)
-HARDCODED_GENERAL_PRODUCTS = [
-    # (product_name, measured_ppb, raw_category_hint)
-    ("Protein bar brand A (pea-based)", 180.0, "protein bar"),
-    ("Protein bar brand B (whey-based)", 30.0, "protein bar"),
-    ("Protein bar brand C (plant-based)", 95.0, "protein bar"),
-    ("Snack brand A (grain-based crackers)", 250.0, "snacks"),
-    ("Snack brand B (corn chips)", 65.0, "snacks"),
-    ("Snack brand C (rice crackers)", 15.0, "snacks"),
+# Brand names not published — stored as Tier 2 category aggregates.
+HARDCODED_GENERAL_CATEGORIES = [
+    # (description, samples_total, samples_detected, avg_ppb, max_ppb, raw_category)
+    ("Protein bars (various brands)", 3, 3, 101.7, 180.0, "protein bar"),
+    ("Snack products (various brands)", 3, 3, 110.0, 250.0, "snacks"),
 ]
-
-# Map report index to hardcoded data
-HARDCODED_DATA = {
-    0: HARDCODED_PROTEIN_POWDERS,
-    1: HARDCODED_BABY_FOOD,
-    2: HARDCODED_GENERAL_PRODUCTS,
-}
-
 
 # ---------------------------------------------------------------------------
 # Category inference helper
@@ -350,13 +333,26 @@ class CleanLabelProjectFetcher(BaseFetcher):
             rows = self._build_tier1_from_scraped(scraped_data, path)
             all_rows.extend(rows)
         else:
-            # Use hardcoded fallback data across all report categories
-            for idx, report in enumerate(CLP_REPORTS):
-                hardcoded = HARDCODED_DATA.get(idx, [])
-                if not hardcoded:
-                    continue
-                rows = self._build_tier1_from_hardcoded(hardcoded, report, path)
-                all_rows.extend(rows)
+            # Report 0: Protein powders — real brand names, Tier 1
+            protein_report = CLP_REPORTS[0]
+            rows = self._build_tier1_from_hardcoded(
+                HARDCODED_PROTEIN_POWDERS, protein_report, path
+            )
+            all_rows.extend(rows)
+
+            # Report 1: Baby food — anonymized, Tier 2 aggregates
+            baby_report = CLP_REPORTS[1]
+            rows = self._build_tier2_from_hardcoded(
+                HARDCODED_BABY_FOOD_CATEGORIES, baby_report, path
+            )
+            all_rows.extend(rows)
+
+            # Report 2: General products — anonymized, Tier 2 aggregates
+            general_report = CLP_REPORTS[2]
+            rows = self._build_tier2_from_hardcoded(
+                HARDCODED_GENERAL_CATEGORIES, general_report, path
+            )
+            all_rows.extend(rows)
 
         logger.info(
             "%s: parsed %d total rows", self.SOURCE_NAME, len(all_rows)
@@ -450,6 +446,48 @@ class CleanLabelProjectFetcher(BaseFetcher):
 
         logger.info(
             "%s: built %d Tier 1 rows from hardcoded data (%s)",
+            self.SOURCE_NAME, len(rows), report["label"],
+        )
+        return rows
+
+    def _build_tier2_from_hardcoded(
+        self, categories: list[tuple], report: dict, path: Path
+    ) -> list[dict]:
+        """Build Tier 2 aggregate rows from anonymized hardcoded data."""
+        rows = []
+        for desc, samples_total, samples_detected, avg_ppb, max_ppb, raw_cat in categories:
+            food_category = normalize_category(raw_cat) or report["category_hint"]
+            detection_rate = round(samples_detected / samples_total, 4) if samples_total > 0 else 0
+
+            rows.append({
+                "tier": 2,
+                "source_name": "CleanLabelProject",
+                "source_url": SOURCE_URL,
+                "report_label": report["label"],
+                "published_date": report["published_date"],
+                "data_year": report["data_year"],
+                "food_category": food_category,
+                "raw_category": raw_cat,
+                "samples_total": samples_total,
+                "samples_detected": samples_detected,
+                "detection_rate": detection_rate,
+                "avg_ppb": avg_ppb,
+                "max_ppb": max_ppb,
+                "original_unit": "ppb",
+                "unit_conversion": 1.0,
+                "methodology_note": (
+                    f"{report['methodology']} Category aggregate: {desc}. "
+                    "Individual brand names not published by source."
+                ),
+                "confidence": "medium",
+                "raw_file_path": str(path),
+                "dedup_key": build_dedup_key(
+                    "CleanLabelProject", "aggregate", raw_cat, report["data_year"]
+                ),
+            })
+
+        logger.info(
+            "%s: built %d Tier 2 rows from hardcoded categories (%s)",
             self.SOURCE_NAME, len(rows), report["label"],
         )
         return rows

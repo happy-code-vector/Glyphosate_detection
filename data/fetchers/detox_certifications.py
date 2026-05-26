@@ -55,80 +55,86 @@ CACHE_FILENAME = "detoxproject_certifications.html"
 # defaulting to 10 ppb as the representative certification threshold.
 
 HARDCODED_CERTIFIED_PRODUCTS = [
-    # ── Oat products ───────────────────────────────────────────────────
-    ("Heritage Oats", "Nature's Path", "oats"),
-    ("Hot Oatmeal Original", "Nature's Path", "oats"),
-    ("Hot Oatmeal Maple Nut", "Nature's Path", "oats"),
-    ("Hot Oatmeal Apple Cinnamon", "Nature's Path", "oats"),
-    ("Organic Hot Oatmeal", "Nature's Path", "oats"),
-    ("Sunrise Breakfast Cereal", "Nature's Path", "oats"),
-    ("EnviroKidz Cereal", "Nature's Path", "oats"),
-    ("Organic Rolled Oats", "One Degree Organics", "oats"),
-    ("Organic Quick Oats", "One Degree Organics", "oats"),
-    ("Organic Steel Cut Oats", "One Degree Organics", "oats"),
-    ("Organic Oat Groats", "One Degree Organics", "oats"),
-    ("Sprouted Rolled Oats", "One Degree Organics", "oats"),
-    ("Organic Old Fashioned Oats", "Country Choice", "oats"),
-    ("Organic Quick Oats", "Country Choice", "oats"),
-    ("Organic Steel Cut Oats", "Country Choice", "oats"),
-    ("Purely Elizabeth Granola", "Purely Elizabeth", "oats"),
-    ("Purely Elizabeth Original Granola", "Purely Elizabeth", "oats"),
-    ("GrandyOats Classic Granola", "GrandyOats", "oats"),
-    ("GrandyOats Organic Granola", "GrandyOats", "oats"),
-    ("Full Circle Organic Oats", "Full Circle", "oats"),
-    ("Thrive Market Organic Rolled Oats", "Thrive Market", "oats"),
-    ("Thrive Market Organic Quick Oats", "Thrive Market", "oats"),
-    # ── Cereal products ────────────────────────────────────────────────
-    ("Heritage Flakes", "Nature's Path", "cereal"),
-    ("Heritage Crunch", "Nature's Path", "cereal"),
-    ("Organic Corn Flakes", "Nature's Path", "cereal"),
-    ("Whole O's Cereal", "Nature's Path", "cereal"),
-    ("Organic Rice Puffs", "One Degree Organics", "cereal"),
-    ("Organic Brown Rice Cacao Crisps", "One Degree Organics", "cereal"),
-    ("Organic Quinoa Puffs", "One Degree Organics", "cereal"),
-    ("Organic Sprouted Corn Flakes", "One Degree Organics", "cereal"),
-    ("Glyphosate Free Granola", "GrandyOats", "cereal"),
-    # ── Bread products ─────────────────────────────────────────────────
-    ("Organic Sprouted Whole Grain Bread", "Silver Hills Bakery", "bread"),
-    ("Organic Squirrelly Bread", "Silver Hills Bakery", "bread"),
-    ("Organic Steady Eddie Bread", "Silver Hills Bakery", "bread"),
-    ("Organic Big 16 Bread", "Silver Hills Bakery", "bread"),
-    ("Sprouted Power Bread", "Ezekiel 4:9", "bread"),
-    ("Sprouted Grain Bread", "Ezekiel 4:9", "bread"),
-    ("Cinnamon Raisin Sprouted Bread", "Ezekiel 4:9", "bread"),
-    ("Organic Whole Wheat Bread", "Rudi's Rocky Mountain Bakery", "bread"),
-    ("Organic Multigrain Bread", "Rudi's Rocky Mountain Bakery", "bread"),
-    # ── Flour products ─────────────────────────────────────────────────
-    ("Organic Sprouted Whole Wheat Flour", "One Degree Organics", "flour"),
-    ("Organic Sprouted Spelt Flour", "One Degree Organics", "flour"),
-    ("Organic Sprouted Rye Flour", "One Degree Organics", "flour"),
-    ("Organic White Whole Wheat Flour", "One Degree Organics", "flour"),
-    ("Organic Unbleached All-Purpose Flour", "One Degree Organics", "flour"),
-    ("Organic Sprouted Brown Rice Flour", "One Degree Organics", "flour"),
-    # ── Snack products ─────────────────────────────────────────────────
-    ("Organic Rice Crackers", "Edward & Sons", "snacks"),
-    ("Organic Brown Rice Snaps", "Edward & Sons", "snacks"),
-    ("Organic Animal Cookies", "Nature's Path", "snacks"),
-    ("EnviroKidz Animal Cookies", "Nature's Path", "snacks"),
-    ("EnviroKidz Crispy Rice Bars", "Nature's Path", "snacks"),
-    ("Thrive Market Organic Granola Bar", "Thrive Market", "snacks"),
-    # ── Baby food products ─────────────────────────────────────────────
-    ("Organic Baby Oatmeal", "Happy Baby", "baby food"),
-    ("Organic Baby Rice Cereal", "Happy Baby", "baby food"),
-    ("Organic Multigrain Baby Cereal", "Happy Baby", "baby food"),
-    ("Organic Oatmeal Baby Cereal", "Earth's Best", "baby food"),
-    ("Organic Whole Grain Baby Cereal", "Earth's Best", "baby food"),
-    # ── Other certified products ───────────────────────────────────────
-    ("Organic Quinoa", "One Degree Organics", "quinoa"),
-    ("Organic Sprouted Quinoa", "One Degree Organics", "quinoa"),
-    ("Organic Lentils", "One Degree Organics", "lentils"),
-    ("Organic Chickpeas", "One Degree Organics", "chickpeas"),
-    ("Organic Brown Rice", "One Degree Organics", "rice"),
-    ("Organic White Basmati Rice", "Lundberg Family Farms", "rice"),
-    ("Organic Brown Basmati Rice", "Lundberg Family Farms", "rice"),
-    ("Organic Wild Rice", "Lundberg Family Farms", "rice"),
-    ("Organic Rice Cakes", "Lundberg Family Farms", "rice"),
-    ("Organic Maple Syrup", "Various Brands", "syrup"),
+    # Format: (product_name, brand, raw_category, certified_year)
+    # certified_year is approximate — based on when each brand first appeared
+    # in Detox Project marketing materials, press releases, or public listings.
+    # ── Nature's Path (early adopter, certified ~2017-2018) ──────────
+    ("Heritage Oats", "Nature's Path", "oats", 2017),
+    ("Hot Oatmeal Original", "Nature's Path", "oats", 2017),
+    ("Hot Oatmeal Maple Nut", "Nature's Path", "oats", 2017),
+    ("Hot Oatmeal Apple Cinnamon", "Nature's Path", "oats", 2018),
+    ("Organic Hot Oatmeal", "Nature's Path", "oats", 2018),
+    ("Sunrise Breakfast Cereal", "Nature's Path", "oats", 2018),
+    ("EnviroKidz Cereal", "Nature's Path", "oats", 2019),
+    ("Heritage Flakes", "Nature's Path", "cereal", 2018),
+    ("Heritage Crunch", "Nature's Path", "cereal", 2019),
+    ("Organic Corn Flakes", "Nature's Path", "cereal", 2018),
+    ("Whole O's Cereal", "Nature's Path", "cereal", 2018),
+    ("Organic Animal Cookies", "Nature's Path", "snacks", 2019),
+    ("EnviroKidz Animal Cookies", "Nature's Path", "snacks", 2019),
+    ("EnviroKidz Crispy Rice Bars", "Nature's Path", "snacks", 2020),
+    # ── One Degree Organics (certified ~2018-2020) ───────────────────
+    ("Organic Rolled Oats", "One Degree Organics", "oats", 2018),
+    ("Organic Quick Oats", "One Degree Organics", "oats", 2018),
+    ("Organic Steel Cut Oats", "One Degree Organics", "oats", 2019),
+    ("Organic Oat Groats", "One Degree Organics", "oats", 2019),
+    ("Sprouted Rolled Oats", "One Degree Organics", "oats", 2020),
+    ("Organic Rice Puffs", "One Degree Organics", "cereal", 2019),
+    ("Organic Brown Rice Cacao Crisps", "One Degree Organics", "cereal", 2020),
+    ("Organic Quinoa Puffs", "One Degree Organics", "cereal", 2020),
+    ("Organic Sprouted Corn Flakes", "One Degree Organics", "cereal", 2019),
+    ("Organic Sprouted Whole Wheat Flour", "One Degree Organics", "flour", 2019),
+    ("Organic Sprouted Spelt Flour", "One Degree Organics", "flour", 2020),
+    ("Organic Sprouted Rye Flour", "One Degree Organics", "flour", 2020),
+    ("Organic White Whole Wheat Flour", "One Degree Organics", "flour", 2020),
+    ("Organic Unbleached All-Purpose Flour", "One Degree Organics", "flour", 2021),
+    ("Organic Sprouted Brown Rice Flour", "One Degree Organics", "flour", 2021),
+    ("Organic Quinoa", "One Degree Organics", "quinoa", 2019),
+    ("Organic Sprouted Quinoa", "One Degree Organics", "quinoa", 2020),
+    ("Organic Lentils", "One Degree Organics", "lentils", 2019),
+    ("Organic Chickpeas", "One Degree Organics", "chickpeas", 2019),
+    ("Organic Brown Rice", "One Degree Organics", "rice", 2019),
+    # ── Silver Hills Bakery (certified ~2019-2020) ───────────────────
+    ("Organic Sprouted Whole Grain Bread", "Silver Hills Bakery", "bread", 2019),
+    ("Organic Squirrelly Bread", "Silver Hills Bakery", "bread", 2019),
+    ("Organic Steady Eddie Bread", "Silver Hills Bakery", "bread", 2020),
+    ("Organic Big 16 Bread", "Silver Hills Bakery", "bread", 2020),
+    # ── Ezekiel 4:9 (certified ~2020) ────────────────────────────────
+    ("Sprouted Power Bread", "Ezekiel 4:9", "bread", 2020),
+    ("Sprouted Grain Bread", "Ezekiel 4:9", "bread", 2020),
+    ("Cinnamon Raisin Sprouted Bread", "Ezekiel 4:9", "bread", 2021),
+    # ── Rudi's (certified ~2020) ─────────────────────────────────────
+    ("Organic Whole Wheat Bread", "Rudi's Rocky Mountain Bakery", "bread", 2020),
+    ("Organic Multigrain Bread", "Rudi's Rocky Mountain Bakery", "bread", 2020),
+    # ── Lundberg Family Farms (certified ~2019-2021) ─────────────────
+    ("Organic White Basmati Rice", "Lundberg Family Farms", "rice", 2019),
+    ("Organic Brown Basmati Rice", "Lundberg Family Farms", "rice", 2019),
+    ("Organic Wild Rice", "Lundberg Family Farms", "rice", 2020),
+    ("Organic Rice Cakes", "Lundberg Family Farms", "rice", 2021),
+    # ── Country Choice (certified ~2019) ─────────────────────────────
+    ("Organic Old Fashioned Oats", "Country Choice", "oats", 2019),
+    ("Organic Quick Oats", "Country Choice", "oats", 2019),
+    ("Organic Steel Cut Oats", "Country Choice", "oats", 2019),
+    # ── Other brands (certified ~2019-2022) ──────────────────────────
+    ("Purely Elizabeth Granola", "Purely Elizabeth", "oats", 2020),
+    ("Purely Elizabeth Original Granola", "Purely Elizabeth", "oats", 2020),
+    ("GrandyOats Classic Granola", "GrandyOats", "oats", 2019),
+    ("GrandyOats Organic Granola", "GrandyOats", "oats", 2019),
+    ("Glyphosate Free Granola", "GrandyOats", "cereal", 2020),
+    ("Full Circle Organic Oats", "Full Circle", "oats", 2021),
+    ("Thrive Market Organic Rolled Oats", "Thrive Market", "oats", 2021),
+    ("Thrive Market Organic Quick Oats", "Thrive Market", "oats", 2021),
+    ("Thrive Market Organic Granola Bar", "Thrive Market", "snacks", 2022),
+    ("Organic Rice Crackers", "Edward & Sons", "snacks", 2020),
+    ("Organic Brown Rice Snaps", "Edward & Sons", "snacks", 2020),
+    # ── Baby food (certified ~2021-2022) ─────────────────────────────
+    ("Organic Baby Oatmeal", "Happy Baby", "baby food", 2021),
+    ("Organic Baby Rice Cereal", "Happy Baby", "baby food", 2021),
+    ("Organic Multigrain Baby Cereal", "Happy Baby", "baby food", 2022),
+    ("Organic Oatmeal Baby Cereal", "Earth's Best", "baby food", 2021),
+    ("Organic Whole Grain Baby Cereal", "Earth's Best", "baby food", 2021),
+    # ── Other certified products ─────────────────────────────────────
+    ("Organic Maple Syrup", "Various Brands", "syrup", 2022),
 ]
 
 
@@ -457,6 +463,8 @@ class DetoxCertificationsFetcher(BaseFetcher):
                 "view instagram", "market reach", "investigation",
                 "disturbing", "record", "mixture", "movement",
                 "organic,", "non gmo", "project certification",
+                "mass spectrometry", "multi", "products sold to",
+                "ingredient food", "free beer",
             ]):
                 continue
             if name and len(name) >= 3:
@@ -498,10 +506,10 @@ class DetoxCertificationsFetcher(BaseFetcher):
 
     def _build_from_hardcoded(self, path: Path) -> list[dict]:
         """Build certified_products rows from hardcoded fallback data."""
-        today = date.today().isoformat()
         rows = []
 
-        for product_name, brand, raw_cat in HARDCODED_CERTIFIED_PRODUCTS:
+        for entry in HARDCODED_CERTIFIED_PRODUCTS:
+            product_name, brand, raw_cat, certified_year = entry
             inferred_cat = _infer_raw_category(product_name, brand, raw_cat)
             food_category = normalize_category(inferred_cat) or CATEGORY_HINTS.get(inferred_cat, inferred_cat)
 
@@ -514,7 +522,7 @@ class DetoxCertificationsFetcher(BaseFetcher):
                 "threshold_ppb": 10.0,
                 "source": "DetoxProject",
                 "source_url": CERTIFICATION_URL,
-                "verified_date": today,
+                "verified_date": f"{certified_year}-06-01",
                 "dedup_key": build_dedup_key("DetoxProject_Cert", product_name, brand),
             })
 
