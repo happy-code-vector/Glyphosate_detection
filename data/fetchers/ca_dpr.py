@@ -40,7 +40,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from fetchers.base import BaseFetcher, RAW_DATA_DIR
+from fetchers.base import BaseFetcher, RAW_DATA_DIR, fetch_page, download_file
 from db.database import normalize_category, build_dedup_key
 
 logger = logging.getLogger(__name__)
@@ -64,24 +64,27 @@ CA_DPR_REPORTS = [
     {
         "label": "CA DPR Pesticide Residue Monitoring 2020",
         "year": 2020,
-        "filename": "ca_dpr_2020_residue.csv",
+        "filename": "ca_dpr_2020_residue.xlsx",
         "source_url": "https://www.cdpr.ca.gov/data-and-reports/residue-monitoring/",
+        "report_page_url": "https://www.cdpr.ca.gov/report/annual-residue-data-2020/",
         "published_date": "2021-06-01",
         "data_year": 2020,
     },
     {
         "label": "CA DPR Pesticide Residue Monitoring 2021",
         "year": 2021,
-        "filename": "ca_dpr_2021_residue.csv",
+        "filename": "ca_dpr_2021_residue.xlsx",
         "source_url": "https://www.cdpr.ca.gov/data-and-reports/residue-monitoring/",
+        "report_page_url": "https://www.cdpr.ca.gov/report/annual-residue-data-2021/",
         "published_date": "2022-06-01",
         "data_year": 2021,
     },
     {
         "label": "CA DPR Pesticide Residue Monitoring 2022",
         "year": 2022,
-        "filename": "ca_dpr_2022_residue.csv",
+        "filename": "ca_dpr_2022_residue.xlsx",
         "source_url": "https://www.cdpr.ca.gov/data-and-reports/residue-monitoring/",
+        "report_page_url": "https://www.cdpr.ca.gov/report/annual-residue-data-2022/",
         "published_date": "2023-06-01",
         "data_year": 2022,
     },
@@ -225,45 +228,35 @@ class CADPRFetcher(BaseFetcher):
 
     def fetch(self) -> list[Path]:
         """
-        Check for manually placed CA DPR residue data files in raw_data/.
-        Also checks for alternative extensions (.xlsx, .xls) if the primary
-        filename is not found.
-
-        Returns list of local file paths (may be empty if no data files
-        have been manually placed).
+        Download CA DPR residue data files. Tries auto-download from
+        DPR report pages for 2020-2022 first, then falls back to checking
+        for manually placed files in raw_data/.
         """
         paths = []
         for report in CA_DPR_REPORTS:
-            # Check primary filename (e.g. ca_dpr_2020_residue.csv).
-            cache_path = RAW_DATA_DIR / report["filename"]
-            if cache_path.exists():
-                logger.info("Cache hit: %s", report["filename"])
-                paths.append(cache_path)
+            # Check primary filename and alternative extensions.
+            found_path = self._find_cached(report)
+            if found_path:
+                paths.append(found_path)
                 continue
 
-            # Check alternative extensions (e.g. .xlsx, .xls).
-            found = False
-            for ext in _DPR_FILE_EXTENSIONS:
-                if ext == ".csv":
-                    continue  # Already checked above.
-                alt_path = RAW_DATA_DIR / report["filename"].replace(".csv", ext)
-                if alt_path.exists():
-                    logger.info("Cache hit: %s", alt_path.name)
-                    paths.append(alt_path)
-                    found = True
-                    break
+            # Try auto-download from report page.
+            if report.get("report_page_url"):
+                dl_path = self._auto_download(report)
+                if dl_path:
+                    paths.append(dl_path)
+                    continue
 
-            if not found:
-                logger.warning(
-                    "CA DPR: no data file for %d — "
-                    "manually place '%s' (or .xlsx/.xls) in %s. "
-                    "Source: %s — filter: Residue, or request via %s",
-                    report["year"],
-                    report["filename"],
-                    RAW_DATA_DIR,
-                    CA_DPR_URL_PATTERNS["reports_directory"],
-                    CA_DPR_URL_PATTERNS["public_records_portal"],
-                )
+            logger.warning(
+                "CA DPR: no data file for %d — "
+                "manually place '%s' in %s. "
+                "Source: %s — filter: Residue, or request via %s",
+                report["year"],
+                report["filename"],
+                RAW_DATA_DIR,
+                CA_DPR_URL_PATTERNS["reports_directory"],
+                CA_DPR_URL_PATTERNS["public_records_portal"],
+            )
 
         if not paths:
             logger.warning(
@@ -274,6 +267,51 @@ class CADPRFetcher(BaseFetcher):
             )
 
         return paths
+
+    def _find_cached(self, report: dict) -> Path | None:
+        """Check for cached data file (any supported extension)."""
+        cache_path = RAW_DATA_DIR / report["filename"]
+        if cache_path.exists():
+            logger.info("Cache hit: %s", report["filename"])
+            return cache_path
+
+        base = report["filename"].rsplit(".", 1)[0]
+        for ext in _DPR_FILE_EXTENSIONS:
+            alt_path = RAW_DATA_DIR / f"{base}{ext}"
+            if alt_path.exists():
+                logger.info("Cache hit: %s", alt_path.name)
+                return alt_path
+        return None
+
+    def _auto_download(self, report: dict) -> Path | None:
+        """Try to auto-download XLSX from DPR report page."""
+        from bs4 import BeautifulSoup
+
+        try:
+            html = fetch_page(report["report_page_url"])
+        except Exception as e:
+            logger.debug("CA DPR: report page fetch failed for %d: %s", report["year"], e)
+            return None
+
+        try:
+            soup = BeautifulSoup(html, "html.parser")
+            xlsx_links = [
+                a["href"] for a in soup.find_all("a", href=True)
+                if a["href"].lower().endswith(".xlsx")
+            ]
+            if not xlsx_links:
+                logger.debug("CA DPR: no XLSX links on report page for %d", report["year"])
+                return None
+
+            url = xlsx_links[0]
+            if not url.startswith("http"):
+                url = f"https://www.cdpr.ca.gov{url}"
+
+            # Download to the expected filename
+            return download_file(url, report["filename"])
+        except Exception as e:
+            logger.debug("CA DPR: auto-download failed for %d: %s", report["year"], e)
+            return None
 
     def parse(self, files: list[Path]) -> list[dict]:
         """

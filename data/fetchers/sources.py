@@ -200,7 +200,11 @@ class CFIAFetcher(BaseFetcher):
         return all_rows
 
     def _parse_glyphosate_csv(self, csv_path: Path, report: dict) -> list[dict]:
-        """Parse the original glyphosate-specific CSV (2015-2017)."""
+        """Parse the original glyphosate-specific CSV (2015-2017).
+
+        Extracts the sample year from the Date Sampled column so that
+        2015, 2016, and 2017 data are stored under the correct data_year.
+        """
         df = pd.read_csv(csv_path, low_memory=False)
         df.columns = [c.lower().strip().replace(" ", "_") for c in df.columns]
         logger.info("CFIA columns: %s", list(df.columns))
@@ -211,6 +215,10 @@ class CFIAFetcher(BaseFetcher):
         if not result_col:
             result_col = next((c for c in df.columns if "result" in c or "rsultat" in c), None)
         unit_col = self._find_col(df, ["reportunit", "unit"])
+        date_col = self._find_col(df, ["date_sampled", "date_d_chantillonage", "date"])
+        if not date_col:
+            # The bilingual column header has accents: date_sampled_¿_date_d'échantillonage
+            date_col = next((c for c in df.columns if "date" in c.lower()), None)
 
         if not product_col or not component_col or not result_col:
             raise ValueError(
@@ -221,6 +229,14 @@ class CFIAFetcher(BaseFetcher):
         gly_df = df[df[component_col].str.lower().str.contains("glyphosate", na=False)].copy()
         if gly_df.empty:
             raise ValueError("No glyphosate rows found in CFIA CSV")
+
+        # Extract sample year from Date Sampled column
+        if date_col and date_col in gly_df.columns:
+            gly_df["_sample_year"] = pd.to_datetime(
+                gly_df[date_col], errors="coerce"
+            ).dt.year
+        else:
+            gly_df["_sample_year"] = report["data_year"]
 
         logger.info("CFIA: %d glyphosate sample rows", len(gly_df))
 
@@ -233,64 +249,68 @@ class CFIAFetcher(BaseFetcher):
                 original_unit = unit_val
 
         rows = []
-        product_stats = []
-        for product, group in gly_df.groupby(product_col):
-            raw_cat = str(product).strip()
-            if not raw_cat or raw_cat.lower() in ("nan", "total", "all"):
-                continue
-            food_category = normalize_category(raw_cat)
-            if not food_category:
-                continue
-            values = pd.to_numeric(group[result_col], errors="coerce").fillna(0)
-            product_stats.append({
-                "food_category": food_category,
-                "raw_cat": raw_cat,
-                "total": len(group),
-                "detected_values": values[values > 0].tolist(),
-            })
+        for sample_year, year_group in gly_df.groupby("_sample_year"):
+            sample_year = int(sample_year) if pd.notna(sample_year) else report["data_year"]
 
-        from collections import defaultdict
-        by_category = defaultdict(lambda: {"total": 0, "detected": [], "raw_cats": []})
-        for ps in product_stats:
-            cat = ps["food_category"]
-            by_category[cat]["total"] += ps["total"]
-            by_category[cat]["detected"].extend(ps["detected_values"])
-            by_category[cat]["raw_cats"].append(ps["raw_cat"])
+            product_stats = []
+            for product, group in year_group.groupby(product_col):
+                raw_cat = str(product).strip()
+                if not raw_cat or raw_cat.lower() in ("nan", "total", "all"):
+                    continue
+                food_category = normalize_category(raw_cat)
+                if not food_category:
+                    continue
+                values = pd.to_numeric(group[result_col], errors="coerce").fillna(0)
+                product_stats.append({
+                    "food_category": food_category,
+                    "raw_cat": raw_cat,
+                    "total": len(group),
+                    "detected_values": values[values > 0].tolist(),
+                })
 
-        for food_category, stats in by_category.items():
-            total = stats["total"]
-            n_detected = len(stats["detected"])
-            detection_rate = round(n_detected / total, 4) if total > 0 else None
-            avg_ppb = round(sum(stats["detected"]) / n_detected * conversion, 2) if n_detected > 0 else None
-            max_ppb = round(max(stats["detected"]) * conversion, 2) if stats["detected"] else None
-            raw_cat = ", ".join(sorted(set(stats["raw_cats"])))
+            from collections import defaultdict
+            by_category = defaultdict(lambda: {"total": 0, "detected": [], "raw_cats": []})
+            for ps in product_stats:
+                cat = ps["food_category"]
+                by_category[cat]["total"] += ps["total"]
+                by_category[cat]["detected"].extend(ps["detected_values"])
+                by_category[cat]["raw_cats"].append(ps["raw_cat"])
 
-            rows.append({
-                "tier": 2,
-                "source_name": "CFIA",
-                "source_url": CFIA_SOURCE_URL,
-                "report_label": report["label"],
-                "published_date": report["published_date"],
-                "data_year": report["data_year"],
-                "food_category": food_category,
-                "raw_category": raw_cat,
-                "samples_total": total,
-                "samples_detected": n_detected,
-                "detection_rate": detection_rate,
-                "avg_ppb": avg_ppb,
-                "max_ppb": max_ppb,
-                "original_unit": original_unit,
-                "unit_conversion": conversion,
-                "methodology_note": (
-                    f"{report['label']}. Individual sample results aggregated by "
-                    "canonical food category. LC-MS/MS method."
-                ),
-                "confidence": "medium",
-                "raw_file_path": str(csv_path),
-                "dedup_key": build_dedup_key("CFIA", food_category, report["data_year"]),
-            })
+            for food_category, stats in by_category.items():
+                total = stats["total"]
+                n_detected = len(stats["detected"])
+                detection_rate = round(n_detected / total, 4) if total > 0 else None
+                avg_ppb = round(sum(stats["detected"]) / n_detected * conversion, 2) if n_detected > 0 else None
+                max_ppb = round(max(stats["detected"]) * conversion, 2) if stats["detected"] else None
+                raw_cat = ", ".join(sorted(set(stats["raw_cats"])))
 
-        logger.info("CFIA: parsed %d category rows from %s", len(rows), report["label"])
+                rows.append({
+                    "tier": 2,
+                    "source_name": "CFIA",
+                    "source_url": CFIA_SOURCE_URL,
+                    "report_label": f"CFIA Glyphosate Testing {sample_year}",
+                    "published_date": report["published_date"],
+                    "data_year": sample_year,
+                    "food_category": food_category,
+                    "raw_category": raw_cat,
+                    "samples_total": total,
+                    "samples_detected": n_detected,
+                    "detection_rate": detection_rate,
+                    "avg_ppb": avg_ppb,
+                    "max_ppb": max_ppb,
+                    "original_unit": original_unit,
+                    "unit_conversion": conversion,
+                    "methodology_note": (
+                        f"CFIA Glyphosate Testing {sample_year} (from 2015-2017 dataset). "
+                        "Individual sample results aggregated by canonical food category. "
+                        "LC-MS/MS method."
+                    ),
+                    "confidence": "medium",
+                    "raw_file_path": str(csv_path),
+                    "dedup_key": build_dedup_key("CFIA", food_category, sample_year),
+                })
+
+        logger.info("CFIA: parsed %d category rows from %s (split by year)", len(rows), report["label"])
         return rows
 
     def _parse_multi_pesticide_csv(self, csv_path: Path, report: dict) -> list[dict]:
@@ -948,6 +968,7 @@ FDA_REPORTS = [
         "year": 2023,
         "data_zip": "https://www.fda.gov/media/190132/download?attachment",
         "data_file": "CountryProductResidueData2023.txt",
+        "sample_data_file": "SampleData2023.txt",
         "source_url": "https://www.fda.gov/food/pesticides/pesticide-residue-monitoring-report-and-data-fy-2023",
         "published_date": "2025-12-01",
         "data_year": 2023,
@@ -1038,6 +1059,15 @@ class FDAFetcher(BaseFetcher):
                 continue
             rows = self._parse_fda(path, report)
             all_rows.extend(rows)
+
+            # Tier 1: individual sample data (only 2023 has this)
+            sample_file = report.get("sample_data_file")
+            if sample_file:
+                sample_path = RAW_DATA_DIR / sample_file
+                if sample_path.exists():
+                    t1_rows = self._parse_fda_samples(sample_path, report)
+                    all_rows.extend(t1_rows)
+
         return all_rows
 
     def _parse_fda(self, data_path: Path, report: dict) -> list[dict]:
@@ -1124,6 +1154,71 @@ class FDAFetcher(BaseFetcher):
             })
 
         logger.info("FDA: parsed %d category rows", len(rows))
+        return rows
+
+    def _parse_fda_samples(self, sample_path: Path, report: dict) -> list[dict]:
+        """
+        Parse FDA SampleData file for Tier 1 individual product test results.
+        Each row is one sample with a specific product, residue finding, and unit.
+        Columns: Year, SplNo, ProdName, Country, ResName, Found, Unit, Trace
+        """
+        df = pd.read_csv(sample_path, sep="\t", low_memory=False, encoding="latin-1")
+        df.columns = [c.strip() for c in df.columns]
+
+        gly = df[
+            df["ResName"].str.upper().str.strip() == "GLYPHOSATE"
+        ].copy()
+
+        if gly.empty:
+            logger.info("FDA samples: no glyphosate rows in %s", sample_path.name)
+            return []
+
+        logger.info("FDA samples: %d individual glyphosate samples", len(gly))
+
+        rows = []
+        for _, row in gly.iterrows():
+            product_name = str(row.get("ProdName", "")).strip()
+            if not product_name or product_name.lower() == "nan":
+                continue
+
+            food_category = normalize_category(product_name)
+            if not food_category:
+                continue
+
+            found_val = pd.to_numeric(row.get("Found"), errors="coerce")
+            is_trace = str(row.get("Trace", "")).strip().upper() == "T"
+            country = str(row.get("Country", "")).strip()
+
+            measured_ppb = round(found_val * 1000, 2) if pd.notna(found_val) and found_val > 0 else None
+            below_detection = measured_ppb is None
+
+            sample_id = str(row.get("SplNo", "")).strip()
+            rows.append({
+                "tier": 1,
+                "source_name": "FDA",
+                "source_url": report["source_url"],
+                "report_label": report["label"],
+                "published_date": report["published_date"],
+                "data_year": report["data_year"],
+                "food_category": food_category,
+                "raw_category": product_name,
+                "product_name": product_name,
+                "measured_ppb": measured_ppb,
+                "below_detection": below_detection,
+                "country": country if country and country.lower() != "nan" else None,
+                "methodology_note": (
+                    f"FDA Pesticide Residue Monitoring Program FY{report['year']}. "
+                    "Individual sample result. ppm converted to ppb."
+                    + (" Trace detection (below LOQ)." if is_trace else "")
+                ),
+                "confidence": "high",
+                "raw_file_path": str(sample_path),
+                "dedup_key": build_dedup_key(
+                    "FDA_T1", product_name, country, sample_id, report["data_year"]
+                ),
+            })
+
+        logger.info("FDA samples: parsed %d Tier 1 product test rows", len(rows))
         return rows
 
     def _find_col(self, df, candidates):

@@ -163,10 +163,10 @@ GERMANY_BVL_REPORTS = [
     {
         "label": "Germany BVL National Monitoring 2022",
         "year": 2022,
-        "filename": "bvl_2022_substanzen.xlsx",
+        "filename": "bvl_2022_lebensmittel_substanzen_mitR.xlsx",
         "direct_url": (
             "https://www.bvl.bund.de/SharedDocs/Downloads/01_Lebensmittel/"
-            "nbpsm/10_nbpsm_2022/PSMR_Insgesamt_2022_Substanzen.xlsx.xlsx"
+            "nbpsm/10_nbpsm_2022/PSMR_Insgesamt_2022_Lebensmittel_Substanzen_mitR.xlsx.xlsx"
             "?__blob=publicationFile&v=2"
         ),
         "published_date": "2024-06-01",
@@ -175,10 +175,10 @@ GERMANY_BVL_REPORTS = [
     {
         "label": "Germany BVL National Monitoring 2023",
         "year": 2023,
-        "filename": "bvl_2023_substanzen.xlsx",
+        "filename": "bvl_2023_lebensmittel_substanzen_mitR.xlsx",
         "direct_url": (
             "https://www.bvl.bund.de/SharedDocs/Downloads/01_Lebensmittel/"
-            "nbpsm/11_nbpsm_2023/PSMR_Insgesamt_2023_Substanzen.xlsx.xlsx"
+            "nbpsm/11_nbpsm_2023/PSMR_Insgesamt_2023_Lebensmittel_Substanzen_mitR.xlsx.xlsx"
             "?__blob=publicationFile&v=2"
         ),
         "published_date": "2025-06-01",
@@ -187,10 +187,10 @@ GERMANY_BVL_REPORTS = [
     {
         "label": "Germany BVL National Monitoring 2024",
         "year": 2024,
-        "filename": "bvl_2024_substanzen.xlsx",
+        "filename": "bvl_2024_lebensmittel_substanzen_mitR.xlsx",
         "direct_url": (
             "https://www.bvl.bund.de/SharedDocs/Downloads/01_Lebensmittel/"
-            "nbpsm/12_nbpsm_2024/PSMR_Insgesamt_2024_Substanzen.xlsx.xlsx"
+            "nbpsm/12_nbpsm_2024/PSMR_Insgesamt_2024_Lebensmittel_Substanzen_mitR.xlsx.xlsx"
             "?__blob=publicationFile&v=2"
         ),
         "published_date": "2026-06-01",
