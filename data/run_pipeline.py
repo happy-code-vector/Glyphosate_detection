@@ -31,7 +31,7 @@ logging.basicConfig(
 logger = logging.getLogger("pipeline")
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--source", help="Run only this source: ewg/florida/cfia/efsa/fda/usda_pdp/uk_fsa/ca_dpr/germany_bvl/epa_tolerances/australia_fsnz/codex_mrls/japan_brazil_mrls/academic_papers/detox_project/cdc_nhanes")
+parser.add_argument("--source", help="Run only this source: ewg/florida/cfia/efsa/fda/usda_pdp/uk_fsa/ca_dpr/germany_bvl/epa_tolerances/australia_fsnz/codex_mrls/japan_brazil_mrls/academic_papers/detox_project/cdc_nhanes/clean_label_project/consumer_reports/detox_certifications/epa_full_tolerances/usda_fas_mrls")
 parser.add_argument("--validate", action="store_true")
 args = parser.parse_args()
 
@@ -52,6 +52,11 @@ def run_all():
     from fetchers.academic_papers import AcademicPapersFetcher
     from fetchers.detox_project import DetoxProjectFetcher
     from fetchers.cdc_nhanes import CDC_NHANESFetcher
+    from fetchers.clean_label_project import CleanLabelProjectFetcher
+    from fetchers.consumer_reports import ConsumerReportsFetcher
+    from fetchers.detox_certifications import DetoxCertificationsFetcher
+    from fetchers.epa_full_tolerances import EPAFullTolerancesFetcher
+    from fetchers.usda_fas_mrls import USDAFASMRLFetcher
 
     logger.info("Initializing database")
     initialize()
@@ -73,6 +78,11 @@ def run_all():
         ("academic_papers", AcademicPapersFetcher),
         ("detox_project",   DetoxProjectFetcher),
         ("cdc_nhanes",      CDC_NHANESFetcher),
+        ("clean_label_project", CleanLabelProjectFetcher),
+        ("consumer_reports",    ConsumerReportsFetcher),
+        ("detox_certifications", DetoxCertificationsFetcher),
+        ("epa_full_tolerances", EPAFullTolerancesFetcher),
+        ("usda_fas_mrls",       USDAFASMRLFetcher),
     ]
 
     totals = {"inserted": 0, "skipped": 0, "failed": 0}

@@ -131,6 +131,45 @@ CREATE TABLE IF NOT EXISTS biomonitoring (
 );
 
 -- ─────────────────────────────────────────────
+-- Certified products — Glyphosate Residue Free certifications
+-- Detox Project and similar certification directories.
+-- ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS certified_products (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    product_name        TEXT NOT NULL,
+    brand               TEXT,
+    food_category       TEXT,
+    raw_category        TEXT,
+    certification       TEXT DEFAULT 'Glyphosate Residue Free',
+    threshold_ppb       REAL DEFAULT 10.0,
+    source              TEXT NOT NULL DEFAULT 'DetoxProject',
+    source_url          TEXT,
+    verified_date       TEXT,
+    dedup_key           TEXT UNIQUE
+);
+
+CREATE INDEX IF NOT EXISTS idx_cert_products_brand ON certified_products(brand);
+CREATE INDEX IF NOT EXISTS idx_cert_products_category ON certified_products(food_category);
+CREATE INDEX IF NOT EXISTS idx_cert_products_source ON certified_products(source);
+
+-- ─────────────────────────────────────────────
+-- International MRLs — cross-country regulatory comparisons
+-- USDA FAS MRL Database, separate from tolerance_limits.
+-- ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS international_mrls (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    food_category       TEXT NOT NULL,
+    raw_commodity       TEXT,
+    pesticide           TEXT NOT NULL DEFAULT 'glyphosate',
+    country_region      TEXT NOT NULL,
+    mrl_ppm             REAL NOT NULL,
+    mrl_ppb             REAL NOT NULL,
+    regulatory_body     TEXT,
+    source_url          TEXT,
+    dedup_key           TEXT UNIQUE
+);
+
+-- ─────────────────────────────────────────────
 -- App-facing view: best available data per category
 -- Resolves conflicts when multiple sources cover same category.
 -- Source priority: EWG > FDA > CFIA > EFSA
