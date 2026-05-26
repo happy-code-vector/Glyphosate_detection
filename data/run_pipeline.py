@@ -31,7 +31,7 @@ logging.basicConfig(
 logger = logging.getLogger("pipeline")
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--source", help="Run only this source: ewg/florida/cfia/efsa/fda/usda_pdp/uk_fsa/ca_dpr/germany_bvl/epa_tolerances/australia_fsnz/codex_mrls/japan_brazil_mrls/academic_papers/detox_project/cdc_nhanes/clean_label_project/consumer_reports/detox_certifications/epa_full_tolerances/usda_fas_mrls/water_quality")
+parser.add_argument("--source", help="Run only this source: ewg/florida/cfia/efsa/fda/usda_pdp/uk_fsa/ca_dpr/germany_bvl/epa_tolerances/australia_fsnz/codex_mrls/japan_brazil_mrls/academic_papers/detox_project/cdc_nhanes/clean_label_project/consumer_reports/detox_certifications/epa_full_tolerances/usda_fas_mrls/water_quality_glyphosate/water_quality_lead/water_quality_atrazine")
 parser.add_argument("--validate", action="store_true")
 args = parser.parse_args()
 
@@ -84,18 +84,25 @@ def run_all():
         ("detox_certifications", DetoxCertificationsFetcher),
         ("epa_full_tolerances", EPAFullTolerancesFetcher),
         ("usda_fas_mrls",       USDAFASMRLFetcher),
-        ("water_quality",       WaterQualityFetcher),
+        ("water_quality_glyphosate", lambda: WaterQualityFetcher("glyphosate")),
+        ("water_quality_lead",      lambda: WaterQualityFetcher("lead")),
+        ("water_quality_atrazine",  lambda: WaterQualityFetcher("atrazine")),
     ]
 
     totals = {"inserted": 0, "skipped": 0, "failed": 0}
     errors = []
 
-    for name, FetcherClass in sources:
+    for name, FetcherFactory in sources:
         if args.source and args.source != name:
-            continue
+            # Allow "water_quality" to match all three water_quality_* sources
+            if args.source == "water_quality" and name.startswith("water_quality_"):
+                pass
+            else:
+                continue
         logger.info("-" * 60)
         try:
-            counts = FetcherClass().run()
+            fetcher = FetcherFactory()
+            counts = fetcher.run()
             for k in totals:
                 totals[k] += counts.get(k, 0)
         except Exception as e:
