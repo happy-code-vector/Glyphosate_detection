@@ -755,6 +755,17 @@ class GermanyBVLFetcher(BaseFetcher):
             "sonnenblumenöl": "sunflower",
             "zucker": "sugar_beets",
             "zuckerrüben": "sugar_beets",
+            "hirse": "corn",
+            "hirsemehl": "corn",
+            "buchweizen": "buckwheat",
+            "dinkel": "wheat",
+            "dinkelmehl": "wheat",
+            "grünkern": "wheat",
+            "emmer": "wheat",
+            "kamut": "wheat",
+            " amarant": "corn",
+            "amarant": "corn",
+            "quinoa": "quinoa",
             # Fruits
             "äpfel": "fresh_fruit",
             "apfel": "fresh_fruit",
@@ -769,6 +780,41 @@ class GermanyBVLFetcher(BaseFetcher):
             "banane": "fresh_fruit",
             "orangen": "fresh_fruit",
             "orange": "fresh_fruit",
+            "zitronen": "fresh_fruit",
+            "zitrone": "fresh_fruit",
+            "limetten": "fresh_fruit",
+            "limette": "fresh_fruit",
+            "mandarinen": "fresh_fruit",
+            "mandarine": "fresh_fruit",
+            "pfirsiche": "fresh_fruit",
+            "pfirsich": "fresh_fruit",
+            "pflaumen": "fresh_fruit",
+            "pflaume": "fresh_fruit",
+            "kirschen": "fresh_fruit",
+            "kirsche": "fresh_fruit",
+            "mangos": "fresh_fruit",
+            "mango": "fresh_fruit",
+            "kiwis": "fresh_fruit",
+            "kiwi": "fresh_fruit",
+            "melonen": "fresh_fruit",
+            "melone": "fresh_fruit",
+            "rosinen": "fresh_fruit",
+            "wein": "fresh_fruit",
+            "heidelbeeren": "blueberries",
+            "himbeeren": "fresh_fruit",
+            "himbeere": "fresh_fruit",
+            "erdnüsse": "fresh_fruit",
+            "erdnuss": "fresh_fruit",
+            "walnüsse": "fresh_fruit",
+            "walnuss": "fresh_fruit",
+            "mohnsamen": "fresh_fruit",
+            "koriandersamen": "fresh_vegetables",
+            "avocadofrüchte": "fresh_fruit",
+            "avocado": "fresh_fruit",
+            "persimonen": "fresh_fruit",
+            "persimonen/kakis": "fresh_fruit",
+            "rhabarber": "fresh_vegetables",
+            "johannisbeeren": "fresh_fruit",
             # Vegetables
             "kartoffeln": "fresh_vegetables",
             "kartoffel": "fresh_vegetables",
@@ -787,6 +833,14 @@ class GermanyBVLFetcher(BaseFetcher):
             "paprika": "fresh_vegetables",
             "zwiebeln": "fresh_vegetables",
             "zwiebel": "fresh_vegetables",
+            "spargel": "fresh_vegetables",
+            "auberginen": "fresh_vegetables",
+            "aubergine": "fresh_vegetables",
+            "kulturpilze": "fresh_vegetables",
+            "pilze": "fresh_vegetables",
+            "blattgewürze": "fresh_vegetables",
+            "frische kräuter": "fresh_vegetables",
+            "senfkörner": "fresh_vegetables",
             # Processed / other
             "brot": "wheat",
             "toastbrot": "wheat",
@@ -799,9 +853,12 @@ class GermanyBVLFetcher(BaseFetcher):
             "bohnen": "beans",
             "linsen": "lentils",
             "kichererbsen": "chickpeas",
-            "erbsen": "beans",
-            "leinsamen": "flax",
-            "leinensamen": "flax",
+            "erbsen": "peas",
+            "leinsamen": "canola",
+            "leinensamen": "canola",
+            "honig": "fresh_fruit",
+            "tee": "fresh_fruit",
+            "tees": "fresh_fruit",
             # Infant
             "säuglingsnahrung": "infant_cereal",
             "babybrei": "infant_cereal",
@@ -817,5 +874,16 @@ class GermanyBVLFetcher(BaseFetcher):
         for german_name in sorted(mappings.keys(), key=len, reverse=True):
             if german_name in lower:
                 return mappings[german_name]
+
+        # Fallback: classify unmapped names into broad categories
+        # German fruit suffixes
+        if any(s in lower for s in ["früchte", "frucht", "beeren", "beere", "melone"]):
+            return "fresh_fruit"
+        # German vegetable suffixes
+        if any(s in lower for s in ["gemüse", "gewürz", "kräuter", "salat", "pilze"]):
+            return "fresh_vegetables"
+        # Frozen variants
+        if "tiefgefroren" in lower:
+            return "fresh_fruit" if "beere" in lower or "frucht" in lower else "fresh_vegetables"
 
         return name

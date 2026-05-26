@@ -396,40 +396,72 @@ class DetoxCertificationsFetcher(BaseFetcher):
 
     def parse(self, files: list[Path]) -> list[dict]:
         """
-        Parse fetched files. Attempts scraped data first, then falls back
-        to hardcoded certified product list.
+        Parse fetched files. Uses hardcoded certified product list as primary
+        source (curated and verified). Only supplements with scraped data if
+        it passes quality validation.
 
         Returns rows formatted for the certified_products table (not
         glyphosate_measurements). The run() method handles insertion.
         """
         path = files[0]
 
-        # Try scraping first
-        scraped_data = None
+        # Primary: hardcoded products (verified data)
+        rows = self._build_from_hardcoded(path)
+        logger.info(
+            "%s: built %d rows from hardcoded products",
+            self.SOURCE_NAME, len(rows),
+        )
+
+        # Supplementary: try scraping, but validate aggressively
         try:
             html = path.read_text(encoding="utf-8")
             if "<!-- Detox Project certification page" not in html:
                 scraped_data = _try_scrape_certifications(
                     CERTIFICATION_URL, CACHE_FILENAME
                 )
+                if scraped_data:
+                    validated = self._validate_scraped(scraped_data)
+                    if validated:
+                        scraped_rows = self._build_from_scraped(validated, path)
+                        # Only add scraped rows not already covered by hardcoded
+                        existing_keys = {
+                            build_dedup_key("DetoxProject_Cert", r["product_name"], r.get("brand"))
+                            for r in rows
+                        }
+                        new_rows = [
+                            r for r in scraped_rows
+                            if r["dedup_key"] not in existing_keys
+                        ]
+                        rows.extend(new_rows)
+                        logger.info(
+                            "%s: added %d new rows from validated scraped data",
+                            self.SOURCE_NAME, len(new_rows),
+                        )
         except Exception as e:
-            logger.debug("Could not read/parse cache: %s", e)
+            logger.debug("Could not read/parse scrape cache: %s", e)
 
-        if scraped_data and len(scraped_data) > 0:
-            rows = self._build_from_scraped(scraped_data, path)
-            logger.info(
-                "%s: built %d rows from scraped data",
-                self.SOURCE_NAME, len(rows),
-            )
-            return rows
-
-        # Fallback to hardcoded
-        rows = self._build_from_hardcoded(path)
-        logger.info(
-            "%s: built %d rows from hardcoded fallback",
-            self.SOURCE_NAME, len(rows),
-        )
         return rows
+
+    @staticmethod
+    def _validate_scraped(items: list[dict]) -> list[dict]:
+        """Filter scraped items to only those that look like real products."""
+        validated = []
+        for item in items:
+            name = item.get("product_name", "")
+            # Reject items that look like article text, not product names
+            if len(name) > 80:
+                continue
+            if any(phrase in name.lower() for phrase in [
+                "glyphosate", "study", "report", "testing", "residue",
+                "how to", "why", "what is", "which", "certification",
+                "view instagram", "market reach", "investigation",
+                "disturbing", "record", "mixture", "movement",
+                "organic,", "non gmo", "project certification",
+            ]):
+                continue
+            if name and len(name) >= 3:
+                validated.append(item)
+        return validated
 
     def _build_from_scraped(self, scraped_data: list[dict], path: Path) -> list[dict]:
         """Build certified_products rows from scraped product listings."""

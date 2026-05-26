@@ -38,7 +38,9 @@ SOURCE_URL = "https://www.consumerreports.org/health/food-safety"
 PUBLISHED_DATE = "2024-01-01"
 DATA_YEAR = 2024
 METHODOLOGY_NOTE = (
-    "Consumer Reports independent analysis. High credibility source."
+    "Consumer Reports analysis summary. Estimated values from published "
+    "report summaries — exact sample counts not available. Marked low "
+    "confidence because detection rates lack supporting sample data."
 )
 
 # ---------------------------------------------------------------------------
@@ -457,7 +459,7 @@ class ConsumerReportsFetcher(BaseFetcher):
                 "original_unit": "ppb",
                 "unit_conversion": 1.0,
                 "methodology_note": METHODOLOGY_NOTE,
-                "confidence": "high",
+                "confidence": "low",
                 "raw_file_path": str(path),
                 "dedup_key": build_dedup_key(
                     self.SOURCE_NAME, food_category, raw_cat, DATA_YEAR
@@ -482,7 +484,7 @@ class ConsumerReportsFetcher(BaseFetcher):
                 "original_unit": "ppb",
                 "unit_conversion": 1.0,
                 "methodology_note": METHODOLOGY_NOTE,
-                "confidence": "high",
+                "confidence": "low",
                 "raw_file_path": str(path),
                 "dedup_key": build_dedup_key(
                     self.SOURCE_NAME, food_category, raw_cat, DATA_YEAR
