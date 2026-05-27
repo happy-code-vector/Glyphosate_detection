@@ -13,6 +13,7 @@ def get_schema_sql():
 
 def create_test_db() -> sqlite3.Connection:
     conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys=ON")
     conn.executescript(get_schema_sql())
     return conn
