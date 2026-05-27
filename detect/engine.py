@@ -1,0 +1,63 @@
+import os
+import sqlite3
+
+from detect.food_risk import FoodRiskQuery
+from detect.product_lookup import ProductLookupQuery
+from detect.water_quality import WaterQualityQuery
+from detect.comparison import ComparisonQuery
+from detect.models import (
+    FoodRiskResult,
+    ProductResult,
+    WaterQualityResult,
+    InternationalComparisonResult,
+)
+
+
+class DetectionEngine:
+    def __init__(self, db_path: str):
+        if not os.path.exists(db_path):
+            raise FileNotFoundError(f"Database file not found: {db_path}")
+        if not sqlite3.connect(db_path).execute("SELECT 1"):
+            raise FileNotFoundError(f"Invalid SQLite database: {db_path}")
+        try:
+            self._conn = sqlite3.connect(db_path)
+            self._conn.row_factory = sqlite3.Row
+        except sqlite3.OperationalError:
+            raise FileNotFoundError(f"Cannot open database: {db_path}")
+
+        self._food_risk = FoodRiskQuery(self._conn)
+        self._product_lookup = ProductLookupQuery(self._conn)
+        self._water_quality = WaterQualityQuery(self._conn)
+        self._comparison = ComparisonQuery(self._conn)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
+
+    def close(self):
+        self._conn.close()
+
+    def food_risk(
+        self, food_category: str, contaminant: str | None = None
+    ) -> FoodRiskResult | list[FoodRiskResult] | None:
+        return self._food_risk.execute(food_category, contaminant)
+
+    def product_lookup(
+        self, query: str, contaminant: str | None = None
+    ) -> list[ProductResult]:
+        return self._product_lookup.execute(query, contaminant)
+
+    def water_quality(
+        self,
+        state: str | None = None,
+        contaminant: str | None = None,
+        water_type: str | None = None,
+    ) -> list[WaterQualityResult]:
+        return self._water_quality.execute(state, contaminant, water_type)
+
+    def international_comparison(
+        self, food_category: str, contaminant: str = "glyphosate"
+    ) -> InternationalComparisonResult:
+        return self._comparison.execute(food_category, contaminant)

@@ -1,4 +1,3 @@
-# Import will be added when engine.py is created
-# from detect.engine import DetectionEngine
+from detect.engine import DetectionEngine
 
-__all__ = []
+__all__ = ["DetectionEngine"]
