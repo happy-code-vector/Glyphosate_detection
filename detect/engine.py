@@ -5,6 +5,7 @@ from detect.food_risk import FoodRiskQuery
 from detect.product_lookup import ProductLookupQuery
 from detect.water_quality import WaterQualityQuery
 from detect.comparison import ComparisonQuery
+from detect.ingredient_risk import IngredientRiskQuery, IngredientRiskResult
 from detect.models import (
     FoodRiskResult,
     ProductResult,
@@ -29,6 +30,7 @@ class DetectionEngine:
         self._product_lookup = ProductLookupQuery(self._conn)
         self._water_quality = WaterQualityQuery(self._conn)
         self._comparison = ComparisonQuery(self._conn)
+        self._ingredient_risk = IngredientRiskQuery(self._conn)
 
     def __enter__(self):
         return self
@@ -61,3 +63,28 @@ class DetectionEngine:
         self, food_category: str, contaminant: str = "glyphosate"
     ) -> InternationalComparisonResult:
         return self._comparison.execute(food_category, contaminant)
+
+    def ingredient_risk(
+        self,
+        product_name: str,
+        ingredients_text: str,
+        contaminant: str = "glyphosate",
+        food_category: str | None = None,
+    ) -> IngredientRiskResult:
+        """
+        Three-tier risk scoring based on ingredients.
+
+        Risk hierarchy:
+        1. Product → Check if specific product is flagged glyphosate-free
+        2. Ingredient → Map each ingredient to category, use category data
+        3. Category → Fall back to product's primary food category
+
+        Args:
+            product_name: Name of the product (for Tier 1 lookup)
+            ingredients_text: Raw ingredients string from Open Food Facts
+            contaminant: Contaminant to check (default: glyphosate)
+            food_category: Optional fallback category if ingredient mapping fails
+        """
+        return self._ingredient_risk.execute(
+            product_name, ingredients_text, contaminant, food_category
+        )
