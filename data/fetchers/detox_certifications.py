@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 
 SOURCE_NAME = "DetoxProject_Certs"
 
-CERTIFICATION_URL = "https://detoxproject.org/glyphosate-residue-free"
+CERTIFICATION_URL = "https://detoxproject.org/certified-products/"
 CACHE_FILENAME = "detoxproject_certifications.html"
 
 # ---------------------------------------------------------------------------
@@ -140,20 +140,158 @@ HARDCODED_CERTIFIED_PRODUCTS = [
 
 # ---------------------------------------------------------------------------
 # Category mapping for certified product types
+# Maps raw Detox Project categories to canonical food categories.
 # ---------------------------------------------------------------------------
 
 CATEGORY_HINTS = {
+    # ── Canonical matches ──────────────────────────────────────────────
     "oats": "oats",
+    "oat milk": "oats",
+    "oat bars": "oats",
+    "oatmeal": "oats",
+    "oats and oat ingredients, pulses": "oats",
+    "oats, groats, oat flour": "oats",
+    "oat concentrates": "oats",
+    "ready-to-eat oats": "oats",
+    "morning oats, overnight oats": "oats",
+    "oat milk, oat creamers, nut milks, nut creamers, sour cream": "oats",
     "cereal": "oats",
+    "cereal, granola": "oats",
+    "granola": "oats",
+    "granola, oats": "oats",
+    "breakfast biscuits, cookie dough, pie crust, pizza crust, puff pastry": "wheat",
+    "biscuits, cookies, gnocchi pizza, ravioli": "wheat",
+    "cookies": "wheat",
     "bread": "wheat",
+    "bagels, bread": "wheat",
+    "sourdough bread": "wheat",
     "flour": "wheat",
+    "wheat": "wheat",
+    "wheat flour and wheat products": "wheat",
+    "pasta": "wheat",
+    "pasta, flour, tomatoes": "wheat",
+    "pasta, tomatoes": "wheat",
+    "einkorn pasta, einkorn crackers": "wheat",
+    "noodles": "wheat",
+    "crackers": "wheat",
+    "pie dough, pastry dough, brownies, cookies, pie shells, apple pie": "wheat",
+    "pie shells, pastry dough": "wheat",
+    "brownies": "wheat",
     "snacks": "corn",
-    "baby food": "infant_cereal",
-    "quinoa": "quinoa",
-    "lentils": "lentils",
-    "chickpeas": "chickpeas",
+    "chips": "corn",
     "rice": "rice",
+    "rice crackers": "rice",
+    "lentils": "lentils",
+    "lentils, split peas, beans, barley": "lentils",
+    "freshwater lentils": "lentils",
+    "chickpeas": "chickpeas",
+    "beans": "beans",
+    "beans, chickpeas": "beans",
+    "snacks: chickpeas, lentils, fava beans": "chickpeas",
+    "wheat, chickpeas, lentils, green split peas, flour": "wheat",
+    "quinoa": "quinoa",
+    "peas": "peas",
+    "barley": "barley",
+    "rye": "rye",
+    "canola": "canola",
+    "soybeans": "soybeans",
+    "tofu": "soybeans",
+    "corn": "corn",
+    "sugar beets": "sugar_beets",
+    "buckwheat": "buckwheat",
+    "sunflower": "sunflower",
+    "butter": "butter",
+    "butter, cheese": "butter",
+    "ghee": "butter",
+    "ghee, oils": "butter",
+    "blueberries": "blueberries",
+    "fresh vegetables": "fresh_vegetables",
+    "mushrooms": "fresh_vegetables",
+    "mushroom broth": "fresh_vegetables",
+    "hearts of palm": "fresh_vegetables",
+    "fresh fruit": "fresh_fruit",
+    "fruit juice": "fresh_fruit",
+    "dates": "fresh_fruit",
+    "jam": "fresh_fruit",
+    "honey": "fresh_fruit",
+    "honey, sugar, honey patties": "fresh_fruit",
+    "honey products and others": "fresh_fruit",
     "syrup": "fresh_fruit",
+    "infant food": "infant_cereal",
+    "baby food": "infant_cereal",
+    # ── Compound categories (first ingredient wins) ────────────────────
+    "plant-based milks, creams and creamers, coffee, refreshers": "oats",
+    "coffee creamers, oat milk": "oats",
+    "coffee, creamers": "oats",
+    "coffee, oat milk coffee": "oats",
+    "flaxmilk, plantmilk": "fresh_fruit",
+    "plant milk": "fresh_fruit",
+    "plant-based milk, plant-based butter": "fresh_fruit",
+    "nut milks": "fresh_fruit",
+    "nut butters, nut flour": "fresh_fruit",
+    "dairy free milk ingredients": "fresh_fruit",
+    "cream": "fresh_fruit",
+    "skyr": "fresh_fruit",
+    "goat milk powder": "fresh_fruit",
+    # ── Protein/Supplements ────────────────────────────────────────────
+    "dietary supplements": "fresh_vegetables",
+    "dietary supplement": "fresh_vegetables",
+    "supplements": "fresh_vegetables",
+    "protein": "soybeans",
+    "protein bars": "soybeans",
+    "protein bar": "soybeans",
+    "protein shake": "soybeans",
+    "plant-based protein": "soybeans",
+    "plant-based meat, protein drinks": "soybeans",
+    "plant-based meat": "soybeans",
+    "plant-based meals": "soybeans",
+    "pea protein": "peas",
+    "whey protein isolate": "fresh_fruit",
+    "whey protein": "fresh_fruit",
+    "collagen": "fresh_fruit",
+    "prebiotic fiber": "fresh_fruit",
+    "prebiotics / probiotics": "fresh_fruit",
+    "healthy gut supplements": "fresh_fruit",
+    "tinctures, supplements": "fresh_vegetables",
+    "ashwagandha": "fresh_vegetables",
+    # ── Meat/Animal ────────────────────────────────────────────────────
+    "chicken": "fresh_vegetables",
+    "bone broth": "fresh_vegetables",
+    "broth": "fresh_vegetables",
+    "pet food": "fresh_vegetables",
+    "dog food": "fresh_vegetables",
+    # ── Beverages ──────────────────────────────────────────────────────
+    "wine": "fresh_fruit",
+    "beer": "fresh_fruit",
+    "drinks": "fresh_fruit",
+    "superfood drinks": "fresh_fruit",
+    "gin cocktail": "fresh_fruit",
+    # ── Other ──────────────────────────────────────────────────────────
+    "avocado products and others": "fresh_vegetables",
+    "cooking oil": "canola",
+    "oil": "canola",
+    "chia, mct oil, avocado oil, sunflower oil": "canola",
+    "hemp cbd": "fresh_vegetables",
+    "hemp products": "fresh_vegetables",
+    "hemp products, fruit products, cereal products, legume products": "fresh_vegetables",
+    "veggie burgers, fries, nuggets": "fresh_vegetables",
+    "tortillas, quesadillas": "wheat",
+    "mac & cheese": "wheat",
+    "ready-to-eat meals": "fresh_vegetables",
+    "indian food": "fresh_vegetables",
+    "indian foods": "fresh_vegetables",
+    "umami sauce": "fresh_vegetables",
+    "matcha": "fresh_vegetables",
+    "fresh beetroot concentrate powder": "fresh_vegetables",
+    "resistant potato starch": "fresh_vegetables",
+    "clary sage seed oil": "canola",
+    "pecans and granola": "oats",
+    "snack bars": "oats",
+    "ingredients": "fresh_vegetables",
+    "bioherbicide": "fresh_vegetables",
+    "plant-based ingredients (pea)": "peas",
+    "insect repellent": "fresh_vegetables",
+    "turmeric extract, pomegranate extract": "fresh_vegetables",
 }
 
 
@@ -162,13 +300,15 @@ def _infer_raw_category(product_name: str, brand: str, hint: str) -> str:
     name = product_name.lower()
     if any(t in name for t in ["oat", "granola", "muesli"]):
         return "oats"
-    if any(t in name for t in ["bread", "loaf", "bun", "bagel", "tortilla"]):
+    if any(t in name for t in ["bread", "loaf", "bun", "bagel", "tortilla", "pita"]):
         return "bread"
     if any(t in name for t in ["cereal", "flake", "puff", "crisp"]):
         return "cereal"
     if any(t in name for t in ["flour"]):
         return "flour"
-    if any(t in name for t in ["cracker", "snap", "cookie", "bar", "snack"]):
+    if any(t in name for t in ["pasta", "spaghetti", "penne", "macaroni", "noodle"]):
+        return "pasta"
+    if any(t in name for t in ["cracker", "snap", "cookie", "bar", "snack", "chip"]):
         return "snacks"
     if any(t in name for t in ["baby", "infant", "toddler"]):
         return "baby food"
@@ -176,12 +316,20 @@ def _infer_raw_category(product_name: str, brand: str, hint: str) -> str:
         return "quinoa"
     if any(t in name for t in ["lentil"]):
         return "lentils"
-    if any(t in name for t in ["chickpea", "garbanzo"]):
+    if any(t in name for t in ["chickpea", "garbanzo", "hummus"]):
         return "chickpeas"
     if any(t in name for t in ["rice"]):
         return "rice"
-    if any(t in name for t in ["syrup"]):
-        return "syrup"
+    if any(t in name for t in ["syrup", "honey"]):
+        return "honey"
+    if any(t in name for t in ["wine", "beer", "cocktail"]):
+        return "wine"
+    if any(t in name for t in ["milk", "cream", "yogurt"]):
+        return "dairy"
+    if any(t in name for t in ["protein", "supplement"]):
+        return "supplements"
+    if any(t in name for t in ["broth", "stock"]):
+        return "broth"
     return hint
 
 
@@ -214,6 +362,46 @@ CREATE INDEX IF NOT EXISTS idx_cert_products_source ON certified_products(source
 # Scraper helpers
 # ---------------------------------------------------------------------------
 
+def _parse_tablepress_table(table) -> list[dict]:
+    """
+    Parse a TablePress table with columns: Brand, Products, Category.
+    Each row has one brand with comma-separated products.
+    Returns list of {"product_name": str, "brand": str, "raw_category": str}.
+    """
+    products = []
+    rows = table.find_all("tr")
+    if not rows:
+        return products
+
+    # Skip header row
+    for row in rows[1:]:
+        cells = row.find_all(["td", "th"])
+        if len(cells) < 2:
+            continue
+
+        brand = cells[0].get_text(strip=True)
+        products_text = cells[1].get_text(strip=True)
+        category = cells[2].get_text(strip=True) if len(cells) > 2 else ""
+
+        if not brand or not products_text:
+            continue
+
+        # Decode HTML entities
+        products_text = products_text.replace("&amp;", "&")
+
+        # Split comma-separated products
+        for product_name in products_text.split(","):
+            product_name = product_name.strip()
+            if product_name and len(product_name) > 1:
+                products.append({
+                    "product_name": product_name,
+                    "brand": brand,
+                    "raw_category": category,
+                })
+
+    return products
+
+
 def _try_scrape_certifications(url: str, filename: str) -> list[dict] | None:
     """
     Attempt to scrape the certification directory page for product listings.
@@ -241,6 +429,14 @@ def _try_scrape_certifications(url: str, filename: str) -> list[dict] | None:
 
     soup = BeautifulSoup(html, "html.parser")
     products = []
+
+    # Strategy 0: TablePress table (primary - /certified-products/ page)
+    tablepress_table = soup.find("table", class_=re.compile(r"tablepress.*residue-free"))
+    if tablepress_table:
+        products = _parse_tablepress_table(tablepress_table)
+        if products:
+            logger.info("Scraped %d products from TablePress table", len(products))
+            return products
 
     # Strategy 1: HTML tables with product/brand columns
     tables = soup.find_all("table")
@@ -402,49 +598,51 @@ class DetoxCertificationsFetcher(BaseFetcher):
 
     def parse(self, files: list[Path]) -> list[dict]:
         """
-        Parse fetched files. Uses hardcoded certified product list as primary
-        source (curated and verified). Only supplements with scraped data if
-        it passes quality validation.
+        Parse fetched files. Uses TablePress scraped data as primary source,
+        supplemented by hardcoded list for any gaps.
 
         Returns rows formatted for the certified_products table (not
         glyphosate_measurements). The run() method handles insertion.
         """
         path = files[0]
+        rows = []
 
-        # Primary: hardcoded products (verified data)
-        rows = self._build_from_hardcoded(path)
+        # Primary: try scraping TablePress table from /certified-products/
+        try:
+            scraped_data = _try_scrape_certifications(
+                CERTIFICATION_URL, CACHE_FILENAME
+            )
+            if scraped_data:
+                validated = self._validate_scraped(scraped_data)
+                if validated:
+                    rows = self._build_from_scraped(validated, path)
+                    logger.info(
+                        "%s: built %d rows from TablePress scrape",
+                        self.SOURCE_NAME, len(rows),
+                    )
+        except Exception as e:
+            logger.debug("Could not scrape TablePress table: %s", e)
+
+        # Supplementary: add hardcoded products not already covered
+        hardcoded_rows = self._build_from_hardcoded(path)
+        existing_keys = {
+            r["dedup_key"] for r in rows
+        }
+        new_hardcoded = [
+            r for r in hardcoded_rows
+            if r["dedup_key"] not in existing_keys
+        ]
+        if new_hardcoded:
+            rows.extend(new_hardcoded)
+            logger.info(
+                "%s: added %d rows from hardcoded products",
+                self.SOURCE_NAME, len(new_hardcoded),
+            )
+
         logger.info(
-            "%s: built %d rows from hardcoded products",
+            "%s: total %d certified products",
             self.SOURCE_NAME, len(rows),
         )
-
-        # Supplementary: try scraping, but validate aggressively
-        try:
-            html = path.read_text(encoding="utf-8")
-            if "<!-- Detox Project certification page" not in html:
-                scraped_data = _try_scrape_certifications(
-                    CERTIFICATION_URL, CACHE_FILENAME
-                )
-                if scraped_data:
-                    validated = self._validate_scraped(scraped_data)
-                    if validated:
-                        scraped_rows = self._build_from_scraped(validated, path)
-                        # Only add scraped rows not already covered by hardcoded
-                        existing_keys = {
-                            build_dedup_key("DetoxProject_Cert", r["product_name"], r.get("brand"))
-                            for r in rows
-                        }
-                        new_rows = [
-                            r for r in scraped_rows
-                            if r["dedup_key"] not in existing_keys
-                        ]
-                        rows.extend(new_rows)
-                        logger.info(
-                            "%s: added %d new rows from validated scraped data",
-                            self.SOURCE_NAME, len(new_rows),
-                        )
-        except Exception as e:
-            logger.debug("Could not read/parse scrape cache: %s", e)
 
         return rows
 
