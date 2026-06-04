@@ -62,6 +62,7 @@ def run_all():
     from fetchers.food_democracy_now import FoodDemocracyNowFetcher
     from fetchers.soil_association import SoilAssociationFetcher
     from fetchers.hri_labs import HRILabsFetcher
+    from fetchers.usda_organic import USDAOrganicFetcher
 
     logger.info("Initializing database")
     initialize()
@@ -91,6 +92,7 @@ def run_all():
         ("moms_across_america",  MomsAcrossAmericaFetcher),
         ("food_democracy_now",   FoodDemocracyNowFetcher),
         ("soil_association",     SoilAssociationFetcher),
+        ("usda_organic",         USDAOrganicFetcher),
         ("hri_labs",             HRILabsFetcher),
         ("water_quality_glyphosate", lambda: WaterQualityFetcher("glyphosate")),
         ("water_quality_lead",      lambda: WaterQualityFetcher("lead")),
