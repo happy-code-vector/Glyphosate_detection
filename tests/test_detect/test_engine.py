@@ -2,6 +2,7 @@ import os
 import sqlite3
 import tempfile
 import unittest
+from unittest.mock import patch, MagicMock
 
 from tests.test_detect.conftest import create_test_db, seed_all
 from detect.engine import DetectionEngine
@@ -61,6 +62,61 @@ class TestDetectionEngine(unittest.TestCase):
         with DetectionEngine(self.tmp.name) as engine:
             result = engine.food_risk("oats", contaminant="glyphosate")
             self.assertIsInstance(result, FoodRiskResult)
+
+    @patch("detect.engine.OpenFoodFactsClient")
+    def test_scan_barcode_product_found(self, MockOFFClient):
+        """Test scan_barcode when product is found in Open Food Facts."""
+        # Mock the OFF client to return a test product
+        mock_client = MagicMock()
+        mock_client.lookup.return_value = {
+            "barcode": "0001600014588",
+            "product_name": "Cheerios",
+            "brand": "General Mills",
+            "categories": ["breakfast-cereals"],
+            "image_url": "",
+            "is_organic": False,
+            "ingredients": "Whole grain oats, corn starch, sugar, salt",
+            "countries": "United States",
+            "source": "OpenFoodFacts",
+        }
+        MockOFFClient.return_value = mock_client
+
+        # Create engine with mocked client
+        engine = DetectionEngine(self.tmp.name)
+        engine._off_client = mock_client
+
+        # Seed category aliases for ingredient mapping
+        engine._conn.execute(
+            "INSERT OR IGNORE INTO category_aliases (alias, canonical_key) VALUES (?, ?)",
+            ("whole grain oats", "oats"),
+        )
+        engine._conn.execute(
+            "INSERT OR IGNORE INTO category_aliases (alias, canonical_key) VALUES (?, ?)",
+            ("corn starch", "corn"),
+        )
+        engine._conn.commit()
+
+        result = engine.scan_barcode("0001600014588")
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result.product_name, "Cheerios")
+        self.assertIn(result.tier_used, ["product", "ingredient", "category"])
+        engine.close()
+
+    @patch("detect.engine.OpenFoodFactsClient")
+    def test_scan_barcode_product_not_found(self, MockOFFClient):
+        """Test scan_barcode when product is not found in Open Food Facts."""
+        mock_client = MagicMock()
+        mock_client.lookup.return_value = None
+        MockOFFClient.return_value = mock_client
+
+        engine = DetectionEngine(self.tmp.name)
+        engine._off_client = mock_client
+
+        result = engine.scan_barcode("9999999999999")
+
+        self.assertIsNone(result)
+        engine.close()
 
 
 if __name__ == "__main__":

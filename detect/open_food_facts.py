@@ -1,11 +1,11 @@
 """
-fetchers/open_food_facts.py
+detect/open_food_facts.py
 
 Open Food Facts live barcode lookup API.
 
-This is NOT a batch data pipeline — it is a LIVE API that gets called per
-product scan. It provides product identification from barcode for the
-ResidueIQ scan feature.
+This is a RUNTIME service for product identification — not part of the
+batch data pipeline. Used by DetectionEngine.scan_barcode() to fetch
+product metadata (name, ingredients, categories) from a barcode.
 
 API docs: https://openfoodfacts.github.io/api-documentation/
 """
@@ -14,8 +14,11 @@ import json
 import logging
 import time
 from pathlib import Path
+from typing import Optional
 
-from fetchers.base import BaseFetcher, SESSION, RAW_DATA_DIR
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 logger = logging.getLogger(__name__)
 
@@ -34,42 +37,46 @@ _ORGANIC_LABEL_PREFIXES = (
 # Rate-limit delay between API calls (seconds)
 _RATE_LIMIT_DELAY = 0.5
 
-# Sub-directory for cached barcode lookups
-_CACHE_DIR = RAW_DATA_DIR / "openfoodfacts"
+# Cache directory for barcode lookups
+_CACHE_DIR = Path(__file__).parent.parent / "data" / "raw_data" / "openfoodfacts"
 _CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 
-class OpenFoodFactsFetcher(BaseFetcher):
+def _build_session() -> requests.Session:
+    """Build HTTP session with retry logic."""
+    session = requests.Session()
+    retry = Retry(
+        total=3,
+        backoff_factor=1,
+        status_forcelist=[429, 500, 502, 503, 504],
+        allowed_methods=["GET"],
+        raise_on_status=False,
+    )
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
+    session.headers.update({
+        "User-Agent": "ResidueIQ/1.0 (barcode-scanner)"
+    })
+    return session
+
+
+_SESSION = _build_session()
+
+
+class OpenFoodFactsClient:
     """
     Live lookup service for Open Food Facts barcode data.
-    Does not participate in the batch fetch/parse pipeline.
+    Not part of the batch pipeline — used at runtime for product identification.
     """
 
-    SOURCE_NAME = "OpenFoodFacts"
-
-    # ── Batch pipeline stubs (this fetcher is not a batch source) ──────────
-
-    def fetch(self) -> list[Path]:
-        """No batch download — API is called per barcode via lookup()."""
-        return []
-
-    def parse(self, files: list[Path]) -> list[dict]:
-        """No batch parse needed — individual lookups return parsed data."""
-        return []
-
-    def run(self) -> dict:
-        """No-op for the batch pipeline."""
-        return {"inserted": 0, "skipped": 0, "failed": 0}
-
-    # ── Live API methods ──────────────────────────────────────────────────
-
-    def lookup(self, barcode: str) -> dict | None:
+    def lookup(self, barcode: str) -> Optional[dict]:
         """
         Look up a single product by barcode.
 
         Returns a dict with keys:
-            product_name, brand, categories, image_url,
-            is_organic, ingredients, countries, barcode, source
+            barcode, product_name, brand, categories, image_url,
+            is_organic, ingredients, countries, source
 
         Returns None if the product is not found or the API fails.
         """
@@ -80,7 +87,7 @@ class OpenFoodFactsFetcher(BaseFetcher):
         url = f"https://world.openfoodfacts.org/api/v0/product/{barcode}.json"
         try:
             time.sleep(_RATE_LIMIT_DELAY)
-            resp = SESSION.get(url, timeout=15)
+            resp = _SESSION.get(url, timeout=15)
             if resp.status_code == 404:
                 logger.info("Product not found for barcode %s", barcode)
                 return None
@@ -110,7 +117,7 @@ class OpenFoodFactsFetcher(BaseFetcher):
         )
         try:
             time.sleep(_RATE_LIMIT_DELAY)
-            resp = SESSION.get(url, timeout=15)
+            resp = _SESSION.get(url, timeout=15)
             resp.raise_for_status()
         except Exception as exc:
             logger.error("OFF search failed for query '%s': %s", query, exc)
@@ -140,10 +147,8 @@ class OpenFoodFactsFetcher(BaseFetcher):
         categories_tags = product.get("categories_tags", []) or []
         categories = product.get("categories", "")
         if categories:
-            # OFF returns comma-separated string; normalise to list
             categories = [c.strip() for c in categories.split(",") if c.strip()]
         elif categories_tags:
-            # Strip language prefix (e.g. "en:beverages" -> "beverages")
             categories = [
                 t.split(":", 1)[-1] if ":" in t else t
                 for t in categories_tags
@@ -167,7 +172,7 @@ class OpenFoodFactsFetcher(BaseFetcher):
     def _cache_path(barcode: str) -> Path:
         return _CACHE_DIR / f"{barcode}.json"
 
-    def _read_cache(self, barcode: str) -> dict | None:
+    def _read_cache(self, barcode: str) -> Optional[dict]:
         path = self._cache_path(barcode)
         if path.exists():
             try:

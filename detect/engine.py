@@ -1,11 +1,13 @@
 import os
 import sqlite3
+from typing import Optional
 
 from detect.food_risk import FoodRiskQuery
 from detect.product_lookup import ProductLookupQuery
 from detect.water_quality import WaterQualityQuery
 from detect.comparison import ComparisonQuery
 from detect.ingredient_risk import IngredientRiskQuery, IngredientRiskResult
+from detect.open_food_facts import OpenFoodFactsClient
 from detect.models import (
     FoodRiskResult,
     ProductResult,
@@ -31,6 +33,7 @@ class DetectionEngine:
         self._water_quality = WaterQualityQuery(self._conn)
         self._comparison = ComparisonQuery(self._conn)
         self._ingredient_risk = IngredientRiskQuery(self._conn)
+        self._off_client = OpenFoodFactsClient()
 
     def __enter__(self):
         return self
@@ -87,4 +90,48 @@ class DetectionEngine:
         """
         return self._ingredient_risk.execute(
             product_name, ingredients_text, contaminant, food_category
+        )
+
+    def scan_barcode(
+        self,
+        barcode: str,
+        contaminant: str = "glyphosate",
+    ) -> Optional[IngredientRiskResult]:
+        """
+        Scan a barcode and return ingredient-based risk assessment.
+
+        Complete flow:
+        1. Look up product via Open Food Facts API
+        2. Run three-tier risk scoring (product → ingredient → category)
+
+        Args:
+            barcode: Product barcode (EAN-13, UPC, etc.)
+            contaminant: Contaminant to check (default: glyphosate)
+
+        Returns:
+            IngredientRiskResult with risk_level, score, and breakdown
+            None if product not found in Open Food Facts
+        """
+        # Step 1: Look up product from Open Food Facts
+        product = self._off_client.lookup(barcode)
+        if not product:
+            return None
+
+        # Step 2: Run ingredient risk scoring
+        # Use first OFF category as fallback food_category
+        food_category = None
+        if product.get("categories"):
+            # Try to map first OFF category to our canonical categories
+            from db.database import normalize_category
+            for cat in product["categories"]:
+                mapped = normalize_category(cat, conn=self._conn)
+                if mapped:
+                    food_category = mapped
+                    break
+
+        return self._ingredient_risk.execute(
+            product_name=product["product_name"],
+            ingredients_text=product["ingredients"],
+            contaminant=contaminant,
+            food_category=food_category,
         )
