@@ -70,7 +70,7 @@ class DetectionEngine:
     def ingredient_risk(
         self,
         product_name: str,
-        ingredients_text: str,
+        ingredients: list[dict] | str,
         contaminant: str = "glyphosate",
         food_category: str | None = None,
     ) -> IngredientRiskResult:
@@ -84,12 +84,14 @@ class DetectionEngine:
 
         Args:
             product_name: Name of the product (for Tier 1 lookup)
-            ingredients_text: Raw ingredients string from Open Food Facts
+            ingredients: Either:
+                - List of dicts with 'id', 'name', 'text', 'percent' (from OFF API)
+                - Raw ingredients string (fallback, will be parsed)
             contaminant: Contaminant to check (default: glyphosate)
             food_category: Optional fallback category if ingredient mapping fails
         """
         return self._ingredient_risk.execute(
-            product_name, ingredients_text, contaminant, food_category
+            product_name, ingredients, contaminant, food_category
         )
 
     def scan_barcode(
@@ -131,7 +133,7 @@ class DetectionEngine:
 
         return self._ingredient_risk.execute(
             product_name=product["product_name"],
-            ingredients_text=product["ingredients"],
+            ingredients=product["ingredients"],  # Now structured list from OFF API
             contaminant=contaminant,
             food_category=food_category,
         )

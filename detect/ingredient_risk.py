@@ -65,7 +65,7 @@ class IngredientRiskQuery:
     def execute(
         self,
         product_name: str,
-        ingredients_text: str,
+        ingredients: list[dict] | str,
         contaminant: str = "glyphosate",
         food_category: Optional[str] = None,
     ) -> IngredientRiskResult:
@@ -74,7 +74,9 @@ class IngredientRiskQuery:
 
         Args:
             product_name: Name of the product (for Tier 1 lookup)
-            ingredients_text: Raw ingredients string from Open Food Facts
+            ingredients: Either:
+                - List of dicts with 'id', 'name', 'text', 'percent' (from OFF API)
+                - Raw ingredients string (fallback, will be parsed)
             contaminant: Contaminant to check (default: glyphosate)
             food_category: Optional fallback category if ingredient mapping fails
 
@@ -124,11 +126,21 @@ class IngredientRiskQuery:
             )
 
         # ── Tier 2: Ingredient-level check ───────────────────────────────
-        ingredients = parse_ingredients(ingredients_text)
-        if ingredients:
+        # Normalize ingredients to list of dicts
+        if isinstance(ingredients, str):
+            # Flat text fallback - parse into structured format
+            parsed = parse_ingredients(ingredients)
+            ingredient_dicts = [{"name": ing, "text": ing, "percent": None} for ing in parsed]
+        else:
+            # Already structured from OFF API
+            ingredient_dicts = ingredients
+
+        if ingredient_dicts:
             ingredient_scores = []
-            for ingredient in ingredients:
-                score = self._score_ingredient(ingredient, contaminant)
+            for ing in ingredient_dicts:
+                # Use English name from OFF id (e.g., "wheat flour") if available
+                name = ing.get("name", "") or ing.get("text", "")
+                score = self._score_ingredient(name, contaminant)
                 if score:
                     ingredient_scores.append(score)
 

@@ -156,6 +156,25 @@ class OpenFoodFactsClient:
         else:
             categories = []
 
+        # Extract structured ingredients with English IDs
+        # OFF provides: {"id": "en:wheat-flour", "text": "farine de blé", "percent": 34.8}
+        raw_ingredients = product.get("ingredients", []) or []
+        ingredients_list = []
+        for ing in raw_ingredients:
+            ing_id = ing.get("id", "")
+            # Convert "en:wheat-flour" -> "wheat flour"
+            if ing_id.startswith("en:"):
+                canonical_name = ing_id[3:].replace("-", " ")
+            else:
+                canonical_name = ing.get("text", "")
+            ingredients_list.append({
+                "id": ing_id,
+                "name": canonical_name,
+                "text": ing.get("text", ""),
+                "percent": ing.get("percent_estimate") or ing.get("percent"),
+                "is_in_taxonomy": ing.get("is_in_taxonomy", 0),
+            })
+
         return {
             "barcode": barcode,
             "product_name": product.get("product_name", "") or "",
@@ -163,7 +182,8 @@ class OpenFoodFactsClient:
             "categories": categories,
             "image_url": product.get("image_url", "") or "",
             "is_organic": is_organic,
-            "ingredients": product.get("ingredients_text", "") or "",
+            "ingredients_text": product.get("ingredients_text", "") or "",
+            "ingredients": ingredients_list,
             "countries": product.get("countries", "") or "",
             "source": "OpenFoodFacts",
         }
