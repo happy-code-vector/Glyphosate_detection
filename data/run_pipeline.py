@@ -58,6 +58,8 @@ def run_all():
     from fetchers.epa_full_tolerances import EPAFullTolerancesFetcher
     from fetchers.usda_fas_mrls import USDAFASMRLFetcher
     from fetchers.water_quality import WaterQualityFetcher
+    from fetchers.moms_across_america import MomsAcrossAmericaFetcher
+    from fetchers.food_democracy_now import FoodDemocracyNowFetcher
 
     logger.info("Initializing database")
     initialize()
@@ -84,6 +86,8 @@ def run_all():
         ("detox_certifications", DetoxCertificationsFetcher),
         ("epa_full_tolerances", EPAFullTolerancesFetcher),
         ("usda_fas_mrls",       USDAFASMRLFetcher),
+        ("moms_across_america",  MomsAcrossAmericaFetcher),
+        ("food_democracy_now",   FoodDemocracyNowFetcher),
         ("water_quality_glyphosate", lambda: WaterQualityFetcher("glyphosate")),
         ("water_quality_lead",      lambda: WaterQualityFetcher("lead")),
         ("water_quality_atrazine",  lambda: WaterQualityFetcher("atrazine")),
