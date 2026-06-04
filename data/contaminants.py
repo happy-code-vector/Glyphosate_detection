@@ -39,7 +39,7 @@ CONTAMINANTS = {
         "cas_number": "7439-92-1",
         "wqp_characteristic": "Lead",
         "wqp_params_override": {
-            "sampleMedia": "water",
+            "sampleMedia": "Water",
         },
         "wqp_date_ranges": [
             ("01-01-2018", "12-31-2023"),
@@ -75,6 +75,11 @@ CONTAMINANTS = {
         "type": "pesticide",
         "cas_number": "1912-24-9",
         "wqp_characteristic": "Atrazine",
+        "wqp_date_ranges": [
+            ("01-01-2020", "12-31-2023"),
+            ("01-01-2015", "12-31-2019"),
+            ("01-01-2010", "12-31-2014"),
+        ],
         "pdp_codes": [],
         "fda_resname": "ATRAZINE",
         "units": "ppb",

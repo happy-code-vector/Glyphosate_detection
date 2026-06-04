@@ -138,7 +138,6 @@ class WaterQualityFetcher(BaseFetcher):
             "sampleMedia": "Water",
             "mimeType": "csv",
             "sorted": "no",
-            "providers": "STORET,NWIS",
         }
         # Allow per-contaminant param overrides (e.g., sampleMedia casing)
         base_params.update(self.config.get("wqp_params_override", {}))
@@ -151,20 +150,50 @@ class WaterQualityFetcher(BaseFetcher):
                 cache_path.write_bytes(resp.content)
                 logger.info("WQP %s download: %d bytes", self.contaminant, len(resp.content))
                 return cache_path
-            logger.warning("WQP unbounded query for %s returned %d (%d bytes), trying date ranges",
+            logger.warning("WQP unbounded query for %s returned %d (%d bytes), trying state queries",
                            self.contaminant, resp.status_code, len(resp.content))
         except Exception as e:
-            logger.warning("WQP unbounded query for %s failed: %s, trying date ranges",
+            logger.warning("WQP unbounded query for %s failed: %s, trying state queries",
                            self.contaminant, e)
 
-        # Fall back to date-range queries for large datasets (e.g., lead)
-        date_ranges = self.config.get("wqp_date_ranges", [])
-        if not date_ranges:
-            logger.error("WQP %s: no date ranges configured and unbounded query failed",
-                         self.contaminant)
-            return None
+        # Fall back to state-based queries for large datasets (e.g., lead, atrazine)
+        # Key agricultural/industrial states with monitoring data
+        states = [
+            "US:06",  # California
+            "US:19",  # Iowa
+            "US:17",  # Illinois
+            "US:39",  # Ohio
+            "US:55",  # Wisconsin
+            "US:26",  # Michigan
+            "US:27",  # Minnesota
+            "US:53",  # Washington
+            "US:41",  # Oregon
+            "US:51",  # Virginia
+        ]
 
         all_content = None
+        for state in states:
+            params = {**base_params, "statecode": state, "startDateLo": "01-01-2018", "startDateHi": "12-31-2023"}
+            try:
+                logger.info("WQP %s: fetching %s...", self.contaminant, state)
+                resp = SESSION.get(WQP_BASE_URL, params=params, timeout=60)
+                if resp.status_code == 200 and len(resp.content) > 1000:
+                    if all_content is None:
+                        all_content = resp.content
+                    else:
+                        # Merge: skip header from subsequent chunks
+                        lines = resp.content.split(b"\n", 1)
+                        if len(lines) > 1:
+                            all_content += b"\n" + lines[1]
+                    logger.info("WQP %s %s: %d bytes", self.contaminant, state, len(resp.content))
+                else:
+                    logger.warning("WQP %s %s: status %d (%d bytes)",
+                                   self.contaminant, state, resp.status_code, len(resp.content))
+            except Exception as e:
+                logger.warning("WQP %s %s failed: %s", self.contaminant, state, e)
+
+        # Also try date ranges as fallback
+        date_ranges = self.config.get("wqp_date_ranges", [])
         for start, end in date_ranges:
             params = {**base_params, "startDateLo": start, "startDateHi": end}
             try:
