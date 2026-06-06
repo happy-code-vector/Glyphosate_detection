@@ -62,6 +62,12 @@ SKIP_COLUMNS = {
 }
 
 
+def sanitize_doc_id(value: str) -> str:
+    """Sanitize a string for use as a Firestore document ID.
+    Firestore doesn't allow '/' in document IDs."""
+    return value.replace("/", "_").replace("\\", "_")
+
+
 def get_document_id(table: str, row: dict) -> str | None:
     """Determine the Firestore document ID for a row."""
     if table == "category_aliases":
@@ -249,7 +255,7 @@ def precompute_food_overview(db, conn: sqlite3.Connection):
 
     batch = db.batch()
     for doc in docs:
-        ref = db.collection("app_food_overview").document(doc["food_category"])
+        ref = db.collection("app_food_overview").document(sanitize_doc_id(doc["food_category"]))
         batch.set(ref, doc)
     batch.commit()
     logger.info("  Wrote %d app_food_overview documents", len(docs))
@@ -340,7 +346,7 @@ def precompute_regulatory_limits(db, conn: sqlite3.Connection):
     batch = db.batch()
     count = 0
     for cat, entries in grouped.items():
-        ref = db.collection("app_regulatory_limits").document(cat)
+        ref = db.collection("app_regulatory_limits").document(sanitize_doc_id(cat))
         batch.set(ref, {"food_category": cat, "entries": entries})
         count += 1
         if count >= BATCH_LIMIT:
@@ -389,7 +395,7 @@ def precompute_international_comparison(db, conn: sqlite3.Connection):
     batch = db.batch()
     count = 0
     for cat, doc in grouped.items():
-        ref = db.collection("app_international_comparison").document(cat)
+        ref = db.collection("app_international_comparison").document(sanitize_doc_id(cat))
         batch.set(ref, doc)
         count += 1
         if count >= BATCH_LIMIT:
@@ -440,7 +446,7 @@ def precompute_water_overview(db, conn: sqlite3.Connection):
     batch = db.batch()
     count = 0
     for state, doc in grouped.items():
-        ref = db.collection("app_water_overview").document(state)
+        ref = db.collection("app_water_overview").document(sanitize_doc_id(state))
         batch.set(ref, doc)
         count += 1
         if count >= BATCH_LIMIT:
@@ -461,6 +467,8 @@ def main():
                         help="Path to Firebase service account JSON")
     parser.add_argument("--skip-precompute", action="store_true",
                         help="Skip pre-computed app collections")
+    parser.add_argument("--database", default="purityiq",
+                        help="Firestore database ID (default: purityiq)")
     args = parser.parse_args()
 
     # Validate paths
@@ -479,7 +487,8 @@ def main():
     logger.info("Initializing Firebase Admin SDK...")
     cred = credentials.Certificate(str(cred_path))
     firebase_admin.initialize_app(cred)
-    db = firestore.client()
+    db = firestore.client(database_id=args.database)
+    logger.info("Connected to Firestore database: %s", args.database)
 
     # Open SQLite
     conn = sqlite3.connect(str(db_path))
