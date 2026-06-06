@@ -23,9 +23,13 @@ data/raw_data/
 data/residueiq.db
 data/logs/
 
+# Firebase
+firebase-service-account.json
+
 # OS
 Thumbs.db
 .DS_Store
 *.db*
 .claude
 docs
+firebase-admin-service-account.json
