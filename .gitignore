@@ -32,4 +32,4 @@ Thumbs.db
 *.db*
 .claude
 docs
-firebase-admin-service-account.json
+firebase*.json
