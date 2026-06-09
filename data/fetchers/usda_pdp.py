@@ -47,6 +47,7 @@ USDA_PDP_REPORTS = [
     {"label": "USDA PDP 2021", "url": "https://www.ams.usda.gov/sites/default/files/media/2021PDPDatabase.zip", "zip_filename": "usda_pdp_2021.zip", "data_year": 2021, "published_date": "2023-01-01"},
     {"label": "USDA PDP 2022", "url": "https://www.ams.usda.gov/sites/default/files/media/2022PDPDatabase.zip", "zip_filename": "usda_pdp_2022.zip", "data_year": 2022, "published_date": "2024-01-01"},
     {"label": "USDA PDP 2023", "url": "https://www.ams.usda.gov/sites/default/files/media/2023PDPDatabase.zip", "zip_filename": "usda_pdp_2023.zip", "data_year": 2023, "published_date": "2025-01-01"},
+    {"label": "USDA PDP 2024", "url": "https://www.ams.usda.gov/sites/default/files/media/2024PDPDatabase.zip", "zip_filename": "usda_pdp_2024.zip", "data_year": 2024, "published_date": "2026-01-01"},
 ]
 
 # PDP commodity name → canonical food category mapping.

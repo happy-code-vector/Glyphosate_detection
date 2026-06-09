@@ -670,9 +670,8 @@ class EFSAFetcher(BaseFetcher):
 
     def _parse_enforcement(self, xlsx_path: Path, report: dict) -> list[dict]:
         """
-        Parse EFSA enforcement data for glyphosate MRL exceedances.
+        Parse EFSA enforcement data for ALL pesticide MRL exceedances.
         Sheet name varies by year: Table 2.2 (2023+), Table 3.2 (2020-2022).
-        Column names also vary (e.g. 'Result Value (mg/kg)' vs 'Result (mg/kg)').
         """
         import openpyxl
         wb = openpyxl.load_workbook(xlsx_path, read_only=True)
@@ -716,22 +715,36 @@ class EFSAFetcher(BaseFetcher):
             )
             return []
 
-        # Filter to glyphosate (substance name contains "glyphosate")
-        gly_mask = df[substance_col].str.lower().str.contains("glyphosate", na=False)
-        gly_df = df[gly_mask].copy()
-
-        if gly_df.empty:
-            logger.warning("EFSA: no glyphosate rows found in %s", xlsx_path.name)
+        # Find the matrix column (food category)
+        matrix_col = self._find_col(df, ["Food MATRIX Name", "Food Matrix Name", "Food MATRIX name"])
+        if matrix_col is None:
+            # Fallback: try substring match
+            for col in df.columns:
+                if "matrix" in str(col).lower() and "name" in str(col).lower():
+                    matrix_col = col
+                    break
+        if matrix_col is None:
+            logger.warning("EFSA: no food matrix column found in %s", xlsx_path.name)
             return []
 
-        logger.info("EFSA: %d glyphosate MRL exceedance rows", len(gly_df))
+        # Clean substance names
+        df[substance_col] = df[substance_col].astype(str).str.strip()
+        df = df[df[substance_col].str.lower() != 'nan']
 
+        logger.info("EFSA: %d total rows in %s", len(df), xlsx_path.name)
+
+        # Process ALL pesticides, grouped by (matrix, substance)
         rows = []
-        for matrix, group in gly_df.groupby("Food MATRIX Name"):
+        for (matrix, substance), group in df.groupby([matrix_col, substance_col]):
             raw_cat = str(matrix).strip()
+            pest_name = str(substance).strip().lower()
+            if not raw_cat or raw_cat.lower() == 'nan':
+                continue
+            if not pest_name or pest_name == 'nan':
+                continue
+
             food_category = normalize_category(raw_cat)
             if not food_category:
-                logger.debug("EFSA: no canonical category for '%s'", raw_cat)
                 continue
 
             total = len(group)
@@ -752,6 +765,7 @@ class EFSAFetcher(BaseFetcher):
                 "data_year": report["data_year"],
                 "food_category": food_category,
                 "raw_category": raw_cat,
+                "contaminant": pest_name,
                 "samples_total": total,
                 "samples_detected": n_detected,
                 "detection_rate": None,
@@ -762,14 +776,14 @@ class EFSAFetcher(BaseFetcher):
                 "methodology_note": (
                     "EFSA enforcement data: only samples exceeding MRL are reported. "
                     "Detection rate cannot be computed from exceedance data alone. "
-                    f"{total} MRL exceedance(s) for {raw_cat} across EU member states."
+                    f"{total} MRL exceedance(s) for {pest_name} in {raw_cat} across EU member states."
                 ),
                 "confidence": "low",
                 "raw_file_path": str(xlsx_path),
-                "dedup_key": build_dedup_key("EFSA", food_category, report["data_year"]),
+                "dedup_key": build_dedup_key("EFSA", food_category, pest_name, report["data_year"]),
             })
 
-        logger.info("EFSA: parsed %d category rows from %s", len(rows), xlsx_path.name)
+        logger.info("EFSA: parsed %d (category, pesticide) rows from %s", len(rows), xlsx_path.name)
         return rows
 
     def _parse_visualisation(self, xlsx_path: Path, report: dict) -> list[dict]:

@@ -382,8 +382,8 @@ class CADPRFetcher(BaseFetcher):
         self, df: pd.DataFrame, file_path: Path, report: dict
     ) -> list[dict]:
         """
-        Core parser: identify columns dynamically, filter for glyphosate,
-        aggregate by canonical food category.
+        Core parser: identify columns dynamically, process ALL pesticides,
+        aggregate by (commodity, pesticide) into canonical food categories.
         """
         # Normalize column names.
         df.columns = [
@@ -399,54 +399,27 @@ class CADPRFetcher(BaseFetcher):
         unit_col = self._find_col(df, _UNIT_COL_PATTERNS)
 
         if pest_col is None:
-            logger.warning(
-                "CA DPR: no pesticide column found in %s — skipping", file_path.name
-            )
+            logger.warning("CA DPR: no pesticide column found in %s — skipping", file_path.name)
             return []
         if comm_col is None:
-            logger.warning(
-                "CA DPR: no commodity column found in %s — skipping", file_path.name
-            )
+            logger.warning("CA DPR: no commodity column found in %s — skipping", file_path.name)
             return []
         if result_col is None:
-            logger.warning(
-                "CA DPR: no result column found in %s — skipping", file_path.name
-            )
+            logger.warning("CA DPR: no result column found in %s — skipping", file_path.name)
             return []
 
-        # Filter for glyphosate (case-insensitive substring match).
-        gly_mask = df[pest_col].astype(str).str.lower().str.contains(
-            "glyphosate", na=False
-        )
-        gly_df = df[gly_mask].copy()
+        # Clean pesticide names
+        df[pest_col] = df[pest_col].astype(str).str.strip()
+        df = df[df[pest_col].str.lower() != 'nan']
+        df = df[df[pest_col].str.len() > 0]
 
-        if gly_df.empty:
-            logger.warning(
-                "CA DPR: no glyphosate rows found in %s", file_path.name
-            )
-            return []
-
-        # Exclude AMPA metabolite.
-        ampa_mask = gly_df[pest_col].astype(str).str.lower().str.contains(
-            "ampa", na=False
-        )
-        gly_df = gly_df[~ampa_mask]
-
-        if gly_df.empty:
-            logger.warning(
-                "CA DPR: only AMPA found (no glyphosate) in %s", file_path.name
-            )
-            return []
-
-        logger.info(
-            "CA DPR %d: %d glyphosate sample rows", report["year"], len(gly_df)
-        )
+        logger.info("CA DPR %d: %d total sample rows", report["year"], len(df))
 
         # Determine unit conversion from unit column or default to ppm -> ppb.
         conversion = 1000.0
         original_unit = "ppm"
-        if unit_col:
-            unit_val = str(gly_df[unit_col].iloc[0]).lower().strip()
+        if unit_col and len(df) > 0:
+            unit_val = str(df[unit_col].iloc[0]).lower().strip()
             if "ppb" in unit_val or "µg/kg" in unit_val or "ug/kg" in unit_val:
                 conversion = 1.0
                 original_unit = unit_val
@@ -454,34 +427,35 @@ class CADPRFetcher(BaseFetcher):
                 conversion = 1000.0
                 original_unit = unit_val
 
-        # Aggregate by commodity → canonical food category.
-        by_category = defaultdict(
+        # Aggregate by (commodity, pesticide) → canonical food category.
+        by_cat_pest = defaultdict(
             lambda: {"total": 0, "detected": [], "raw_cats": []}
         )
 
-        for commodity, group in gly_df.groupby(comm_col):
+        for (commodity, pesticide), group in df.groupby([comm_col, pest_col]):
             raw_cat = self._map_commodity(str(commodity).strip())
             if not raw_cat:
                 continue
 
             food_category = normalize_category(raw_cat)
             if not food_category:
-                logger.debug(
-                    "CA DPR: no canonical category for commodity '%s' (raw: '%s')",
-                    commodity, raw_cat,
-                )
                 continue
 
+            pest_name = str(pesticide).strip().lower()
+            if not pest_name or pest_name == 'nan':
+                continue
+
+            key = (food_category, pest_name)
             total = len(group)
             values = pd.to_numeric(group[result_col], errors="coerce")
             detected = values[values > 0].tolist()
 
-            by_category[food_category]["total"] += total
-            by_category[food_category]["detected"].extend(detected)
-            by_category[food_category]["raw_cats"].append(str(commodity).strip())
+            by_cat_pest[key]["total"] += total
+            by_cat_pest[key]["detected"].extend(detected)
+            by_cat_pest[key]["raw_cats"].append(str(commodity).strip())
 
         rows = []
-        for food_category, stats in by_category.items():
+        for (food_category, pest_name), stats in by_cat_pest.items():
             total = stats["total"]
             n_detected = len(stats["detected"])
             detection_rate = round(n_detected / total, 4) if total > 0 else None
@@ -506,6 +480,7 @@ class CADPRFetcher(BaseFetcher):
                 "data_year": report["data_year"],
                 "food_category": food_category,
                 "raw_category": raw_cat,
+                "contaminant": pest_name,
                 "samples_total": total,
                 "samples_detected": n_detected,
                 "detection_rate": detection_rate,
@@ -515,16 +490,16 @@ class CADPRFetcher(BaseFetcher):
                 "unit_conversion": conversion,
                 "methodology_note": (
                     f"{report['label']}. CA DPR Marketplace Surveillance Program. "
-                    "Individual sample results aggregated by canonical food category. "
-                    "Glyphosate filtered from multi-pesticide residue data."
+                    f"Individual sample results for {pest_name}, "
+                    "aggregated by canonical food category."
                 ),
                 "confidence": "high",
                 "raw_file_path": str(file_path),
-                "dedup_key": build_dedup_key("CA_DPR", food_category, report["data_year"]),
+                "dedup_key": build_dedup_key("CA_DPR", food_category, pest_name, report["data_year"]),
             })
 
         logger.info(
-            "CA DPR %d: parsed %d category rows from %s",
+            "CA DPR %d: parsed %d (category, pesticide) rows from %s",
             report["year"], len(rows), file_path.name,
         )
         return rows
