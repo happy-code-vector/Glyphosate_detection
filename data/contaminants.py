@@ -125,6 +125,10 @@ CONTAMINANTS = {
         "cas_number": "7440-38-2",
         "display_name": "Inorganic Arsenic",
         "wqp_characteristic": "Arsenic",
+        "wqp_date_ranges": [
+            ("01-01-2018", "12-31-2023"),
+            ("01-01-2012", "12-31-2017"),
+        ],
         "pdp_codes": [],
         "fda_search": "Arsenic",
         "units": "ppb",
@@ -153,6 +157,10 @@ CONTAMINANTS = {
         "type": "heavy_metal",
         "cas_number": "7440-43-9",
         "wqp_characteristic": "Cadmium",
+        "wqp_date_ranges": [
+            ("01-01-2018", "12-31-2023"),
+            ("01-01-2012", "12-31-2017"),
+        ],
         "pdp_codes": [],
         "fda_search": "Cadmium",
         "units": "ppb",
@@ -180,6 +188,10 @@ CONTAMINANTS = {
         "type": "heavy_metal",
         "cas_number": "7439-97-6",
         "wqp_characteristic": "Mercury",
+        "wqp_date_ranges": [
+            ("01-01-2018", "12-31-2023"),
+            ("01-01-2012", "12-31-2017"),
+        ],
         "pdp_codes": [],
         "fda_search": "Mercury",
         "units": "ppb",

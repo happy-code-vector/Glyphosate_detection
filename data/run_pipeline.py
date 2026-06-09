@@ -31,7 +31,7 @@ logging.basicConfig(
 logger = logging.getLogger("pipeline")
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--source", help="Run only this source: florida/cfia/efsa/fda/usda_pdp/uk_fsa/ca_dpr/germany_bvl/epa_tolerances/australia_fsnz/codex_mrls/japan_brazil_mrls/academic_papers/detox_project/cdc_nhanes/clean_label_project/consumer_reports/detox_certifications/epa_full_tolerances/usda_fas_mrls/water_quality_glyphosate/water_quality_lead/water_quality_atrazine")
+parser.add_argument("--source", help="Run only this source: florida/cfia/efsa/fda/usda_pdp/uk_fsa/ca_dpr/germany_bvl/epa_tolerances/australia_fsnz/codex_mrls/japan_brazil_mrls/academic_papers/detox_project/cdc_nhanes/clean_label_project/consumer_reports/detox_certifications/epa_full_tolerances/usda_fas_mrls/water_quality/water_quality_glyphosate/water_quality_lead/water_quality_atrazine/water_quality_inorganic_arsenic/water_quality_cadmium/water_quality_mercury")
 parser.add_argument("--validate", action="store_true")
 args = parser.parse_args()
 
@@ -103,6 +103,9 @@ def run_all():
         ("water_quality_glyphosate", lambda: WaterQualityFetcher("glyphosate")),
         ("water_quality_lead",      lambda: WaterQualityFetcher("lead")),
         ("water_quality_atrazine",  lambda: WaterQualityFetcher("atrazine")),
+        ("water_quality_inorganic_arsenic", lambda: WaterQualityFetcher("inorganic_arsenic")),
+        ("water_quality_cadmium",   lambda: WaterQualityFetcher("cadmium")),
+        ("water_quality_mercury",   lambda: WaterQualityFetcher("mercury")),
     ]
 
     totals = {"inserted": 0, "skipped": 0, "failed": 0}
