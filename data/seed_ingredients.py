@@ -20,6 +20,7 @@ import sys
 
 from db.database import (
     initialize,
+    get_connection,
     insert_ingredients,
     insert_regulatory_flags,
     insert_commodities,
@@ -352,6 +353,77 @@ def seed_commodities_table(dry_run=False):
                 result["inserted"], result["skipped"], result["failed"])
 
 
+def seed_fda_action_levels(dry_run=False):
+    """
+    Seed FDA heavy metal action levels into tolerance_limits table.
+    These are regulatory reference values from FDA's 'Closer to Zero' program
+    and EPA drinking water standards.
+    """
+    action_levels = []
+
+    for contaminant_key, config in CONTAMINANTS.items():
+        # Seed FDA action levels (baby food, juice)
+        for category, level in config.get("fda_action_levels", {}).items():
+            ppb = level["ppb"]
+            action_levels.append({
+                "food_category": f"baby_food_{category}" if category == "baby_food" else category,
+                "raw_commodity": category,
+                "tolerance_ppm": ppb / 1000.0,
+                "tolerance_ppb": ppb,
+                "contaminant": contaminant_key,
+                "source": "FDA",
+                "regulation_reference": level["reference"],
+                "dedup_key": build_dedup_key(contaminant_key, "FDA", category),
+            })
+
+        # Seed drinking water standards
+        for std in config.get("water_standards", []):
+            action_levels.append({
+                "food_category": "drinking_water",
+                "raw_commodity": "drinking_water",
+                "tolerance_ppm": std["tolerance_ppm"],
+                "tolerance_ppb": std["tolerance_ppb"],
+                "contaminant": contaminant_key,
+                "source": std["source"],
+                "regulation_reference": std["regulation_reference"],
+                "dedup_key": build_dedup_key(contaminant_key, std["source"], "drinking_water"),
+            })
+
+    logger.info("Prepared %d FDA/water standard records", len(action_levels))
+    if dry_run:
+        for row in action_levels:
+            logger.info("  [DRY RUN] %s / %s — %s ppb (%s)",
+                        row["contaminant"], row["food_category"],
+                        row["tolerance_ppb"], row["source"])
+        return
+
+    inserted = skipped = failed = 0
+    with get_connection() as conn:
+        for row in action_levels:
+            try:
+                conn.execute("""
+                    INSERT OR IGNORE INTO tolerance_limits (
+                        food_category, raw_commodity, tolerance_ppm, tolerance_ppb,
+                        contaminant, source, regulation_reference, dedup_key
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    row["food_category"], row["raw_commodity"],
+                    row["tolerance_ppm"], row["tolerance_ppb"],
+                    row["contaminant"], row["source"],
+                    row["regulation_reference"], row["dedup_key"],
+                ))
+                if conn.execute("SELECT changes()").fetchone()[0]:
+                    inserted += 1
+                else:
+                    skipped += 1
+            except Exception as e:
+                logger.error("Failed to insert %s: %s", row["dedup_key"], e)
+                failed += 1
+
+    logger.info("FDA action levels: inserted=%d, skipped=%d, failed=%d",
+                inserted, skipped, failed)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Seed regulatory data tables")
     parser.add_argument("--dry-run", action="store_true", help="Print without inserting")
@@ -368,6 +440,9 @@ def main():
 
     logger.info("=== Seeding commodities table ===")
     seed_commodities_table(dry_run=args.dry_run)
+
+    logger.info("=== Seeding FDA action levels & water standards ===")
+    seed_fda_action_levels(dry_run=args.dry_run)
 
     logger.info("Done!")
 
