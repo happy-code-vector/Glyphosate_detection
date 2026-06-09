@@ -36,8 +36,8 @@ class TestComparisonQuery(unittest.TestCase):
         self.assertEqual(len(result.entries), 0)
 
     def test_invalid_contaminant(self):
-        with self.assertRaises(ValueError):
-            self.query.execute("oats", contaminant="dioxin")
+        result = self.query.execute("oats", contaminant="dioxin")
+        self.assertEqual(len(result.entries), 0)
 
 
 if __name__ == "__main__":

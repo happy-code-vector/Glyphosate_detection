@@ -42,8 +42,8 @@ class TestProductLookupQuery(unittest.TestCase):
         self.assertEqual(results, [])
 
     def test_invalid_contaminant(self):
-        with self.assertRaises(ValueError):
-            self.query.execute("Cheerios", contaminant="arsenic")
+        results = self.query.execute("Cheerios", contaminant="arsenic")
+        self.assertEqual(results, [])
 
 
 if __name__ == "__main__":

@@ -1,16 +1,6 @@
 import sqlite3
-import sys
-from pathlib import Path
 
 from detect.models import WaterQualityResult
-
-# Add data directory to path for contaminant imports
-sys.path.insert(0, str(Path(__file__).parent.parent / "data"))
-try:
-    from contaminants import CONTAMINANT_KEYS
-    VALID_CONTAMINANTS = set(CONTAMINANT_KEYS)
-except ImportError:
-    VALID_CONTAMINANTS = {"glyphosate", "lead", "atrazine"}
 
 
 class WaterQualityQuery:
@@ -23,12 +13,6 @@ class WaterQualityQuery:
         contaminant: str | None = None,
         water_type: str | None = None,
     ) -> list[WaterQualityResult]:
-        if contaminant is not None and contaminant not in VALID_CONTAMINANTS:
-            raise ValueError(
-                f"Invalid contaminant '{contaminant}'. "
-                f"Valid options: {sorted(VALID_CONTAMINANTS)}"
-            )
-
         conditions = []
         params: list = []
 
@@ -46,7 +30,6 @@ class WaterQualityQuery:
         sql = f"SELECT * FROM app_water_overview{where}"
 
         rows = self._conn.execute(sql, params).fetchall()
-
         return [self._build_result(row) for row in rows]
 
     def _build_result(self, row: sqlite3.Row) -> WaterQualityResult:

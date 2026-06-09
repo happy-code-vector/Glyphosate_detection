@@ -8,9 +8,9 @@ Source:
   https://www.ams.usda.gov/datasets/pdp/pdpdata
 
 Downloads ZIP archives containing pipe-delimited .txt files with
-individual sample-level pesticide residue data. Filters for glyphosate
-(pesticide code 653), excludes AMPA metabolite (code 957), then
-aggregates by commodity into canonical food categories.
+individual sample-level pesticide residue data. Processes ALL pesticides
+(not just glyphosate), aggregates by (commodity, pesticide) into
+canonical food categories.
 
 All measurement values come directly from the PDP data files —
 nothing is hardcoded. PDP reports residues in ppm (mg/kg); values
@@ -25,6 +25,7 @@ from pathlib import Path
 import pandas as pd
 
 from fetchers.base import BaseFetcher, download_file, RAW_DATA_DIR
+from fetchers.pdp_pesticide_names import get_pesticide_name
 from db.database import normalize_category, build_dedup_key
 
 logger = logging.getLogger(__name__)
@@ -32,10 +33,6 @@ logger = logging.getLogger(__name__)
 # ─────────────────────────────────────────────────────────────────────
 # USDA PDP report registry
 # ─────────────────────────────────────────────────────────────────────
-# PDP tests a rotating panel of commodities each year. Only a few
-# years include glyphosate testing. The URLs are direct links to the
-# annual ZIP archives published by USDA AMS.
-
 USDA_PDP_REPORTS = [
     {"label": "USDA PDP 2011", "url": "https://www.ams.usda.gov/sites/default/files/media/2011PDPDatabase.zip", "zip_filename": "usda_pdp_2011.zip", "data_year": 2011, "published_date": "2013-01-01"},
     {"label": "USDA PDP 2012", "url": "https://www.ams.usda.gov/sites/default/files/media/2012PDPDatabase.zip", "zip_filename": "usda_pdp_2012.zip", "data_year": 2012, "published_date": "2014-01-01"},
@@ -52,13 +49,7 @@ USDA_PDP_REPORTS = [
     {"label": "USDA PDP 2023", "url": "https://www.ams.usda.gov/sites/default/files/media/2023PDPDatabase.zip", "zip_filename": "usda_pdp_2023.zip", "data_year": 2023, "published_date": "2025-01-01"},
 ]
 
-# PDP pesticide codes
-GLYPHOSATE_CODE = 653
-AMPA_CODE = 957  # Aminomethylphosphonic acid — glyphosate metabolite, excluded
-
 # PDP commodity name → canonical food category mapping.
-# PDP uses uppercase commodity names. Map to lowercase canonical keys
-# used throughout the pipeline.
 COMMODITY_MAP = {
     # PDP 2-letter commodity codes
     "SY": "soybeans",       # Soybean Grain
@@ -155,36 +146,23 @@ class USDA_PDPFetcher(BaseFetcher):
                 paths.append(txt_path)
                 continue
 
-            # Extract the main data file from the ZIP
             try:
                 extracted = self._extract_data_file(zip_path, year, txt_path)
                 if extracted:
                     paths.append(txt_path)
                 else:
-                    logger.warning(
-                        "USDA PDP %d: no data file found in ZIP — skipping year", year
-                    )
+                    logger.warning("USDA PDP %d: no data file found in ZIP — skipping year", year)
             except zipfile.BadZipFile:
-                logger.error(
-                    "USDA PDP %d: downloaded file is not a valid ZIP — skipping", year
-                )
+                logger.error("USDA PDP %d: downloaded file is not a valid ZIP — skipping", year)
                 if zip_path.exists():
                     zip_path.unlink()
 
         return paths
 
-    def _extract_data_file(
-        self, zip_path: Path, year: int, dest: Path
-    ) -> bool:
-        """
-        Find and extract the main PDP data file from the ZIP archive.
-        PDP ZIPs contain multiple files. The main data file is typically
-        the largest .txt file or contains 'PDP' in its name.
-        Returns True if extraction succeeded.
-        """
+    def _extract_data_file(self, zip_path: Path, year: int, dest: Path) -> bool:
+        """Find and extract the main PDP data file from the ZIP archive."""
         with zipfile.ZipFile(zip_path) as zf:
             names = zf.namelist()
-            # Filter for .txt files that look like data files
             txt_files = [
                 n for n in names
                 if n.lower().endswith(".txt")
@@ -194,29 +172,20 @@ class USDA_PDPFetcher(BaseFetcher):
             ]
 
             if not txt_files:
-                logger.error(
-                    "USDA PDP %d: no .txt data files found in ZIP. Contents: %s",
-                    year, names,
-                )
+                logger.error("USDA PDP %d: no .txt data files found in ZIP. Contents: %s", year, names)
                 return False
 
-            # Strategy 1: look for a file with "PDP" in the name
             year_str = str(year)
             pdp_match = next(
-                (f for f in txt_files
-                 if "pdp" in f.lower() and year_str in f),
+                (f for f in txt_files if "pdp" in f.lower() and year_str in f),
                 None,
             )
             if pdp_match:
                 data = zf.read(pdp_match)
                 dest.write_bytes(data)
-                logger.info(
-                    "Extracted %s from %s (%d bytes)",
-                    pdp_match, zip_path.name, len(data),
-                )
+                logger.info("Extracted %s from %s (%d bytes)", pdp_match, zip_path.name, len(data))
                 return True
 
-            # Strategy 2: pick the largest .txt file
             if len(txt_files) == 1:
                 chosen = txt_files[0]
             else:
@@ -226,20 +195,16 @@ class USDA_PDPFetcher(BaseFetcher):
 
             data = zf.read(chosen)
             dest.write_bytes(data)
-            logger.info(
-                "Extracted %s from %s (%d bytes)",
-                chosen, zip_path.name, len(data),
-            )
+            logger.info("Extracted %s from %s (%d bytes)", chosen, zip_path.name, len(data))
             return True
 
     def parse(self, files: list[Path]) -> list[dict]:
         """
         Parse extracted PDP pipe-delimited data files.
-        Filters for glyphosate (code 653), excludes AMPA (code 957),
-        aggregates by commodity into Tier 2 category rows.
+        Processes ALL pesticides (not just glyphosate).
+        Aggregates by (commodity, pesticide) into Tier 2 category rows.
         """
         all_rows = []
-        # Build a lookup from filename to report metadata
         file_map = {f.name: f for f in files}
         for report in USDA_PDP_REPORTS:
             year = report["data_year"]
@@ -253,7 +218,6 @@ class USDA_PDPFetcher(BaseFetcher):
         return all_rows
 
     # PDP Results file column layout (from USDA PDP Data Dictionary).
-    # Pipe-delimited with no header row — fixed column order.
     _PDP_RESULTS_COLUMNS = [
         "SAMPLE_PK", "COMMOD", "COMMTYPE", "LAB", "PESTCODE",
         "TESTCLASS", "CONCEN", "LOD", "CONUNIT", "CONFMETHOD",
@@ -263,8 +227,8 @@ class USDA_PDPFetcher(BaseFetcher):
 
     def _parse_pdp_year(self, data_path: Path, report: dict) -> list[dict]:
         """
-        Parse a single year's PDP data file. Pipe-delimited with NO header
-        row. Column positions are fixed per USDA PDP Data Dictionary.
+        Parse a single year's PDP data file. Processes ALL pesticides.
+        Aggregates by (commodity, pesticide_code) into category rows.
         """
         year = report["data_year"]
 
@@ -280,73 +244,52 @@ class USDA_PDPFetcher(BaseFetcher):
             logger.error("USDA PDP %d: failed to read %s: %s", year, data_path.name, e)
             return []
 
-        logger.info(
-            "USDA PDP %d: %d rows, columns: %s",
-            year, len(df), list(df.columns),
-        )
+        logger.info("USDA PDP %d: %d total rows", year, len(df))
 
-        # Filter for glyphosate (code 653)
+        # Clean pesticide codes
         df["PESTCODE"] = df["PESTCODE"].str.strip()
-        gly_mask = df["PESTCODE"] == str(GLYPHOSATE_CODE)
-        gly_df = df[gly_mask].copy()
+        df["_ppm"] = pd.to_numeric(df["CONCEN"].str.strip(), errors="coerce").fillna(0)
 
-        if gly_df.empty:
-            logger.warning(
-                "USDA PDP %d: no glyphosate rows (code 653) found in data", year
-            )
-            return []
+        # Get unique pesticide codes in this year
+        unique_codes = df["PESTCODE"].dropna().unique()
+        logger.info("USDA PDP %d: %d unique pesticide codes found", year, len(unique_codes))
 
-        # Exclude AMPA metabolite (code 957) — in case it shares rows
-        ampa_mask = df["PESTCODE"] == str(AMPA_CODE)
-        gly_df = gly_df[~ampa_mask]
-
-        if gly_df.empty:
-            logger.warning(
-                "USDA PDP %d: glyphosate rows were all AMPA — no data", year
-            )
-            return []
-
-        logger.info("USDA PDP %d: %d glyphosate sample rows", year, len(gly_df))
-
-        # Get residue values (CONCEN = concentration in CONUNIT)
-        gly_df["_ppm"] = pd.to_numeric(
-            gly_df["CONCEN"].str.strip(), errors="coerce"
-        ).fillna(0)
-
-        # Aggregate by commodity
-        by_category = defaultdict(
+        # Aggregate by (commodity, pestcode)
+        by_cat_pest = defaultdict(
             lambda: {"total": 0, "detected": 0, "ppm_values": [], "raw_cats": []}
         )
 
-        for commodity, group in gly_df.groupby("COMMOD"):
+        for (commodity, pestcode), group in df.groupby(["COMMOD", "PESTCODE"]):
             raw_cat = str(commodity).strip()
+            pestcode_str = str(pestcode).strip()
+
             if not raw_cat or raw_cat.lower() in ("nan", "total", "all"):
+                continue
+            if not pestcode_str or pestcode_str.lower() in ("nan", ""):
                 continue
 
             food_category = self._map_commodity(raw_cat)
             if not food_category:
-                # Fall back to the normalize_category database lookup
                 food_category = normalize_category(raw_cat)
             if not food_category:
-                logger.debug(
-                    "USDA PDP %d: no canonical category for commodity '%s'",
-                    year, raw_cat,
-                )
                 continue
+
+            pesticide_name = get_pesticide_name(pestcode_str)
+            key = (food_category, pesticide_name)
 
             total = len(group)
             ppm_vals = group["_ppm"]
             detected_vals = ppm_vals[ppm_vals > 0]
             n_detected = len(detected_vals)
 
-            cat = by_category[food_category]
+            cat = by_cat_pest[key]
             cat["total"] += total
             cat["detected"] += n_detected
             cat["ppm_values"].extend(detected_vals.tolist())
             cat["raw_cats"].append(raw_cat)
 
         rows = []
-        for food_category, stats in by_category.items():
+        for (food_category, pesticide_name), stats in by_cat_pest.items():
             if stats["total"] == 0:
                 continue
 
@@ -354,7 +297,6 @@ class USDA_PDPFetcher(BaseFetcher):
             n_detected = stats["detected"]
             detection_rate = round(n_detected / total, 4) if total > 0 else None
 
-            # PPM to PPB conversion (x1000)
             ppm_values = stats["ppm_values"]
             if ppm_values:
                 avg_ppb = round(sum(ppm_values) / len(ppm_values) * 1000, 2)
@@ -374,6 +316,7 @@ class USDA_PDPFetcher(BaseFetcher):
                 "data_year": report["data_year"],
                 "food_category": food_category,
                 "raw_category": raw_cat,
+                "contaminant": pesticide_name,
                 "samples_total": total,
                 "samples_detected": n_detected,
                 "detection_rate": detection_rate,
@@ -383,73 +326,32 @@ class USDA_PDPFetcher(BaseFetcher):
                 "unit_conversion": 1000.0,
                 "methodology_note": (
                     f"USDA Pesticide Data Program ({year}). "
-                    f"Individual sample results for glyphosate (pesticide code {GLYPHOSATE_CODE}), "
+                    f"Individual sample results for {pesticide_name}, "
                     f"aggregated by commodity. "
-                    "Method: multi-residue screening including LC-MS/MS. "
-                    "AMPA metabolite (code 957) excluded."
+                    "Method: multi-residue screening including LC-MS/MS."
                 ),
                 "confidence": "high",
                 "raw_file_path": str(data_path),
                 "dedup_key": build_dedup_key(
-                    "USDA_PDP", food_category, report["data_year"]
+                    "USDA_PDP", food_category, pesticide_name, report["data_year"]
                 ),
             })
 
         logger.info(
-            "USDA PDP %d: parsed %d category rows from %s",
+            "USDA PDP %d: parsed %d (category, pesticide) rows from %s",
             year, len(rows), data_path.name,
         )
         return rows
 
     def _map_commodity(self, raw_commodity: str) -> str | None:
-        """
-        Map a PDP commodity name to a canonical food category key.
-        PDP commodities are uppercase and may include qualifiers like
-        frozen/canned. We normalize and look up in the mapping table,
-        then fall back to substring matching.
-        """
-        # Direct lookup (uppercase)
+        """Map a PDP commodity name to a canonical food category key."""
         canonical = COMMODITY_MAP.get(raw_commodity.upper().strip())
         if canonical:
             return canonical
 
-        # Try substring matching: check if any map key is contained
-        # in the commodity name (handles variations like
-        # "CORN, SWEET, FROZEN, KERNELS" etc.)
         upper = raw_commodity.upper().strip()
         for pdp_name, canonical_key in COMMODITY_MAP.items():
             if pdp_name in upper or upper in pdp_name:
                 return canonical_key
 
-        return None
-
-    def _find_col(self, df, candidates: list[str]) -> str | None:
-        """Find the first matching column name from a list of candidates."""
-        for col in candidates:
-            if col in df.columns:
-                return col
-        return None
-
-    def _find_numeric_col(self, df) -> str | None:
-        """
-        Heuristic: find a column that likely contains residue values
-        by checking for columns with mostly numeric content that are
-        not ID columns.
-        """
-        skip_patterns = {"SAMPLE", "ID", "CODE", "STATE", "COUNTY", "ORIGIN",
-                         "SOURCE", "LAB", "COMMENT", "WEIGHT", "COMMODITY",
-                         "PESTICIDE", "PRODUCT", "DATE"}
-        for col in df.columns:
-            if any(p in col.upper() for p in skip_patterns):
-                continue
-            # Check if the column has mostly parseable numbers
-            sample = df[col].dropna().head(100)
-            if len(sample) == 0:
-                continue
-            numeric_count = sum(
-                1 for v in sample
-                if str(v).strip().replace(".", "").replace("-", "").isdigit()
-            )
-            if numeric_count / len(sample) > 0.5:
-                return col
         return None

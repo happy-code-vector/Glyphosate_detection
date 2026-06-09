@@ -1,16 +1,6 @@
 import sqlite3
-import sys
-from pathlib import Path
 
 from detect.models import FoodRiskResult, RegulatoryEntry
-
-# Add data directory to path for contaminant imports
-sys.path.insert(0, str(Path(__file__).parent.parent / "data"))
-try:
-    from contaminants import CONTAMINANT_KEYS
-    VALID_CONTAMINANTS = set(CONTAMINANT_KEYS)
-except ImportError:
-    VALID_CONTAMINANTS = {"glyphosate", "lead", "atrazine"}
 
 
 class FoodRiskQuery:
@@ -20,12 +10,6 @@ class FoodRiskQuery:
     def execute(
         self, food_category: str, contaminant: str | None = None
     ) -> FoodRiskResult | list[FoodRiskResult] | None:
-        if contaminant is not None and contaminant not in VALID_CONTAMINANTS:
-            raise ValueError(
-                f"Invalid contaminant '{contaminant}'. "
-                f"Valid options: {sorted(VALID_CONTAMINANTS)}"
-            )
-
         sql = "SELECT * FROM app_food_overview WHERE food_category = ?"
         params: list = [food_category]
 

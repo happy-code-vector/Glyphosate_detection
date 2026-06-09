@@ -22,12 +22,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "data"))
 
 from detect.ingredient_parser import parse_ingredients
 
-try:
-    from contaminants import CONTAMINANT_KEYS
-    VALID_CONTAMINANTS = set(CONTAMINANT_KEYS)
-except ImportError:
-    VALID_CONTAMINANTS = {"glyphosate", "lead", "atrazine"}
-
 
 @dataclass
 class IngredientScore:
@@ -87,12 +81,6 @@ class IngredientRiskQuery:
         Returns:
             IngredientRiskResult with risk level and breakdown
         """
-        if contaminant not in VALID_CONTAMINANTS:
-            raise ValueError(
-                f"Invalid contaminant '{contaminant}'. "
-                f"Valid options: {sorted(VALID_CONTAMINANTS)}"
-            )
-
         notes = []
 
         # ── Tier 1: Product-level check ──────────────────────────────────
@@ -382,16 +370,32 @@ class IngredientRiskQuery:
 
     @staticmethod
     def _ppb_to_risk_level(ppb: float, contaminant: str) -> str:
-        """Convert ppb measurement to risk level."""
-        thresholds = {
-            "glyphosate": {"high": 500, "medium": 100, "low": 0},
-            "lead": {"high": 15, "medium": 5, "low": 0},
-            "atrazine": {"high": 3, "medium": 1, "low": 0},
-        }
-        t = thresholds.get(contaminant, thresholds["glyphosate"])
-        if ppb >= t["high"]:
+        """Convert ppb measurement to risk level.
+
+        Uses contaminant-specific thresholds from CONTAMINANTS registry
+        if available. For unknown pesticides, uses generic thresholds
+        based on detection rate (tier 2/3) rather than ppb.
+        """
+        try:
+            from contaminants import CONTAMINANTS
+            config = CONTAMINANTS.get(contaminant)
+            if config and "risk_thresholds" in config:
+                t = config["risk_thresholds"]
+                if ppb >= t["high"]:
+                    return "high"
+                elif ppb >= t["medium"]:
+                    return "medium"
+                elif ppb > 0:
+                    return "low"
+                return "none"
+        except ImportError:
+            pass
+
+        # Fallback for unknown contaminants — use generic thresholds
+        # These are intentionally conservative (low thresholds)
+        if ppb >= 500:
             return "high"
-        elif ppb >= t["medium"]:
+        elif ppb >= 100:
             return "medium"
         elif ppb > 0:
             return "low"

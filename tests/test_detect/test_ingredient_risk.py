@@ -176,9 +176,9 @@ class TestIngredientRiskQuery(unittest.TestCase):
         self.assertEqual(result.category_fallback, "oats")
 
     def test_invalid_contaminant(self):
-        """Should raise ValueError for invalid contaminant."""
-        with self.assertRaises(ValueError):
-            self.query.execute("Product", "oats", contaminant="invalid")
+        """Should return unknown risk level for invalid contaminant (no data)."""
+        result = self.query.execute("Product", "oats", contaminant="invalid")
+        self.assertEqual(result.risk_level, "unknown")
 
     def test_risk_level_to_score(self):
         """Test risk level to score conversion."""

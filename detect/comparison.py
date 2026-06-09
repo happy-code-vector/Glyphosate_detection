@@ -1,16 +1,6 @@
 import sqlite3
-import sys
-from pathlib import Path
 
 from detect.models import InternationalComparisonEntry, InternationalComparisonResult
-
-# Add data directory to path for contaminant imports
-sys.path.insert(0, str(Path(__file__).parent.parent / "data"))
-try:
-    from contaminants import CONTAMINANT_KEYS
-    VALID_CONTAMINANTS = set(CONTAMINANT_KEYS)
-except ImportError:
-    VALID_CONTAMINANTS = {"glyphosate", "lead", "atrazine"}
 
 
 class ComparisonQuery:
@@ -20,12 +10,6 @@ class ComparisonQuery:
     def execute(
         self, food_category: str, contaminant: str = "glyphosate"
     ) -> InternationalComparisonResult:
-        if contaminant not in VALID_CONTAMINANTS:
-            raise ValueError(
-                f"Invalid contaminant '{contaminant}'. "
-                f"Valid options: {sorted(VALID_CONTAMINANTS)}"
-            )
-
         rows = self._conn.execute(
             "SELECT * FROM app_international_comparison "
             "WHERE food_category = ? AND contaminant = ?",

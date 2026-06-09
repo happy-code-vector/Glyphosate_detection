@@ -51,8 +51,8 @@ class TestFoodRiskQuery(unittest.TestCase):
         self.assertEqual(results, [])
 
     def test_invalid_contaminant(self):
-        with self.assertRaises(ValueError):
-            self.query.execute("oats", contaminant="invalid")
+        result = self.query.execute("oats", contaminant="invalid")
+        self.assertIsNone(result)
 
 
 if __name__ == "__main__":
