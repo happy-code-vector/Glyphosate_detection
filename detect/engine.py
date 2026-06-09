@@ -18,6 +18,7 @@ from detect.models import (
     RegulatoryFlag,
     CommodityDetail,
     CommodityResidue,
+    ProductScanResult,
 )
 
 
@@ -97,22 +98,86 @@ class DetectionEngine:
             product_name, ingredients, contaminant, food_category
         )
 
+    # Tier → data_confidence mapping per handoff spec
+    _TIER_TO_CONFIDENCE = {
+        "product": "high",      # Direct lab test match
+        "ingredient": "medium", # Commodity inference
+        "category": "low",      # Category-level fallback
+        "none": "low",          # No data
+    }
+
+    # Commodity alias cache (loaded once)
+    _commodity_alias_cache: dict | None = None  # alias -> commodity_slug
+
+    def _load_commodity_aliases(self) -> dict:
+        """Load commodity ingredient_aliases into a cached dict."""
+        if self._commodity_alias_cache is not None:
+            return self._commodity_alias_cache
+
+        rows = self._conn.execute(
+            "SELECT commodity_slug, ingredient_aliases FROM commodities "
+            "WHERE ingredient_aliases IS NOT NULL"
+        ).fetchall()
+
+        cache = {}  # alias -> commodity_slug
+        for row in rows:
+            slug = row["commodity_slug"]
+            aliases = json.loads(row["ingredient_aliases"])
+            for alias in aliases:
+                alias_lower = alias.lower().strip()
+                # Prefer longer (more specific) aliases
+                if alias_lower not in cache or len(alias_lower) > len(cache[alias_lower]):
+                    cache[alias_lower] = slug
+
+        DetectionEngine._commodity_alias_cache = cache
+        return cache
+
+    def _match_ingredients_to_commodities(self, ingredients: list[dict] | list[str]) -> list[str]:
+        """
+        Match ingredient names to commodity slugs.
+        Returns list of unique matched commodity slugs.
+        """
+        alias_cache = self._load_commodity_aliases()
+        matched = set()
+
+        for ing in ingredients:
+            name = (ing.get("name") or ing.get("text") or str(ing)).lower().strip()
+            if not name:
+                continue
+
+            # Exact match
+            if name in alias_cache:
+                matched.add(alias_cache[name])
+                continue
+
+            # Substring match (ingredient contains alias)
+            for alias, slug in alias_cache.items():
+                if alias in name:
+                    matched.add(slug)
+                    break
+
+        return sorted(matched)
+
     def scan_barcode(
         self,
         barcode: str,
         contaminant: str = "glyphosate",
-    ) -> Optional[IngredientRiskResult]:
+    ) -> Optional[ProductScanResult]:
         """
-        Scan a barcode and return ingredient-based risk assessment.
+        Scan a barcode and return full product scan result.
 
         Complete flow:
         1. Look up product via Open Food Facts API
         2. Run three-tier risk scoring (product → ingredient → category)
+        3. Check each ingredient against regulatory flags
+        4. Match ingredients to commodities for PDP residue data
+        5. Compute data_confidence from tier used
         """
         product = self._off_client.lookup(barcode)
         if not product:
             return None
 
+        # Map OFF categories to canonical food category
         food_category = None
         if product.get("categories"):
             from db.database import normalize_category
@@ -122,11 +187,56 @@ class DetectionEngine:
                     food_category = mapped
                     break
 
-        return self._ingredient_risk.execute(
+        # Step 1: Risk scoring (three-tier)
+        risk_result = self._ingredient_risk.execute(
             product_name=product["product_name"],
             ingredients=product["ingredients"],
             contaminant=contaminant,
             food_category=food_category,
+        )
+
+        # Step 2: Regulatory flags for each ingredient
+        flagged_ingredients = []
+        all_flags = []
+        ingredient_list = product.get("ingredients", [])
+        for ing in ingredient_list:
+            name = ing.get("name") or ing.get("text") or ""
+            if not name:
+                continue
+            detail = self.ingredient_flags(name)
+            if detail and detail.flags:
+                flagged_ingredients.append(detail)
+                all_flags.extend(detail.flags)
+
+        # Step 3: Commodity matching
+        commodities_matched = self._match_ingredients_to_commodities(ingredient_list)
+
+        # Step 4: Data confidence from tier
+        data_confidence = self._TIER_TO_CONFIDENCE.get(
+            risk_result.tier_used if risk_result else "none", "low"
+        )
+
+        # Build ingredient name list
+        ingredients_parsed = [
+            (ing.get("name") or ing.get("text") or "").strip()
+            for ing in ingredient_list
+        ]
+
+        return ProductScanResult(
+            upc=barcode,
+            name=product["product_name"],
+            brand=product.get("brand"),
+            ingredients_raw=product.get("ingredients_text", ""),
+            ingredients_parsed=ingredients_parsed,
+            commodities_matched=commodities_matched,
+            flags=all_flags,
+            data_confidence=data_confidence,
+            risk_level=risk_result.risk_level if risk_result else "unknown",
+            score=risk_result.score if risk_result else 0.5,
+            tier_used=risk_result.tier_used if risk_result else "none",
+            contaminant=contaminant,
+            ingredient_scores=risk_result.ingredient_scores if risk_result else [],
+            notes=risk_result.notes if risk_result else [],
         )
 
     # ═════════════════════════════════════════════

@@ -10,10 +10,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from tests.test_detect.conftest import create_test_db, seed_food_data
 from detect.ingredient_risk import IngredientRiskQuery, IngredientRiskResult
+from db.database import invalidate_alias_cache
 
 
 class TestIngredientRiskQuery(unittest.TestCase):
     def setUp(self):
+        invalidate_alias_cache()  # Clear stale cache from previous test
         self.conn = create_test_db()
         seed_food_data(self.conn)
         self._seed_category_aliases()

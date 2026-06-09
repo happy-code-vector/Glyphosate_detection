@@ -11,6 +11,7 @@ from detect.models import (
     ProductResult,
     WaterQualityResult,
     InternationalComparisonResult,
+    ProductScanResult,
 )
 
 
@@ -65,8 +66,7 @@ class TestDetectionEngine(unittest.TestCase):
 
     @patch("detect.engine.OpenFoodFactsClient")
     def test_scan_barcode_product_found(self, MockOFFClient):
-        """Test scan_barcode when product is found in Open Food Facts."""
-        # Mock the OFF client to return a test product
+        """Test scan_barcode returns ProductScanResult with all fields."""
         mock_client = MagicMock()
         mock_client.lookup.return_value = {
             "barcode": "0001600014588",
@@ -75,7 +75,13 @@ class TestDetectionEngine(unittest.TestCase):
             "categories": ["breakfast-cereals"],
             "image_url": "",
             "is_organic": False,
-            "ingredients": "Whole grain oats, corn starch, sugar, salt",
+            "ingredients_text": "Whole grain oats, corn starch, sugar, salt",
+            "ingredients": [
+                {"name": "whole grain oats", "text": "whole grain oats", "percent_estimate": 80},
+                {"name": "corn starch", "text": "corn starch", "percent_estimate": 10},
+                {"name": "sugar", "text": "sugar", "percent_estimate": 5},
+                {"name": "salt", "text": "salt", "percent_estimate": 5},
+            ],
             "countries": "United States",
             "source": "OpenFoodFacts",
         }
@@ -99,8 +105,21 @@ class TestDetectionEngine(unittest.TestCase):
         result = engine.scan_barcode("0001600014588")
 
         self.assertIsNotNone(result)
-        self.assertEqual(result.product_name, "Cheerios")
+        self.assertIsInstance(result, ProductScanResult)
+        self.assertEqual(result.name, "Cheerios")
+        self.assertEqual(result.brand, "General Mills")
+        self.assertEqual(result.upc, "0001600014588")
+        # Risk data
         self.assertIn(result.tier_used, ["product", "ingredient", "category"])
+        self.assertIn(result.risk_level, ["none", "low", "medium", "high", "unknown"])
+        self.assertIn(result.data_confidence, ["high", "medium", "low"])
+        # Ingredients parsed
+        self.assertEqual(len(result.ingredients_parsed), 4)
+        self.assertIn("whole grain oats", result.ingredients_parsed)
+        # Flags and commodities (may be empty if no seed data matches)
+        self.assertIsInstance(result.flags, list)
+        self.assertIsInstance(result.commodities_matched, list)
+        self.assertIsInstance(result.notes, list)
         engine.close()
 
     @patch("detect.engine.OpenFoodFactsClient")
@@ -116,6 +135,45 @@ class TestDetectionEngine(unittest.TestCase):
         result = engine.scan_barcode("9999999999999")
 
         self.assertIsNone(result)
+        engine.close()
+
+    @patch("detect.engine.OpenFoodFactsClient")
+    def test_scan_barcode_data_confidence(self, MockOFFClient):
+        """Test data_confidence maps correctly from tier_used."""
+        mock_client = MagicMock()
+        mock_client.lookup.return_value = {
+            "barcode": "0001600014588",
+            "product_name": "Cheerios",
+            "brand": "General Mills",
+            "categories": ["breakfast-cereals"],
+            "ingredients_text": "Whole grain oats",
+            "ingredients": [
+                {"name": "whole grain oats", "text": "whole grain oats"},
+            ],
+            "source": "OpenFoodFacts",
+        }
+        MockOFFClient.return_value = mock_client
+
+        engine = DetectionEngine(self.tmp.name)
+        engine._off_client = mock_client
+
+        # Seed data for tier 1 match
+        engine._conn.execute(
+            "INSERT INTO product_tests "
+            "(source_name, source_url, report_label, published_date, data_year, "
+            "food_category, raw_category, contaminant, product_name, measured_ppb, "
+            "below_detection, is_grf_certified, confidence, dedup_key) "
+            "VALUES ('FDA', 'https://example.com', 'FDA 2023', '2023-01-01', 2023, "
+            "'oats', 'Oats', 'glyphosate', 'Cheerios', 730.0, "
+            "0, 0, 'high', 'test-scan-cheerios')"
+        )
+        engine._conn.commit()
+
+        result = engine.scan_barcode("0001600014588")
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result.tier_used, "product")
+        self.assertEqual(result.data_confidence, "high")
         engine.close()
 
 
