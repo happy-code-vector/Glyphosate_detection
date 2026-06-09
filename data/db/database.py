@@ -359,6 +359,159 @@ def _insert_category(conn, row: dict) -> int:
     return conn.execute("SELECT changes()").fetchone()[0]
 
 
+def _insert_ingredient(conn, row: dict) -> int:
+    """Insert an ingredient record (regulatory reference data)."""
+    defaults = {
+        "aliases": None, "flag_types": None, "flags": None,
+        "ntp_classification": None, "iarc_classification": None,
+        "fda_status": None, "fda_cfr_citation": None,
+        "verified_date": None, "verified_by": "AR_Company_internal",
+    }
+    r = {**defaults, **row}
+    conn.execute("""
+        INSERT OR IGNORE INTO ingredients (
+            ingredient_id, display_name, aliases, flag_types, flags,
+            ntp_classification, iarc_classification,
+            fda_status, fda_cfr_citation, verified_date, verified_by
+        ) VALUES (
+            :ingredient_id, :display_name, :aliases, :flag_types, :flags,
+            :ntp_classification, :iarc_classification,
+            :fda_status, :fda_cfr_citation, :verified_date, :verified_by
+        )
+    """, r)
+    return conn.execute("SELECT changes()").fetchone()[0]
+
+
+def _insert_regulatory_flag(conn, row: dict) -> int:
+    """Insert a regulatory flag record."""
+    defaults = {
+        "regulation_citation": None,
+        "effective_date": None, "compliance_date": None, "notes": None,
+    }
+    r = {**defaults, **row}
+    conn.execute("""
+        INSERT OR IGNORE INTO regulatory_flags (
+            flag_id, ingredient_id, jurisdiction, flag_type,
+            regulatory_body, regulation_citation, source_url,
+            effective_date, compliance_date, notes
+        ) VALUES (
+            :flag_id, :ingredient_id, :jurisdiction, :flag_type,
+            :regulatory_body, :regulation_citation, :source_url,
+            :effective_date, :compliance_date, :notes
+        )
+    """, r)
+    return conn.execute("SELECT changes()").fetchone()[0]
+
+
+def _insert_commodity(conn, row: dict) -> int:
+    """Insert a commodity record."""
+    defaults = {
+        "ingredient_aliases": None, "pdp_commodity_code": None,
+        "pdp_year_latest": None, "residues": None,
+        "dirty_dozen": 0, "last_pdp_update": None,
+    }
+    r = {**defaults, **row}
+    conn.execute("""
+        INSERT OR IGNORE INTO commodities (
+            commodity_slug, display_name, ingredient_aliases,
+            pdp_commodity_code, pdp_year_latest, residues,
+            dirty_dozen, last_pdp_update
+        ) VALUES (
+            :commodity_slug, :display_name, :ingredient_aliases,
+            :pdp_commodity_code, :pdp_year_latest, :residues,
+            :dirty_dozen, :last_pdp_update
+        )
+    """, r)
+    return conn.execute("SELECT changes()").fetchone()[0]
+
+
+def _insert_alternative(conn, row: dict) -> int:
+    """Insert an alternatives record."""
+    defaults = {
+        "flagged_product_name": None, "risk_label": None,
+        "flag_summary": None, "alternatives": None, "last_updated": None,
+    }
+    r = {**defaults, **row}
+    conn.execute("""
+        INSERT OR IGNORE INTO alternatives (
+            lookup_key, lookup_type, flagged_product_name,
+            risk_label, flag_summary, alternatives, last_updated
+        ) VALUES (
+            :lookup_key, :lookup_type, :flagged_product_name,
+            :risk_label, :flag_summary, :alternatives, :last_updated
+        )
+    """, r)
+    return conn.execute("SELECT changes()").fetchone()[0]
+
+
+def insert_ingredients(rows: list[dict]) -> dict:
+    """Batch insert ingredient records."""
+    inserted = skipped = failed = 0
+    with get_connection() as conn:
+        for row in rows:
+            try:
+                changes = _insert_ingredient(conn, row)
+                if changes:
+                    inserted += 1
+                else:
+                    skipped += 1
+            except sqlite3.Error as e:
+                logger.error("Insert ingredient failed for %s: %s", row.get("ingredient_id"), e)
+                failed += 1
+    return {"inserted": inserted, "skipped": skipped, "failed": failed}
+
+
+def insert_regulatory_flags(rows: list[dict]) -> dict:
+    """Batch insert regulatory flag records."""
+    inserted = skipped = failed = 0
+    with get_connection() as conn:
+        for row in rows:
+            try:
+                changes = _insert_regulatory_flag(conn, row)
+                if changes:
+                    inserted += 1
+                else:
+                    skipped += 1
+            except sqlite3.Error as e:
+                logger.error("Insert flag failed for %s: %s", row.get("flag_id"), e)
+                failed += 1
+    return {"inserted": inserted, "skipped": skipped, "failed": failed}
+
+
+def insert_commodities(rows: list[dict]) -> dict:
+    """Batch insert commodity records."""
+    inserted = skipped = failed = 0
+    with get_connection() as conn:
+        for row in rows:
+            try:
+                changes = _insert_commodity(conn, row)
+                if changes:
+                    inserted += 1
+                else:
+                    skipped += 1
+            except sqlite3.Error as e:
+                logger.error("Insert commodity failed for %s: %s", row.get("commodity_slug"), e)
+                failed += 1
+    return {"inserted": inserted, "skipped": skipped, "failed": failed}
+
+
+def insert_alternatives(rows: list[dict]) -> dict:
+    """Batch insert alternatives records."""
+    inserted = skipped = failed = 0
+    with get_connection() as conn:
+        for row in rows:
+            try:
+                changes = _insert_alternative(conn, row)
+                if changes:
+                    inserted += 1
+                else:
+                    skipped += 1
+            except sqlite3.Error as e:
+                logger.error("Insert alternative failed for %s: %s", row.get("lookup_key"), e)
+                failed += 1
+    return {"inserted": inserted, "skipped": skipped, "failed": failed}
+
+
 def log_ingest(source_name, status, inserted=0, skipped=0, failed=0,
                error_message=None, source_file=""):
     with get_connection() as conn:
