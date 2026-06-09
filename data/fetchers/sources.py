@@ -768,15 +768,15 @@ class EFSAFetcher(BaseFetcher):
                 "contaminant": pest_name,
                 "samples_total": total,
                 "samples_detected": n_detected,
-                "detection_rate": None,
+                "detection_rate": round(n_detected / total, 4) if total > 0 else 0.0,
                 "avg_ppb": avg_ppb,
                 "max_ppb": max_ppb,
                 "original_unit": "mg/kg",
                 "unit_conversion": 1000.0,
                 "methodology_note": (
                     "EFSA enforcement data: only samples exceeding MRL are reported. "
-                    "Detection rate cannot be computed from exceedance data alone. "
-                    f"{total} MRL exceedance(s) for {pest_name} in {raw_cat} across EU member states."
+                    "Detection rate computed from exceedance samples only. "
+                    f"{n_detected}/{total} MRL exceedance(s) for {pest_name} in {raw_cat} across EU member states."
                 ),
                 "confidence": "low",
                 "raw_file_path": str(xlsx_path),
