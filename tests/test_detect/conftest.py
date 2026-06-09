@@ -1,3 +1,4 @@
+import json
 import sqlite3
 import os
 
@@ -133,3 +134,119 @@ def seed_water_data(conn: sqlite3.Connection):
 def seed_all(conn: sqlite3.Connection):
     seed_food_data(conn)
     seed_water_data(conn)
+
+
+def seed_regulatory_data(conn: sqlite3.Connection):
+    """Seed ingredients, regulatory_flags, and commodities tables."""
+    # Seed ingredient
+    conn.execute(
+        "INSERT INTO ingredients "
+        "(ingredient_id, display_name, aliases, flag_types, flags, "
+        "ntp_classification, iarc_classification, fda_status, fda_cfr_citation) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            "potassium_bromate",
+            "Potassium Bromate",
+            json.dumps(["potassium bromate", "bromated flour"]),
+            json.dumps(["eu_banned"]),
+            json.dumps([{"jurisdiction": "EU", "flag_type": "eu_banned"}]),
+            None,
+            "Group 2B",
+            "permitted",
+            "21 CFR 136.110",
+        ),
+    )
+    conn.execute(
+        "INSERT INTO ingredients "
+        "(ingredient_id, display_name, aliases, flag_types, flags, "
+        "ntp_classification, iarc_classification, fda_status) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            "red_40",
+            "Red 40 (Allura Red AC)",
+            json.dumps(["red 40", "allura red"]),
+            json.dumps(["eu_warning_label"]),
+            json.dumps([{"jurisdiction": "EU", "flag_type": "eu_warning_label"}]),
+            None,
+            None,
+            "permitted",
+        ),
+    )
+    conn.execute(
+        "INSERT INTO ingredients "
+        "(ingredient_id, display_name, aliases, flag_types, flags, "
+        "ntp_classification, iarc_classification, fda_status) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            "bvo",
+            "Brominated Vegetable Oil (BVO)",
+            json.dumps(["brominated vegetable oil", "bvo"]),
+            json.dumps(["us_banned"]),
+            json.dumps([{"jurisdiction": "US_Federal", "flag_type": "us_banned"}]),
+            None,
+            None,
+            "banned_final_rule",
+        ),
+    )
+
+    # Seed regulatory flags
+    conn.execute(
+        "INSERT INTO regulatory_flags "
+        "(flag_id, ingredient_id, jurisdiction, flag_type, regulatory_body, "
+        "regulation_citation, source_url, notes) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            "test-flag-kbr-eu",
+            "potassium_bromate",
+            "EU",
+            "eu_banned",
+            "European Commission",
+            "Regulation (EC) No 1333/2008",
+            "https://eur-lex.europa.eu",
+            "Banned as a food additive in the EU",
+        ),
+    )
+    conn.execute(
+        "INSERT INTO regulatory_flags "
+        "(flag_id, ingredient_id, jurisdiction, flag_type, regulatory_body, "
+        "source_url, notes) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (
+            "test-flag-red40-eu",
+            "red_40",
+            "EU",
+            "eu_warning_label",
+            "European Commission",
+            "https://eur-lex.europa.eu",
+            "Requires warning label about children's attention",
+        ),
+    )
+    conn.execute(
+        "INSERT INTO regulatory_flags "
+        "(flag_id, ingredient_id, jurisdiction, flag_type, regulatory_body, "
+        "source_url, notes) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (
+            "test-flag-bvo-us",
+            "bvo",
+            "US_Federal",
+            "us_banned",
+            "FDA",
+            "https://www.fda.gov",
+            "Banned by FDA (August 2024 final rule)",
+        ),
+    )
+
+    # Seed commodity
+    conn.execute(
+        "INSERT INTO commodities "
+        "(commodity_slug, display_name, ingredient_aliases, dirty_dozen) "
+        "VALUES (?, ?, ?, ?)",
+        (
+            "strawberry",
+            "Strawberry",
+            json.dumps(["strawberries", "strawberry puree", "freeze-dried strawberries"]),
+            1,
+        ),
+    )
+    conn.commit()

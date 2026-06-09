@@ -48,7 +48,7 @@ class TestWaterQualityQuery(unittest.TestCase):
 
     def test_invalid_contaminant(self):
         with self.assertRaises(ValueError):
-            self.query.execute(contaminant="mercury")
+            self.query.execute(contaminant="dioxin")
 
     def test_filter_by_water_type(self):
         results = self.query.execute(water_type="surface")

@@ -25,8 +25,14 @@ class DetectionEngine:
     def __init__(self, db_path: str):
         if not os.path.exists(db_path):
             raise FileNotFoundError(f"Database file not found: {db_path}")
-        if not sqlite3.connect(db_path).execute("SELECT 1"):
+        # Verify it's a valid SQLite database
+        test_conn = sqlite3.connect(db_path)
+        try:
+            test_conn.execute("SELECT 1")
+        except sqlite3.DatabaseError:
             raise FileNotFoundError(f"Invalid SQLite database: {db_path}")
+        finally:
+            test_conn.close()
         try:
             self._conn = sqlite3.connect(db_path)
             self._conn.row_factory = sqlite3.Row
