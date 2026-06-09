@@ -18,13 +18,11 @@ class ComparisonQuery:
                 f"Valid options: {sorted(VALID_CONTAMINANTS)}"
             )
 
-        if contaminant == "glyphosate":
-            rows = self._conn.execute(
-                "SELECT * FROM app_international_comparison WHERE food_category = ?",
-                (food_category,),
-            ).fetchall()
-        else:
-            rows = self._query_multi_contaminant(food_category, contaminant)
+        rows = self._conn.execute(
+            "SELECT * FROM app_international_comparison "
+            "WHERE food_category = ? AND contaminant = ?",
+            (food_category, contaminant),
+        ).fetchall()
 
         entries = [
             InternationalComparisonEntry(
@@ -42,20 +40,3 @@ class ComparisonQuery:
             contaminant=contaminant,
             entries=entries,
         )
-
-    def _query_multi_contaminant(
-        self, food_category: str, contaminant: str
-    ) -> list[sqlite3.Row]:
-        return self._conn.execute(
-            "SELECT im.food_category, im.country_region, im.mrl_ppb, "
-            "im.regulatory_body, im.source_url, "
-            "cs.max_ppb AS measured_max_ppb, "
-            "CASE WHEN im.mrl_ppb > 0 AND cs.max_ppb IS NOT NULL "
-            "THEN ROUND(cs.max_ppb / im.mrl_ppb * 100, 1) END AS pct_of_mrl "
-            "FROM international_mrls im "
-            "LEFT JOIN category_summaries cs "
-            "ON im.food_category = cs.food_category AND cs.contaminant = ? "
-            "WHERE im.food_category = ? AND im.pesticide = ? "
-            "ORDER BY im.mrl_ppb ASC",
-            (contaminant, food_category, contaminant),
-        ).fetchall()

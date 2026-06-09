@@ -18,7 +18,7 @@ class ProductLookupQuery:
                 f"Valid options: {sorted(VALID_CONTAMINANTS)}"
             )
 
-        sql = "SELECT * FROM app_product_lookup_all WHERE product_name LIKE ?"
+        sql = "SELECT * FROM app_product_lookup WHERE product_name LIKE ?"
         params: list = [f"%{query}%"]
 
         if contaminant is not None:

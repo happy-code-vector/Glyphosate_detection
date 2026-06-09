@@ -35,7 +35,7 @@ class WaterQualityQuery:
             params.append(water_type)
 
         where = f" WHERE {' AND '.join(conditions)}" if conditions else ""
-        sql = f"SELECT * FROM app_water_overview_all{where}"
+        sql = f"SELECT * FROM app_water_overview{where}"
 
         rows = self._conn.execute(sql, params).fetchall()
 

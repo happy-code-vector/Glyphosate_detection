@@ -18,7 +18,7 @@ class FoodRiskQuery:
                 f"Valid options: {sorted(VALID_CONTAMINANTS)}"
             )
 
-        sql = "SELECT * FROM app_food_overview_all WHERE food_category = ?"
+        sql = "SELECT * FROM app_food_overview WHERE food_category = ?"
         params: list = [food_category]
 
         if contaminant is not None:
