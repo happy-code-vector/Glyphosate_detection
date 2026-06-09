@@ -353,6 +353,41 @@ class DetectionEngine:
             dirty_dozen=bool(row["dirty_dozen"]),
         )
 
+    def lookup_alternatives(self, product_name: str) -> Optional[dict]:
+        """
+        Look up alternative products for a flagged product.
+
+        Args:
+            product_name: Name of the flagged product (e.g. 'Cheerios (Original)')
+
+        Returns:
+            Dict with flagged_product_name, risk_label, flag_summary, alternatives list
+            None if no alternatives found
+        """
+        # Try exact match on flagged_product_name
+        row = self._conn.execute(
+            "SELECT * FROM alternatives WHERE flagged_product_name = ?",
+            (product_name,),
+        ).fetchone()
+
+        # Try fuzzy match
+        if not row:
+            row = self._conn.execute(
+                "SELECT * FROM alternatives WHERE flagged_product_name LIKE ?",
+                (f"%{product_name}%",),
+            ).fetchone()
+
+        if not row:
+            return None
+
+        return {
+            "lookup_key": row["lookup_key"],
+            "flagged_product_name": row["flagged_product_name"],
+            "risk_label": row["risk_label"],
+            "flag_summary": row["flag_summary"],
+            "alternatives": json.loads(row["alternatives"]) if row["alternatives"] else [],
+        }
+
     def list_ingredients(self) -> list[IngredientDetail]:
         """List all ingredients in the database."""
         rows = self._conn.execute("SELECT * FROM ingredients ORDER BY ingredient_id").fetchall()
