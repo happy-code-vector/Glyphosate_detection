@@ -38,7 +38,8 @@ args = parser.parse_args()
 
 def run_all():
     from db.database import initialize
-    from fetchers.ewg import EWGFetcher
+    # EWG fetcher disabled — EWG data is not licensed for commercial use
+    # from fetchers.ewg import EWGFetcher
     from fetchers.florida_hff import FloridaHFFetcher
     from fetchers.sources import CFIAFetcher, EFSAFetcher, FDAFetcher
     from fetchers.usda_pdp import USDA_PDPFetcher
@@ -75,7 +76,7 @@ def run_all():
         ("cfia",            CFIAFetcher),
         ("efsa",            EFSAFetcher),
         ("fda",             FDAFetcher),
-        ("ewg",             EWGFetcher),
+        # ("ewg",             EWGFetcher),  # Disabled — not licensed for commercial use
         ("florida",         FloridaHFFetcher),
         ("usda_pdp",        USDA_PDPFetcher),
         ("uk_fsa",          UKFSAFetcher),

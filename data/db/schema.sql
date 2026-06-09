@@ -296,7 +296,6 @@ AND cs.food_category IN (
     GROUP BY sub.food_category
     HAVING MAX(
         CASE sub.source_name
-            WHEN 'EWG' THEN 4
             WHEN 'FDA' THEN 3
             WHEN 'CFIA' THEN 2
             WHEN 'EFSA' THEN 1
@@ -361,7 +360,6 @@ WITH best_summary AS (
             PARTITION BY cs.food_category
             ORDER BY
                 CASE cs.source_name
-                    WHEN 'EWG' THEN 4
                     WHEN 'FDA' THEN 3
                     WHEN 'CFIA' THEN 2
                     WHEN 'EFSA' THEN 1
@@ -612,7 +610,6 @@ WITH best_summary AS (
             PARTITION BY cs.food_category, cs.contaminant
             ORDER BY
                 CASE cs.source_name
-                    WHEN 'EWG' THEN 4
                     WHEN 'FDA' THEN 3
                     WHEN 'CFIA' THEN 2
                     WHEN 'EFSA' THEN 1
