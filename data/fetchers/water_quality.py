@@ -201,15 +201,24 @@ class WaterQualityFetcher(BaseFetcher):
         return all_rows
 
     def _extract_state_from_filename(self, path: Path) -> str:
-        """Extract state name from filename like 'wqp_glyphosate_california.csv'."""
+        """Extract state name from filename like 'wqp_glyphosate_california.csv'.
+
+        Handles two filename patterns:
+        - State files: wqp_{contaminant}_{state}.csv → state name
+        - Date range files: wqp_{contaminant}_{start}_{end}.csv → "National"
+        """
         name = path.stem  # e.g., "wqp_glyphosate_california"
         parts = name.split("_")
         # Remove the first two parts (wqp, contaminant)
         if len(parts) >= 3:
             state_part = "_".join(parts[2:])
-            # Handle date range files
-            if "-" in state_part and state_part.replace("-", "").isdigit():
+
+            # Date range pattern: "01-01-2006_12-31-2011"
+            # Contains digits and dashes, no letters
+            cleaned = state_part.replace("-", "").replace("_", "")
+            if cleaned.isdigit() and len(cleaned) >= 12:
                 return "National"
+
             return state_part.replace("_", " ").title()
         return "National"
 
