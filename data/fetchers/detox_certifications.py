@@ -345,6 +345,7 @@ CREATE TABLE IF NOT EXISTS certified_products (
     food_category TEXT,
     raw_category TEXT,
     certification TEXT DEFAULT 'Glyphosate Residue Free',
+    contaminant TEXT DEFAULT 'glyphosate',
     threshold_ppb REAL DEFAULT 10.0,
     source TEXT NOT NULL DEFAULT 'DetoxProject',
     source_url TEXT,
@@ -693,6 +694,7 @@ class DetoxCertificationsFetcher(BaseFetcher):
                 "food_category": food_category,
                 "raw_category": raw_cat,
                 "certification": "Glyphosate Residue Free",
+                "contaminant": "glyphosate",
                 "threshold_ppb": 10.0,
                 "source": "DetoxProject",
                 "source_url": CERTIFICATION_URL,
@@ -717,6 +719,7 @@ class DetoxCertificationsFetcher(BaseFetcher):
                 "food_category": food_category,
                 "raw_category": inferred_cat,
                 "certification": "Glyphosate Residue Free",
+                "contaminant": "glyphosate",
                 "threshold_ppb": 10.0,
                 "source": "DetoxProject",
                 "source_url": CERTIFICATION_URL,
@@ -766,12 +769,12 @@ class DetoxCertificationsFetcher(BaseFetcher):
                     conn.execute("""
                         INSERT OR IGNORE INTO certified_products (
                             product_name, brand, food_category, raw_category,
-                            certification, threshold_ppb, source, source_url,
-                            verified_date, dedup_key
+                            certification, contaminant, threshold_ppb, source,
+                            source_url, verified_date, dedup_key
                         ) VALUES (
                             :product_name, :brand, :food_category, :raw_category,
-                            :certification, :threshold_ppb, :source, :source_url,
-                            :verified_date, :dedup_key
+                            :certification, :contaminant, :threshold_ppb, :source,
+                            :source_url, :verified_date, :dedup_key
                         )
                     """, row)
                     changes = conn.execute("SELECT changes()").fetchone()[0]

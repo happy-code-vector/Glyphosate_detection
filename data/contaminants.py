@@ -622,10 +622,12 @@ def get_regulatory_flags() -> list[dict]:
     """
     flags = []
     for ingredient_id, config in CONTAMINANTS.items():
+        contaminant_type = config.get("type")
         for flag in config.get("regulatory_flags", []):
             flags.append({
                 "flag_id": build_dedup_key(ingredient_id, flag["jurisdiction"], flag["flag_type"]),
                 "ingredient_id": ingredient_id,
+                "contaminant_type": contaminant_type,
                 "jurisdiction": flag["jurisdiction"],
                 "flag_type": flag["flag_type"],
                 "regulatory_body": flag["regulatory_body"],
@@ -650,6 +652,7 @@ def get_ingredients() -> list[dict]:
         ingredients.append({
             "ingredient_id": ingredient_id,
             "display_name": config.get("display_name", ingredient_id.replace("_", " ").title()),
+            "contaminant_type": config.get("type"),
             "aliases": json.dumps(config.get("aliases", [])),
             "flag_types": json.dumps(flag_types),
             "flags": json.dumps(config.get("regulatory_flags", [])),

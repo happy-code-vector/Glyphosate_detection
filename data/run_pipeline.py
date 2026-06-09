@@ -66,6 +66,7 @@ def run_all():
     from fetchers.canada_organic import CanadaOrganicFetcher
     from fetchers.non_gmo_project import NonGMOProjectFetcher
     from fetchers.clean_label_certified import CleanLabelCertifiedFetcher
+    from fetchers.cdc_nhanes_metals import CDC_NHANES_MetalsFetcher
 
     logger.info("Initializing database")
     initialize()
@@ -86,6 +87,7 @@ def run_all():
         ("academic_papers", AcademicPapersFetcher),
         ("detox_project",   DetoxProjectFetcher),
         ("cdc_nhanes",      CDC_NHANESFetcher),
+        ("cdc_nhanes_metals", CDC_NHANES_MetalsFetcher),
         ("clean_label_project", CleanLabelProjectFetcher),
         ("consumer_reports",    ConsumerReportsFetcher),
         ("detox_certifications", DetoxCertificationsFetcher),

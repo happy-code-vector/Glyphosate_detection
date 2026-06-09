@@ -234,6 +234,7 @@ CREATE TABLE IF NOT EXISTS certified_products (
     food_category       TEXT,
     raw_category        TEXT,
     certification       TEXT DEFAULT 'Glyphosate Residue Free',
+    contaminant         TEXT,                           -- 'glyphosate' for GRF, NULL for practice-based certs
     threshold_ppb       REAL DEFAULT 10.0,
     source              TEXT NOT NULL DEFAULT 'DetoxProject',
     source_url          TEXT,
@@ -276,6 +277,7 @@ CREATE TABLE IF NOT EXISTS international_mrls (
 CREATE TABLE IF NOT EXISTS ingredients (
     ingredient_id       TEXT PRIMARY KEY,           -- slug: 'red_40', 'potassium_bromate'
     display_name        TEXT NOT NULL,              -- 'Red 40 (Allura Red)'
+    contaminant_type    TEXT,                       -- 'pesticide', 'heavy_metal', 'food_dye', 'additive'
     aliases             TEXT,                       -- JSON array of name variants
     flag_types          TEXT,                       -- JSON array of flag_type values
     flags               TEXT,                       -- JSON array of flag detail objects
@@ -294,6 +296,7 @@ CREATE TABLE IF NOT EXISTS ingredients (
 CREATE TABLE IF NOT EXISTS regulatory_flags (
     flag_id             TEXT PRIMARY KEY,
     ingredient_id       TEXT NOT NULL,              -- FK to ingredients.ingredient_id
+    contaminant_type    TEXT,                       -- 'pesticide', 'heavy_metal', 'food_dye', 'additive' (denormalized)
     jurisdiction        TEXT NOT NULL,              -- 'EU', 'Canada', 'California', 'US_Federal', 'Japan'
     flag_type           TEXT NOT NULL,              -- 'us_banned', 'eu_banned', 'eu_warning_label', etc.
     regulatory_body     TEXT NOT NULL,              -- 'European Commission', 'FDA', 'OEHHA'
@@ -430,9 +433,12 @@ product_stats AS (
 cert_count AS (
     SELECT
         cp.food_category,
+        cc.contaminant,
         COUNT(*) AS certified_product_count
     FROM certified_products cp
-    GROUP BY cp.food_category
+    CROSS JOIN (SELECT DISTINCT contaminant FROM category_summaries) cc
+    WHERE cp.contaminant IS NULL OR cp.contaminant = cc.contaminant
+    GROUP BY cp.food_category, cc.contaminant
 )
 SELECT
     bs.contaminant,
@@ -457,6 +463,7 @@ LEFT JOIN product_stats ps
     AND bs.contaminant = ps.contaminant
 LEFT JOIN cert_count cc
     ON bs.food_category = cc.food_category
+    AND bs.contaminant = cc.contaminant
 WHERE bs.rn = 1;
 
 -- ─────────────────────────────────────────────

@@ -393,6 +393,7 @@ def _insert_category(conn, row: dict) -> int:
 def _insert_ingredient(conn, row: dict) -> int:
     """Insert an ingredient record (regulatory reference data)."""
     defaults = {
+        "contaminant_type": None,
         "aliases": None, "flag_types": None, "flags": None,
         "ntp_classification": None, "iarc_classification": None,
         "fda_status": None, "fda_cfr_citation": None,
@@ -401,11 +402,11 @@ def _insert_ingredient(conn, row: dict) -> int:
     r = {**defaults, **row}
     conn.execute("""
         INSERT OR IGNORE INTO ingredients (
-            ingredient_id, display_name, aliases, flag_types, flags,
+            ingredient_id, display_name, contaminant_type, aliases, flag_types, flags,
             ntp_classification, iarc_classification,
             fda_status, fda_cfr_citation, verified_date, verified_by
         ) VALUES (
-            :ingredient_id, :display_name, :aliases, :flag_types, :flags,
+            :ingredient_id, :display_name, :contaminant_type, :aliases, :flag_types, :flags,
             :ntp_classification, :iarc_classification,
             :fda_status, :fda_cfr_citation, :verified_date, :verified_by
         )
@@ -416,17 +417,18 @@ def _insert_ingredient(conn, row: dict) -> int:
 def _insert_regulatory_flag(conn, row: dict) -> int:
     """Insert a regulatory flag record."""
     defaults = {
+        "contaminant_type": None,
         "regulation_citation": None,
         "effective_date": None, "compliance_date": None, "notes": None,
     }
     r = {**defaults, **row}
     conn.execute("""
         INSERT OR IGNORE INTO regulatory_flags (
-            flag_id, ingredient_id, jurisdiction, flag_type,
+            flag_id, ingredient_id, contaminant_type, jurisdiction, flag_type,
             regulatory_body, regulation_citation, source_url,
             effective_date, compliance_date, notes
         ) VALUES (
-            :flag_id, :ingredient_id, :jurisdiction, :flag_type,
+            :flag_id, :ingredient_id, :contaminant_type, :jurisdiction, :flag_type,
             :regulatory_body, :regulation_citation, :source_url,
             :effective_date, :compliance_date, :notes
         )

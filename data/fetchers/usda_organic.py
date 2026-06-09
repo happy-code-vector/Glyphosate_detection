@@ -194,6 +194,7 @@ class USDAOrganicFetcher(BaseFetcher):
                 "source": SOURCE_NAME,
                 "source_url": SOURCE_URL,
                 "verified_date": f"{data_year}-01-01",
+                "contaminant": None,
                 "dedup_key": build_dedup_key(
                     SOURCE_NAME, product_name, brand
                 ),
@@ -221,11 +222,11 @@ class USDAOrganicFetcher(BaseFetcher):
                     conn.execute("""
                         INSERT OR IGNORE INTO certified_products (
                             product_name, brand, food_category, raw_category,
-                            certification, threshold_ppb, source, source_url,
+                            certification, contaminant, threshold_ppb, source, source_url,
                             verified_date, dedup_key
                         ) VALUES (
                             :product_name, :brand, :food_category, :raw_category,
-                            :certification, :threshold_ppb, :source, :source_url,
+                            :certification, :contaminant, :threshold_ppb, :source, :source_url,
                             :verified_date, :dedup_key
                         )
                     """, row)
