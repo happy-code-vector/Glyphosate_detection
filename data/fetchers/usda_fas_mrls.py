@@ -218,50 +218,11 @@ class USDAFASMRLFetcher(BaseFetcher):
 
     def _build_hardcoded_rows(self) -> list[dict]:
         """
-        Build row dicts from the hardcoded international MRL dataset.
-
-        Each row maps to the `international_mrls` table schema with:
-        - food_category: canonical category via normalize_category
-        - raw_commodity: original commodity name from source
-        - pesticide: always "glyphosate"
-        - country_region: EU / Canada / Japan / Australia / Brazil
-        - mrl_ppm / mrl_ppb: limit in both units
-        - regulatory_body: the authority setting the limit
-        - dedup_key: deterministic key via build_dedup_key
+        Build row dicts from the comprehensive international MRL dataset.
+        Uses international_mrls_data.py for top 50 pesticides across 6 countries.
         """
-        rows = []
-
-        pesticide = "glyphosate"
-
-        with get_connection() as conn:
-            for raw_commodity, ppm, country_region, regulatory_body in INTERNATIONAL_MRLS:
-                food_category = normalize_category(raw_commodity, conn)
-
-                if not food_category:
-                    logger.warning(
-                        "%s: no canonical category for '%s' — using raw name",
-                        self.SOURCE_NAME, raw_commodity,
-                    )
-                    food_category = raw_commodity.lower()
-
-                ppb = ppm * 1000  # convert ppm to ppb
-                dedup = build_dedup_key(
-                    "Intl_MRLs", food_category, country_region, pesticide
-                )
-
-                rows.append({
-                    "food_category": food_category,
-                    "raw_commodity": raw_commodity,
-                    "pesticide": pesticide,
-                    "country_region": country_region,
-                    "mrl_ppm": ppm,
-                    "mrl_ppb": ppb,
-                    "regulatory_body": regulatory_body,
-                    "source_url": SOURCE_URL,
-                    "dedup_key": dedup,
-                })
-
-        return rows
+        from fetchers.international_mrls_data import get_mrl_rows
+        return get_mrl_rows()
 
     def run(self) -> dict:
         """
