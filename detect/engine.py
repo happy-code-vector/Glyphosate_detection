@@ -353,28 +353,60 @@ class DetectionEngine:
             dirty_dozen=bool(row["dirty_dozen"]),
         )
 
-    def lookup_alternatives(self, product_name: str) -> Optional[dict]:
+    def lookup_alternatives(self, product_name: str, brand: str = None) -> Optional[dict]:
         """
         Look up alternative products for a flagged product.
 
         Args:
             product_name: Name of the flagged product (e.g. 'Cheerios (Original)')
+            brand: Optional brand name for better matching
 
         Returns:
             Dict with flagged_product_name, risk_label, flag_summary, alternatives list
             None if no alternatives found
         """
-        # Try exact match on flagged_product_name
+        # 1. Exact match
         row = self._conn.execute(
             "SELECT * FROM alternatives WHERE flagged_product_name = ?",
             (product_name,),
         ).fetchone()
 
-        # Try fuzzy match
+        # 2. Case-insensitive exact match
         if not row:
             row = self._conn.execute(
-                "SELECT * FROM alternatives WHERE flagged_product_name LIKE ?",
-                (f"%{product_name}%",),
+                "SELECT * FROM alternatives WHERE LOWER(flagged_product_name) = ?",
+                (product_name.lower(),),
+            ).fetchone()
+
+        # 3. Brand + partial name match (e.g. "Coca-Cola" + "Original" matches "Coca-Cola Classic")
+        if not row and brand:
+            brand_lower = brand.lower().strip()
+            name_words = [w for w in product_name.lower().split() if len(w) > 2]
+            for word in name_words:
+                row = self._conn.execute(
+                    "SELECT * FROM alternatives WHERE LOWER(flagged_product_name) LIKE ? "
+                    "AND LOWER(flagged_product_name) LIKE ?",
+                    (f"%{brand_lower}%", f"%{word}%"),
+                ).fetchone()
+                if row:
+                    break
+
+        # 4. Partial word match (any significant word from product name)
+        if not row:
+            name_words = [w for w in product_name.lower().split() if len(w) > 3]
+            for word in name_words:
+                row = self._conn.execute(
+                    "SELECT * FROM alternatives WHERE LOWER(flagged_product_name) LIKE ?",
+                    (f"%{word}%",),
+                ).fetchone()
+                if row:
+                    break
+
+        # 5. Brand-only match (e.g. "Nutella" brand matches "Nutella" product)
+        if not row and brand:
+            row = self._conn.execute(
+                "SELECT * FROM alternatives WHERE LOWER(flagged_product_name) LIKE ?",
+                (f"%{brand.lower().strip()}%",),
             ).fetchone()
 
         if not row:
