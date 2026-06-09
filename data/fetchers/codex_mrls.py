@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS tolerance_limits (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
     food_category       TEXT NOT NULL,
     raw_commodity       TEXT,
+    contaminant         TEXT NOT NULL DEFAULT 'glyphosate',
     tolerance_ppm       REAL NOT NULL,
     tolerance_ppb       REAL NOT NULL,
     source              TEXT NOT NULL,
@@ -356,12 +357,13 @@ class CodexMRLsFetcher(BaseFetcher):
         with get_connection() as conn:
             food_category = normalize_category(commodity, conn)
 
-        # Build deterministic dedup key
-        dedup = build_dedup_key("Codex_MRLs", food_category or commodity)
+        # Build deterministic dedup key (include pesticide name for uniqueness)
+        dedup = build_dedup_key("Codex_MRLs", f"{food_category or commodity}|glyphosate")
 
         return {
             "food_category": food_category or commodity.lower(),
             "raw_commodity": commodity,
+            "contaminant": "glyphosate",
             "tolerance_ppm": ppm,
             "tolerance_ppb": ppm_ppb,
             "source": SOURCE_NAME,
@@ -407,11 +409,13 @@ class CodexMRLsFetcher(BaseFetcher):
                     conn.execute(
                         """
                         INSERT OR IGNORE INTO tolerance_limits
-                            (food_category, raw_commodity, tolerance_ppm,
-                             tolerance_ppb, source, regulation_reference, dedup_key)
+                            (food_category, raw_commodity, contaminant,
+                             tolerance_ppm, tolerance_ppb, source,
+                             regulation_reference, dedup_key)
                         VALUES
-                            (:food_category, :raw_commodity, :tolerance_ppm,
-                             :tolerance_ppb, :source, :regulation_reference, :dedup_key)
+                            (:food_category, :raw_commodity, :contaminant,
+                             :tolerance_ppm, :tolerance_ppb, :source,
+                             :regulation_reference, :dedup_key)
                         """,
                         row,
                     )

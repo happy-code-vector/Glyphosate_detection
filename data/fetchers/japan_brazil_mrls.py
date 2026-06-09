@@ -160,7 +160,7 @@ class JapanBrazilMRLFetcher(BaseFetcher):
                     food_category = raw_commodity.lower()
 
                 ppb = ppm * 1000  # ppm -> ppb
-                dedup = build_dedup_key(source, food_category)
+                dedup = build_dedup_key(source, food_category, raw_commodity)
 
                 rows.append({
                     "food_category": food_category,
@@ -169,6 +169,7 @@ class JapanBrazilMRLFetcher(BaseFetcher):
                     "tolerance_ppb": ppb,
                     "source": source,
                     "regulation_reference": reference,
+                    "contaminant": "glyphosate",
                     "dedup_key": dedup,
                 })
 
@@ -197,10 +198,12 @@ class JapanBrazilMRLFetcher(BaseFetcher):
                         """
                         INSERT OR IGNORE INTO tolerance_limits
                             (food_category, raw_commodity, tolerance_ppm,
-                             tolerance_ppb, source, regulation_reference, dedup_key)
+                             tolerance_ppb, source, regulation_reference,
+                             contaminant, dedup_key)
                         VALUES
                             (:food_category, :raw_commodity, :tolerance_ppm,
-                             :tolerance_ppb, :source, :regulation_reference, :dedup_key)
+                             :tolerance_ppb, :source, :regulation_reference,
+                             :contaminant, :dedup_key)
                         """,
                         row,
                     )

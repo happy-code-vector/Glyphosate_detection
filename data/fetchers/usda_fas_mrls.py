@@ -231,6 +231,8 @@ class USDAFASMRLFetcher(BaseFetcher):
         """
         rows = []
 
+        pesticide = "glyphosate"
+
         with get_connection() as conn:
             for raw_commodity, ppm, country_region, regulatory_body in INTERNATIONAL_MRLS:
                 food_category = normalize_category(raw_commodity, conn)
@@ -244,13 +246,13 @@ class USDAFASMRLFetcher(BaseFetcher):
 
                 ppb = ppm * 1000  # convert ppm to ppb
                 dedup = build_dedup_key(
-                    "Intl_MRLs", food_category, country_region
+                    "Intl_MRLs", food_category, country_region, pesticide
                 )
 
                 rows.append({
                     "food_category": food_category,
                     "raw_commodity": raw_commodity,
-                    "pesticide": "glyphosate",
+                    "pesticide": pesticide,
                     "country_region": country_region,
                     "mrl_ppm": ppm,
                     "mrl_ppb": ppb,

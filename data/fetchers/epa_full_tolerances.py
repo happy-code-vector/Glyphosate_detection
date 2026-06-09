@@ -66,6 +66,7 @@ CREATE TABLE IF NOT EXISTS tolerance_limits (
     tolerance_ppb       REAL NOT NULL,
     source              TEXT NOT NULL,
     regulation_reference TEXT,
+    contaminant         TEXT,
     dedup_key           TEXT UNIQUE
 );
 """
@@ -77,53 +78,182 @@ REPORTS = [
     {
         "section": "180.258",
         "pesticide": "Chlorpyrifos",
+        "pesticide_name": "chlorpyrifos",
         "regulation": "40 CFR 180.258",
     },
     {
         "section": "180.185",
         "pesticide": "Dicamba",
+        "pesticide_name": "dicamba",
         "regulation": "40 CFR 180.185",
     },
     {
         "section": "180.368",
         "pesticide": "Glufosinate",
+        "pesticide_name": "glufosinate",
         "regulation": "40 CFR 180.368",
     },
     {
         "section": "180.169",
         "pesticide": "Clopyralid",
+        "pesticide_name": "clopyralid",
         "regulation": "40 CFR 180.169",
     },
     {
         "section": "180.213",
         "pesticide": "Dimethenamid",
+        "pesticide_name": "dimethenamid",
         "regulation": "40 CFR 180.213",
     },
     {
         "section": "180.341",
         "pesticide": "Acetochlor",
+        "pesticide_name": "acetochlor",
         "regulation": "40 CFR 180.341",
     },
     {
         "section": "180.350",
         "pesticide": "Bifenthrin",
+        "pesticide_name": "bifenthrin",
         "regulation": "40 CFR 180.350",
     },
     {
         "section": "180.443",
         "pesticide": "Fomesafen",
+        "pesticide_name": "fomesafen",
         "regulation": "40 CFR 180.443",
     },
     {
         "section": "180.153",
         "pesticide": "Clethodim",
+        "pesticide_name": "clethodim",
         "regulation": "40 CFR 180.153",
+    },
+    {
+        "section": "180.132",
+        "pesticide": "Captan",
+        "pesticide_name": "captan",
+        "regulation": "40 CFR 180.132",
+    },
+    {
+        "section": "180.162",
+        "pesticide": "Chlorothalonil",
+        "pesticide_name": "chlorothalonil",
+        "regulation": "40 CFR 180.162",
+    },
+    {
+        "section": "180.178",
+        "pesticide": "Cypermethrin",
+        "pesticide_name": "cypermethrin",
+        "regulation": "40 CFR 180.178",
+    },
+    {
+        "section": "180.252",
+        "pesticide": "Dimethoate",
+        "pesticide_name": "dimethoate",
+        "regulation": "40 CFR 180.252",
+    },
+    {
+        "section": "180.261",
+        "pesticide": "Endosulfan",
+        "pesticide_name": "endosulfan",
+        "regulation": "40 CFR 180.261",
+    },
+    {
+        "section": "180.287",
+        "pesticide": "Fenbutatin oxide",
+        "pesticide_name": "fenbutatin oxide",
+        "regulation": "40 CFR 180.287",
+    },
+    {
+        "section": "180.303",
+        "pesticide": "Imazalil",
+        "pesticide_name": "imazalil",
+        "regulation": "40 CFR 180.303",
+    },
+    {
+        "section": "180.319",
+        "pesticide": "Malathion",
+        "pesticide_name": "malathion",
+        "regulation": "40 CFR 180.319",
+    },
+    {
+        "section": "180.338",
+        "pesticide": "Permethrin",
+        "pesticide_name": "permethrin",
+        "regulation": "40 CFR 180.338",
+    },
+    {
+        "section": "180.342",
+        "pesticide": "Chlorpyrifos (tolerance revoked)",
+        "pesticide_name": "chlorpyrifos-methyl",
+        "regulation": "40 CFR 180.342",
+    },
+    {
+        "section": "180.355",
+        "pesticide": "Propiconazole",
+        "pesticide_name": "propiconazole",
+        "regulation": "40 CFR 180.355",
+    },
+    {
+        "section": "180.362",
+        "pesticide": "Thiabendazole",
+        "pesticide_name": "thiabendazole",
+        "regulation": "40 CFR 180.362",
+    },
+    {
+        "section": "180.369",
+        "pesticide": "Tebuconazole",
+        "pesticide_name": "tebuconazole",
+        "regulation": "40 CFR 180.369",
+    },
+    {
+        "section": "180.377",
+        "pesticide": "Azoxystrobin",
+        "pesticide_name": "azoxystrobin",
+        "regulation": "40 CFR 180.377",
+    },
+    {
+        "section": "180.381",
+        "pesticide": "Boscalid",
+        "pesticide_name": "boscalid",
+        "regulation": "40 CFR 180.381",
+    },
+    {
+        "section": "180.411",
+        "pesticide": "Fludioxonil",
+        "pesticide_name": "fludioxonil",
+        "regulation": "40 CFR 180.411",
+    },
+    {
+        "section": "180.425",
+        "pesticide": "Pyraclostrobin",
+        "pesticide_name": "pyraclostrobin",
+        "regulation": "40 CFR 180.425",
+    },
+    {
+        "section": "180.436",
+        "pesticide": "Fluopyram",
+        "pesticide_name": "fluopyram",
+        "regulation": "40 CFR 180.436",
+    },
+    {
+        "section": "180.449",
+        "pesticide": "Cyflufenamid",
+        "pesticide_name": "cyflufenamid",
+        "regulation": "40 CFR 180.449",
+    },
+    {
+        "section": "180.458",
+        "pesticide": "Mandipropamid",
+        "pesticide_name": "mandipropamid",
+        "regulation": "40 CFR 180.458",
     },
 ]
 
 # Sections blocked by eCFR rate-limiting (CAPTCHA). Keep for manual retry.
 # 180.344 (Atrazine), 180.105 (2,4-D), 180.115 (Bentazon),
-# 180.282 (Fluazifop), 180.338 (Alachlor), 180.091 (Aminopyralid)
+# 180.282 (Fluazifop), 180.091 (Aminopyralid)
 
 
 def _ecfr_url(section: str) -> str:
@@ -383,8 +513,9 @@ class EPAFullTolerancesFetcher(BaseFetcher):
             food_category = normalize_category(commodity, conn)
 
         section = report["section"]
+        pesticide_name = report.get("pesticide_name", report["pesticide"].lower())
         dedup = build_dedup_key(
-            "EPA_Full_Part180", food_category or commodity, section
+            "EPA_Full_Part180", food_category or commodity, section, pesticide_name
         )
 
         return {
@@ -394,6 +525,7 @@ class EPAFullTolerancesFetcher(BaseFetcher):
             "tolerance_ppb": ppb,
             "source": SOURCE_VALUE,
             "regulation_reference": report["regulation"],
+            "contaminant": pesticide_name,
             "dedup_key": dedup,
         }
 
@@ -453,10 +585,12 @@ class EPAFullTolerancesFetcher(BaseFetcher):
                         """
                         INSERT OR IGNORE INTO tolerance_limits
                             (food_category, raw_commodity, tolerance_ppm,
-                             tolerance_ppb, source, regulation_reference, dedup_key)
+                             tolerance_ppb, source, regulation_reference,
+                             contaminant, dedup_key)
                         VALUES
                             (:food_category, :raw_commodity, :tolerance_ppm,
-                             :tolerance_ppb, :source, :regulation_reference, :dedup_key)
+                             :tolerance_ppb, :source, :regulation_reference,
+                             :contaminant, :dedup_key)
                         """,
                         row,
                     )
