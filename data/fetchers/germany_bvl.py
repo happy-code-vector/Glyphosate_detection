@@ -38,7 +38,7 @@ BVL_OVERVIEW_URL = (
 
 # Registry of BVL national monitoring reports for 2011–2024 (excluding 2012, PDF only).
 # Direct download URLs point to the tab-24 / Substanzen surveillance files which
-# contain substance-level data (the files we need for glyphosate lookups).
+# contain substance-level data (the files we need for pesticide residue lookups).
 GERMANY_BVL_REPORTS = [
     {
         "label": "Germany BVL National Monitoring 2011",
@@ -197,16 +197,6 @@ GERMANY_BVL_REPORTS = [
         "data_year": 2024,
     },
 ]
-
-# German substance names to exclude (metabolites, not glyphosate itself)
-_EXCLUDED_SUBSTANCES = {
-    "ampa",
-    "aminomethylphosphonsäure",
-    "aminomethylphosphonsaeure",
-    "n-acetyl-glyphosat",
-    "n-acetylglyphosat",
-    "n-acetyl glyphosate",
-}
 
 # German column header patterns for dynamic detection
 _SUBSTANCE_COL_PATTERNS = [
@@ -384,8 +374,8 @@ class GermanyBVLFetcher(BaseFetcher):
         """
         Parse a single BVL data file (Excel or CSV).
         Uses dynamic German column detection to handle format changes
-        across years. Filters for glyphosate, excludes AMPA, translates
-        German commodity names, and computes detection rates.
+        across years. Processes all detected pesticides/substances,
+        translates German commodity names, and computes detection rates.
         """
         ext = file_path.suffix.lower()
         try:
@@ -439,51 +429,34 @@ class GermanyBVLFetcher(BaseFetcher):
                 file_path.name,
             )
 
-        # Filter for glyphosate
-        gly_mask = (
-            df[substance_col]
-            .fillna("")
-            .astype(str)
-            .str.lower()
-            .str.strip()
-            .str.contains("glyphosat", na=False)
-        )
-        gly_df = df[gly_mask].copy()
+        # Filter out rows with missing substance names
+        df[substance_col] = df[substance_col].fillna("").astype(str).str.strip()
+        df = df[df[substance_col] != ""]
+        df = df[df[substance_col].str.lower() != "nan"]
 
-        if gly_df.empty:
+        if df.empty:
             logger.info(
-                "Germany_BVL: no glyphosate rows in %s", report["label"]
+                "Germany_BVL: no substance rows in %s", report["label"]
             )
             return []
 
-        # Exclude AMPA and other metabolites
-        for exclude_term in _EXCLUDED_SUBSTANCES:
-            gly_df = gly_df[
-                ~gly_df[substance_col]
-                .astype(str)
-                .str.lower()
-                .str.contains(exclude_term, na=False)
-            ]
-
-        if gly_df.empty:
-            logger.info(
-                "Germany_BVL: no glyphosate rows after excluding metabolites in %s",
-                report["label"],
-            )
-            return []
+        # Normalize substance names for consistent grouping
+        df["__substance_name"] = df[substance_col].str.strip()
 
         logger.info(
-            "Germany_BVL: %d glyphosate rows in %s",
-            len(gly_df), report["label"],
+            "Germany_BVL: %d substance rows with %d unique substances in %s",
+            len(df), df["__substance_name"].nunique(), report["label"],
         )
 
-        # Aggregate by mapped commodity category
+        # Aggregate by (mapped commodity category, substance name)
         from collections import defaultdict
         by_category = defaultdict(
             lambda: {"total": 0, "detected": 0, "ppb_values": [], "raw_cats": []}
         )
 
-        for _, row in gly_df.iterrows():
+        for _, row in df.iterrows():
+            substance_name = row["__substance_name"]
+
             if commodity_col:
                 raw_commodity = str(row[commodity_col]).strip()
                 if not raw_commodity or raw_commodity.lower() in ("nan", "gesamt", "total", "summe"):
@@ -499,7 +472,7 @@ class GermanyBVLFetcher(BaseFetcher):
                 raw_commodity = "all_foods"
                 food_category = "all_foods"
 
-            cat = by_category[food_category]
+            cat = by_category[(food_category, substance_name)]
 
             # Sample counts
             total_samples = self._safe_int(row.get(samples_col)) if samples_col else 1
@@ -517,7 +490,7 @@ class GermanyBVLFetcher(BaseFetcher):
 
         # Build output rows
         rows = []
-        for food_category, stats in by_category.items():
+        for (food_category, substance_name), stats in by_category.items():
             if stats["total"] == 0:
                 continue
 
@@ -540,6 +513,7 @@ class GermanyBVLFetcher(BaseFetcher):
                 "published_date": report["published_date"],
                 "data_year": report["data_year"],
                 "food_category": food_category,
+                "contaminant": substance_name,
                 "raw_category": raw_cat,
                 "samples_total": total,
                 "samples_detected": n_detected,
@@ -550,7 +524,7 @@ class GermanyBVLFetcher(BaseFetcher):
                 "unit_conversion": 1000.0,
                 "methodology_note": (
                     f"BVL National Monitoring Programme ({report['data_year']}). "
-                    "German-language pesticide residue data from "
+                    f"Pesticide residue data for {substance_name} from "
                     "Bundesamt für Verbraucherschutz und Lebensmittelsicherheit. "
                     "Reports ALL detections (not just MRL exceedances). "
                     "German commodity names translated to English canonical categories. "
@@ -559,12 +533,13 @@ class GermanyBVLFetcher(BaseFetcher):
                 "confidence": "high",
                 "raw_file_path": str(file_path),
                 "dedup_key": build_dedup_key(
-                    "Germany_BVL", food_category, report["data_year"]
+                    "Germany_BVL", food_category, substance_name,
+                    report["data_year"],
                 ),
             })
 
         logger.info(
-            "Germany_BVL: parsed %d category rows from %s",
+            "Germany_BVL: parsed %d category-substance rows from %s",
             len(rows), report["label"],
         )
         return rows

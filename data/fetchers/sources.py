@@ -226,57 +226,53 @@ class CFIAFetcher(BaseFetcher):
                 f"Available: {list(df.columns)}."
             )
 
-        gly_df = df[df[component_col].str.lower().str.contains("glyphosate", na=False)].copy()
-        if gly_df.empty:
-            raise ValueError("No glyphosate rows found in CFIA CSV")
+        # Clean component/substance column for grouping
+        df[component_col] = df[component_col].astype(str).str.strip()
+        df = df[df[component_col].str.lower() != "nan"]
 
         # Extract sample year from Date Sampled column
-        if date_col and date_col in gly_df.columns:
-            gly_df["_sample_year"] = pd.to_datetime(
-                gly_df[date_col], errors="coerce"
+        if date_col and date_col in df.columns:
+            df["_sample_year"] = pd.to_datetime(
+                df[date_col], errors="coerce"
             ).dt.year
         else:
-            gly_df["_sample_year"] = report["data_year"]
+            df["_sample_year"] = report["data_year"]
 
-        logger.info("CFIA: %d glyphosate sample rows", len(gly_df))
+        logger.info("CFIA: %d total sample rows", len(df))
 
         conversion = 1.0
         original_unit = "µg/g"
         if unit_col:
-            unit_val = str(gly_df[unit_col].iloc[0]).lower()
+            unit_val = str(df[unit_col].iloc[0]).lower()
             if "mg/kg" in unit_val or "µg/g" in unit_val or "ug/g" in unit_val:
                 conversion = 1000.0
                 original_unit = unit_val
 
         rows = []
-        for sample_year, year_group in gly_df.groupby("_sample_year"):
+        for sample_year, year_group in df.groupby("_sample_year"):
             sample_year = int(sample_year) if pd.notna(sample_year) else report["data_year"]
 
-            product_stats = []
-            for product, group in year_group.groupby(product_col):
+            # Process ALL substances, grouped by (product, component/substance)
+            from collections import defaultdict
+            by_key = defaultdict(lambda: {"total": 0, "detected": [], "raw_cats": []})
+
+            for (product, pest_name), group in year_group.groupby([product_col, component_col]):
                 raw_cat = str(product).strip()
+                pest_name = str(pest_name).strip().lower()
                 if not raw_cat or raw_cat.lower() in ("nan", "total", "all"):
+                    continue
+                if not pest_name or pest_name == "nan":
                     continue
                 food_category = normalize_category(raw_cat)
                 if not food_category:
                     continue
                 values = pd.to_numeric(group[result_col], errors="coerce").fillna(0)
-                product_stats.append({
-                    "food_category": food_category,
-                    "raw_cat": raw_cat,
-                    "total": len(group),
-                    "detected_values": values[values > 0].tolist(),
-                })
+                key = (food_category, pest_name)
+                by_key[key]["total"] += len(group)
+                by_key[key]["detected"].extend(values[values > 0].tolist())
+                by_key[key]["raw_cats"].append(raw_cat)
 
-            from collections import defaultdict
-            by_category = defaultdict(lambda: {"total": 0, "detected": [], "raw_cats": []})
-            for ps in product_stats:
-                cat = ps["food_category"]
-                by_category[cat]["total"] += ps["total"]
-                by_category[cat]["detected"].extend(ps["detected_values"])
-                by_category[cat]["raw_cats"].append(ps["raw_cat"])
-
-            for food_category, stats in by_category.items():
+            for (food_category, pest_name), stats in by_key.items():
                 total = stats["total"]
                 n_detected = len(stats["detected"])
                 detection_rate = round(n_detected / total, 4) if total > 0 else None
@@ -293,6 +289,7 @@ class CFIAFetcher(BaseFetcher):
                     "data_year": sample_year,
                     "food_category": food_category,
                     "raw_category": raw_cat,
+                    "contaminant": pest_name,
                     "samples_total": total,
                     "samples_detected": n_detected,
                     "detection_rate": detection_rate,
@@ -301,13 +298,13 @@ class CFIAFetcher(BaseFetcher):
                     "original_unit": original_unit,
                     "unit_conversion": conversion,
                     "methodology_note": (
-                        f"CFIA Glyphosate Testing {sample_year} (from 2015-2017 dataset). "
-                        "Individual sample results aggregated by canonical food category. "
+                        f"CFIA Testing {sample_year} (from 2015-2017 dataset). "
+                        f"Individual sample results for {pest_name} aggregated by canonical food category. "
                         "LC-MS/MS method."
                     ),
                     "confidence": "medium",
                     "raw_file_path": str(csv_path),
-                    "dedup_key": build_dedup_key("CFIA", food_category, sample_year),
+                    "dedup_key": build_dedup_key("CFIA", food_category, pest_name, sample_year),
                 })
 
         logger.info("CFIA: parsed %d category rows from %s (split by year)", len(rows), report["label"])
@@ -316,7 +313,7 @@ class CFIAFetcher(BaseFetcher):
     def _parse_multi_pesticide_csv(self, csv_path: Path, report: dict) -> list[dict]:
         """
         Parse NCRMP or targeted survey CSVs that contain multiple pesticides.
-        Filters for glyphosate rows only, then aggregates by food category.
+        Processes ALL pesticides, aggregated by (food category, pesticide).
         """
         try:
             df = pd.read_csv(csv_path, low_memory=False)
@@ -334,18 +331,11 @@ class CFIAFetcher(BaseFetcher):
             logger.warning("CFIA: no pesticide column found in %s — skipping", report["label"])
             return []
 
-        gly_df = df[df[pest_col].str.lower().str.contains("glyphosate", na=False)].copy()
-        if gly_df.empty:
-            logger.info("CFIA: no glyphosate rows in %s", report["label"])
-            return []
+        # Clean pesticide column and remove NaN/empty rows
+        df[pest_col] = df[pest_col].astype(str).str.strip()
+        df = df[df[pest_col].str.lower() != "nan"]
 
-        # Exclude AMPA metabolite
-        gly_df = gly_df[~gly_df[pest_col].str.lower().str.contains("ampa", na=False)]
-        if gly_df.empty:
-            logger.info("CFIA: no glyphosate rows (only AMPA) in %s", report["label"])
-            return []
-
-        logger.info("CFIA: %d glyphosate rows in %s", len(gly_df), report["label"])
+        logger.info("CFIA: %d total pesticide rows in %s", len(df), report["label"])
 
         product_col = self._find_col(df, [
             "product", "commodity", "food", "matrix", "product_name",
@@ -367,7 +357,7 @@ class CFIAFetcher(BaseFetcher):
         conversion = 1000.0
         original_unit = "mg/kg"
         if unit_col:
-            unit_val = str(gly_df[unit_col].iloc[0]).lower()
+            unit_val = str(df[unit_col].iloc[0]).lower()
             if "ppb" in unit_val or "µg/kg" in unit_val or "ug/kg" in unit_val:
                 conversion = 1.0
                 original_unit = unit_val
@@ -375,12 +365,16 @@ class CFIAFetcher(BaseFetcher):
                 conversion = 1000.0
                 original_unit = unit_val
 
+        # Process ALL pesticides, grouped by (product, pesticide)
         from collections import defaultdict
-        by_category = defaultdict(lambda: {"total": 0, "detected": [], "raw_cats": []})
+        by_key = defaultdict(lambda: {"total": 0, "detected": [], "raw_cats": []})
 
-        for product, group in gly_df.groupby(product_col):
+        for (product, pest_name), group in df.groupby([product_col, pest_col]):
             raw_cat = str(product).strip()
+            pest_name = str(pest_name).strip().lower()
             if not raw_cat or raw_cat.lower() in ("nan", "total", "all"):
+                continue
+            if not pest_name or pest_name == "nan":
                 continue
             food_category = normalize_category(raw_cat)
             if not food_category:
@@ -393,12 +387,13 @@ class CFIAFetcher(BaseFetcher):
             else:
                 detected = []
 
-            by_category[food_category]["total"] += total
-            by_category[food_category]["detected"].extend(detected)
-            by_category[food_category]["raw_cats"].append(raw_cat)
+            key = (food_category, pest_name)
+            by_key[key]["total"] += total
+            by_key[key]["detected"].extend(detected)
+            by_key[key]["raw_cats"].append(raw_cat)
 
         rows = []
-        for food_category, stats in by_category.items():
+        for (food_category, pest_name), stats in by_key.items():
             total = stats["total"]
             n_detected = len(stats["detected"])
             detection_rate = round(n_detected / total, 4) if total > 0 else None
@@ -415,6 +410,7 @@ class CFIAFetcher(BaseFetcher):
                 "data_year": report["data_year"],
                 "food_category": food_category,
                 "raw_category": raw_cat,
+                "contaminant": pest_name,
                 "samples_total": total,
                 "samples_detected": n_detected,
                 "detection_rate": detection_rate,
@@ -423,12 +419,12 @@ class CFIAFetcher(BaseFetcher):
                 "original_unit": original_unit,
                 "unit_conversion": conversion,
                 "methodology_note": (
-                    f"{report['label']}. Multi-pesticide dataset filtered for glyphosate. "
-                    "Individual sample results aggregated by canonical food category."
+                    f"{report['label']}. Multi-pesticide dataset. "
+                    f"Individual sample results for {pest_name} aggregated by canonical food category."
                 ),
                 "confidence": "medium",
                 "raw_file_path": str(csv_path),
-                "dedup_key": build_dedup_key("CFIA", food_category, report["data_year"]),
+                "dedup_key": build_dedup_key("CFIA", food_category, pest_name, report["data_year"]),
             })
 
         logger.info("CFIA: parsed %d category rows from %s", len(rows), report["label"])
@@ -438,8 +434,8 @@ class CFIAFetcher(BaseFetcher):
         """
         Parse NCRMP summary CSV. These are pre-aggregated tables with
         unnamed columns. Food category is in a section header row ABOVE
-        each data block — we look backwards from each glyphosate row to
-        find the nearest commodity header.
+        each data block — we look backwards from each pesticide row to
+        find the nearest commodity header. Processes ALL pesticides.
         """
         try:
             df = pd.read_csv(csv_path, low_memory=False, skiprows=5)
@@ -450,21 +446,33 @@ class CFIAFetcher(BaseFetcher):
 
         skip_labels = {"PESTICIDES", "METAL", "METALS", "VETERINARY DRUGS", "nan", ""}
 
-        # Filter for glyphosate group + specific test
-        gly_mask = (
-            df["col_2"].astype(str).str.upper().str.strip() == "GLYPHOSATE"
-        ) & (
-            df["col_3"].astype(str).str.strip().str.lower() == "glyphosate"
-        )
-        gly_indices = df[gly_mask].index.tolist()
-        if not gly_indices:
-            logger.info("CFIA NCRMP: no glyphosate rows in %s", report["label"])
+        # Find all pesticide data rows — rows where col_3 has a specific test name
+        # (col_2 = pesticide group, col_3 = specific substance)
+        pest_indices = []
+        for idx in df.index:
+            col2 = str(df.iloc[idx]["col_2"]).strip()
+            col3 = str(df.iloc[idx]["col_3"]).strip()
+            if (
+                col2.upper() not in skip_labels
+                and col2.lower() != "nan"
+                and col3.lower() not in ("nan", "")
+                and not pd.isna(df.iloc[idx]["col_4"])
+            ):
+                pest_indices.append(idx)
+
+        if not pest_indices:
+            logger.info("CFIA NCRMP: no pesticide rows in %s", report["label"])
             return []
 
-        logger.info("CFIA NCRMP: %d glyphosate rows in %s", len(gly_indices), report["label"])
+        logger.info("CFIA NCRMP: %d pesticide rows in %s", len(pest_indices), report["label"])
 
         rows = []
-        for gi in gly_indices:
+        for gi in pest_indices:
+            # Derive pesticide name from col_3 (specific test/substance)
+            pest_name = str(df.iloc[gi]["col_3"]).strip().lower()
+            if not pest_name or pest_name == "nan":
+                continue
+
             # Look backwards for nearest section header (food category)
             raw_cat = None
             for j in range(gi - 1, max(0, gi - 50), -1):
@@ -502,6 +510,7 @@ class CFIAFetcher(BaseFetcher):
                 "data_year": report["data_year"],
                 "food_category": food_category,
                 "raw_category": raw_cat,
+                "contaminant": pest_name,
                 "samples_total": total,
                 "samples_detected": detected,
                 "detection_rate": detection_rate,
@@ -511,12 +520,12 @@ class CFIAFetcher(BaseFetcher):
                 "unit_conversion": 1000.0,
                 "methodology_note": (
                     f"{report['label']}. NCRMP pre-aggregated summary data. "
-                    f"Glyphosate-specific results for {raw_cat}. "
+                    f"{pest_name} results for {raw_cat}. "
                     "Values in ppm converted to ppb."
                 ),
                 "confidence": "high",
                 "raw_file_path": str(csv_path),
-                "dedup_key": build_dedup_key("CFIA", food_category, raw_cat, report["data_year"]),
+                "dedup_key": build_dedup_key("CFIA", food_category, pest_name, raw_cat, report["data_year"]),
             })
 
         logger.info("CFIA NCRMP: parsed %d category rows from %s", len(rows), report["label"])
@@ -1095,51 +1104,52 @@ class FDAFetcher(BaseFetcher):
         df.columns = [c.strip() for c in df.columns]
         logger.info("FDA columns: %s", list(df.columns))
 
-        # Filter to GLYPHOSATE only (exclude N-ACETYLGLYPHOSATE and other metabolites)
-        gly = df[
-            df["ResName"].str.upper().str.strip() == "GLYPHOSATE"
-        ].copy()
+        # Clean up residue and product names
+        df["ResName"] = df["ResName"].astype(str).str.upper().str.strip()
+        df["ProdName"] = df["ProdName"].astype(str).str.strip()
+        df = df[df["ResName"].str.lower() != "nan"]
+        df = df[df["ProdName"].str.lower() != "nan"]
 
-        if gly.empty:
-            logger.warning("FDA: no glyphosate rows found")
+        if df.empty:
+            logger.warning("FDA: no data rows found")
             return []
 
-        logger.info("FDA: %d glyphosate product-country rows", len(gly))
+        logger.info("FDA: %d total product-country rows", len(df))
 
-        # Aggregate across countries by product name → canonical category
-        from collections import defaultdict
-        by_category = defaultdict(lambda: {"total": 0, "detected": 0, "ppb_values": [], "raw_cats": []})
+        # Process ALL pesticides, grouped by (ProdName, ResName)
+        rows = []
+        for (prod_name, res_name), group in df.groupby(["ProdName", "ResName"]):
+            raw_cat = str(prod_name).strip()
+            pest_name = str(res_name).strip().lower()
+            if not raw_cat or raw_cat.lower() == "nan":
+                continue
+            if not pest_name or pest_name == "nan":
+                continue
 
-        for _, row in gly.iterrows():
-            raw_cat = str(row["ProdName"]).strip()
             food_category = normalize_category(raw_cat)
             if not food_category:
                 continue
 
-            total = int(row.get("Spls.", 0) or 0)
-            pos = int(row.get("Pos.", 0) or 0)
-            mean_val = pd.to_numeric(row.get("Mean", 0), errors="coerce") or 0
-            max_val = pd.to_numeric(row.get("Maximum", 0), errors="coerce") or 0
+            total = 0
+            detected = 0
+            ppb_values = []
+            for _, row in group.iterrows():
+                total += int(row.get("Spls.", 0) or 0)
+                detected += int(row.get("Pos.", 0) or 0)
+                mean_val = pd.to_numeric(row.get("Mean", 0), errors="coerce") or 0
+                max_val = pd.to_numeric(row.get("Maximum", 0), errors="coerce") or 0
+                # FDA Mean is in ppm — convert to ppb
+                if mean_val > 0:
+                    ppb_values.append(mean_val * 1000)
+                if max_val > 0:
+                    ppb_values.append(max_val * 1000)
 
-            cat = by_category[food_category]
-            cat["total"] += total
-            cat["detected"] += pos
-            # FDA Mean is in ppm — convert to ppb
-            if mean_val > 0:
-                cat["ppb_values"].append(mean_val * 1000)
-            if max_val > 0:
-                cat["ppb_values"].append(max_val * 1000)
-            cat["raw_cats"].append(raw_cat)
-
-        rows = []
-        for food_category, stats in by_category.items():
-            if stats["total"] == 0:
+            if total == 0:
                 continue
-            n_detected = stats["detected"]
-            detection_rate = round(n_detected / stats["total"], 4)
-            avg_ppb = round(sum(stats["ppb_values"]) / len(stats["ppb_values"]), 2) if stats["ppb_values"] else None
-            max_ppb = round(max(stats["ppb_values"]), 2) if stats["ppb_values"] else None
-            raw_cat = ", ".join(sorted(set(stats["raw_cats"])))
+
+            detection_rate = round(detected / total, 4)
+            avg_ppb = round(sum(ppb_values) / len(ppb_values), 2) if ppb_values else None
+            max_ppb = round(max(ppb_values), 2) if ppb_values else None
 
             rows.append({
                 "tier": 2,
@@ -1150,8 +1160,9 @@ class FDAFetcher(BaseFetcher):
                 "data_year": report["data_year"],
                 "food_category": food_category,
                 "raw_category": raw_cat,
-                "samples_total": stats["total"],
-                "samples_detected": n_detected,
+                "contaminant": pest_name,
+                "samples_total": total,
+                "samples_detected": detected,
                 "detection_rate": detection_rate,
                 "avg_ppb": avg_ppb,
                 "max_ppb": max_ppb,
@@ -1160,14 +1171,15 @@ class FDAFetcher(BaseFetcher):
                 "methodology_note": (
                     "FDA Pesticide Residue Monitoring Program FY2023. "
                     "Aggregated across all countries of origin per product type. "
-                    "Mean and Maximum from FDA summary stats (ppm converted to ppb)."
+                    f"Mean and Maximum from FDA summary stats for {pest_name} in {raw_cat} "
+                    "(ppm converted to ppb)."
                 ),
                 "confidence": "high",
                 "raw_file_path": str(data_path),
-                "dedup_key": build_dedup_key("FDA", food_category, report["data_year"]),
+                "dedup_key": build_dedup_key("FDA", food_category, pest_name, report["data_year"]),
             })
 
-        logger.info("FDA: parsed %d category rows", len(rows))
+        logger.info("FDA: parsed %d (category, pesticide) rows", len(rows))
         return rows
 
     def _parse_fda_samples(self, sample_path: Path, report: dict) -> list[dict]:
@@ -1179,60 +1191,69 @@ class FDAFetcher(BaseFetcher):
         df = pd.read_csv(sample_path, sep="\t", low_memory=False, encoding="latin-1")
         df.columns = [c.strip() for c in df.columns]
 
-        gly = df[
-            df["ResName"].str.upper().str.strip() == "GLYPHOSATE"
-        ].copy()
+        # Clean up residue and product names
+        df["ResName"] = df["ResName"].astype(str).str.upper().str.strip()
+        df["ProdName"] = df["ProdName"].astype(str).str.strip()
+        df = df[df["ResName"].str.lower() != "nan"]
+        df = df[df["ProdName"].str.lower() != "nan"]
 
-        if gly.empty:
-            logger.info("FDA samples: no glyphosate rows in %s", sample_path.name)
+        if df.empty:
+            logger.info("FDA samples: no data rows in %s", sample_path.name)
             return []
 
-        logger.info("FDA samples: %d individual glyphosate samples", len(gly))
+        logger.info("FDA samples: %d individual sample rows", len(df))
 
+        # Process ALL pesticides, grouped by (ProdName, ResName)
         rows = []
-        for _, row in gly.iterrows():
-            product_name = str(row.get("ProdName", "")).strip()
-            if not product_name or product_name.lower() == "nan":
+        for (prod_name, res_name), group in df.groupby(["ProdName", "ResName"]):
+            raw_cat = str(prod_name).strip()
+            pest_name = str(res_name).strip().lower()
+            if not raw_cat or raw_cat.lower() == "nan":
+                continue
+            if not pest_name or pest_name == "nan":
                 continue
 
-            food_category = normalize_category(product_name)
+            food_category = normalize_category(raw_cat)
             if not food_category:
                 continue
 
-            found_val = pd.to_numeric(row.get("Found"), errors="coerce")
-            is_trace = str(row.get("Trace", "")).strip().upper() == "T"
-            country = str(row.get("Country", "")).strip()
+            for _, row in group.iterrows():
+                found_val = pd.to_numeric(row.get("Found"), errors="coerce")
+                is_trace = str(row.get("Trace", "")).strip().upper() == "T"
+                country = str(row.get("Country", "")).strip()
 
-            measured_ppb = round(found_val * 1000, 2) if pd.notna(found_val) and found_val > 0 else None
-            below_detection = measured_ppb is None
+                measured_ppb = round(found_val * 1000, 2) if pd.notna(found_val) and found_val > 0 else None
+                below_detection = measured_ppb is None
 
-            sample_id = str(row.get("SplNo", "")).strip()
-            rows.append({
-                "tier": 1,
-                "source_name": "FDA",
-                "source_url": report["source_url"],
-                "report_label": report["label"],
-                "published_date": report["published_date"],
-                "data_year": report["data_year"],
-                "food_category": food_category,
-                "raw_category": product_name,
-                "product_name": product_name,
-                "measured_ppb": measured_ppb,
-                "below_detection": below_detection,
-                "country": country if country and country.lower() != "nan" else None,
-                "methodology_note": (
-                    f"FDA Pesticide Residue Monitoring Program FY{report['year']}. "
-                    "Individual sample result. ppm converted to ppb."
-                    + (" Trace detection (below LOQ)." if is_trace else "")
-                ),
-                "confidence": "high",
-                "raw_file_path": str(sample_path),
-                "dedup_key": build_dedup_key(
-                    "FDA_T1", product_name, country, sample_id, report["data_year"]
-                ),
-            })
+                sample_id = str(row.get("SplNo", "")).strip()
+                rows.append({
+                    "tier": 1,
+                    "source_name": "FDA",
+                    "source_url": report["source_url"],
+                    "report_label": report["label"],
+                    "published_date": report["published_date"],
+                    "data_year": report["data_year"],
+                    "food_category": food_category,
+                    "raw_category": raw_cat,
+                    "contaminant": pest_name,
+                    "product_name": raw_cat,
+                    "measured_ppb": measured_ppb,
+                    "below_detection": below_detection,
+                    "country": country if country and country.lower() != "nan" else None,
+                    "methodology_note": (
+                        f"FDA Pesticide Residue Monitoring Program FY{report['year']}. "
+                        f"Individual sample result for {pest_name} in {raw_cat}. "
+                        "ppm converted to ppb."
+                        + (" Trace detection (below LOQ)." if is_trace else "")
+                    ),
+                    "confidence": "high",
+                    "raw_file_path": str(sample_path),
+                    "dedup_key": build_dedup_key(
+                        "FDA_T1", food_category, pest_name, country, sample_id, report["data_year"]
+                    ),
+                })
 
-        logger.info("FDA samples: parsed %d Tier 1 product test rows", len(rows))
+        logger.info("FDA samples: parsed %d Tier 1 (product, pesticide) test rows", len(rows))
         return rows
 
     def _find_col(self, df, candidates):

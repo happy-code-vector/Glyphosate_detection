@@ -20,9 +20,10 @@ Sources:
     - Analyte_Detections (2019-2020): overall totals without food breakdown.
     - Summary : introductory text (0 rows of data).
 
-  Glyphosate data is found by scanning ALL sheets for cells containing
-  "glyphosate" (case-insensitive), then parsing the value and aggregating
-  by canonical food category derived from the sheet name.
+  ALL pesticide data is extracted by scanning ALL sheets for substance
+  columns, then parsing values and aggregating by (canonical food category,
+  substance name). Each output row includes a "contaminant" field with the
+  substance name.
 
 No values are hardcoded. All ppb values come from downloaded data files.
 """
@@ -146,16 +147,18 @@ RESULT_COL_CANDIDATES = [
     "result_value", "mgkg", "res", "quantification",
 ]
 
-# Regex to extract glyphosate concentration from free-text BNA cells.
-# Matches patterns like: "glyphosate 0.2 (MRL = 1.6)" or "glyphosate 0.07 (MRL = 0.1*)"
-_GLY_VALUE_RE = re.compile(
-    r"glyphosate\s+(?:sum\s+)?(\d+\.?\d*)\s*\((?:MRL|LOD)",
+# Generic regex to extract concentration from free-text BNA cells.
+# Matches patterns like: "glyphosate 0.2 (MRL = 1.6)" or "chlorpyrifos 0.07 (MRL = 0.1*)"
+# Group 1 = substance name, group 2 = concentration value.
+_VALUE_RE = re.compile(
+    r"(\b[a-zA-Z][\w\s\-()/]*?)\s+(?:sum\s+)?(\d+\.?\d*)\s*\((?:MRL|LOD)",
     re.IGNORECASE,
 )
 
-# Regex to extract LOD from SUM sheet cells like "glyphosate (0.05)" or "<0.05"
-_GLY_LOD_RE = re.compile(
-    r"glyphosate\s*\((\d+\.?\d*)\)",
+# Generic regex to extract LOD from SUM sheet cells like "glyphosate (0.05)" or "chlorpyrifos (0.01)"
+# Group 1 = substance name, group 2 = LOD value.
+_LOD_RE = re.compile(
+    r"(\b[a-zA-Z][\w\s\-()/]*?)\s*\((\d+\.?\d*)\)",
     re.IGNORECASE,
 )
 
@@ -282,8 +285,8 @@ class UKFSAFetcher(BaseFetcher):
     def parse(self, files: list[Path]) -> list[dict]:
         """
         Parse downloaded ODS data files and return Tier 2 aggregate rows.
-        Each file is parsed individually, glyphosate rows are filtered,
-        and results are aggregated by canonical food category.
+        Each file is parsed individually, all pesticide substance rows are
+        extracted, and results are aggregated by (canonical food category, substance).
         """
         all_rows = []
         for path in files:
@@ -301,8 +304,8 @@ class UKFSAFetcher(BaseFetcher):
 
     def _parse_data_file(self, path: Path) -> list[dict]:
         """
-        Parse a single ODS file, filter for glyphosate,
-        and aggregate results by food category.
+        Parse a single ODS file, extract all pesticide substance data,
+        and aggregate results by (food category, substance).
         """
         suffix = path.suffix.lower()
         if suffix == ".ods":
@@ -317,11 +320,11 @@ class UKFSAFetcher(BaseFetcher):
 
     def _parse_ods(self, ods_path: Path) -> list[dict]:
         """
-        Parse an ODS data file for glyphosate rows.
+        Parse an ODS data file for all pesticide rows.
 
         Reads ALL sheets from the multi-sheet workbook. For each sheet that
-        contains glyphosate data, extracts the food category from the sheet
-        name and parses glyphosate values according to the sheet type:
+        contains pesticide data, extracts the food category from the sheet
+        name and parses values according to the sheet type:
           - BNA sheets: free-text "glyphosate 0.2 (MRL = 1.6)" in pesticide column
           - SUM/ST sheets: structured rows with pesticide name and detection counts
           - Analyte_Detections: aggregate totals without food breakdown
@@ -337,14 +340,14 @@ class UKFSAFetcher(BaseFetcher):
         data_year = self._extract_year_from_filename(ods_path.name) or 2020
         published_date = f"{data_year + 1}-06-01"
 
-        # Collect glyphosate findings per canonical food category.
-        # key = food_category, value = dict with aggregation stats.
-        by_category: dict[str, dict] = defaultdict(
+        # Collect pesticide findings per (canonical food category, substance).
+        # key = (food_category, substance), value = dict with aggregation stats.
+        by_category_substance: dict[tuple[str, str], dict] = defaultdict(
             lambda: {"total": 0, "detected": 0, "ppb_values": [], "raw_cats": []}
         )
 
         sheet_count = len(all_sheets)
-        gly_sheet_count = 0
+        data_sheet_count = 0
 
         for sheet_name, df in all_sheets.items():
             if df.empty:
@@ -354,22 +357,23 @@ class UKFSAFetcher(BaseFetcher):
 
             # Skip purely introductory/summary sheets with no real data
             if sheet_lower in ("summary",) or sheet_lower.startswith("summary"):
-                # But check for glyphosate anyway
                 pass
 
-            # Find glyphosate in this sheet
-            gly_findings = self._find_glyphosate_in_sheet(df, sheet_name, ods_path)
-            if not gly_findings:
+            # Find all pesticide substance data in this sheet
+            findings = self._find_pesticide_data_in_sheet(df, sheet_name, ods_path)
+            if not findings:
                 continue
 
-            gly_sheet_count += 1
+            data_sheet_count += 1
 
             # Derive food category from sheet name
             food_cat_raw = _food_category_from_sheet_name(sheet_name)
 
-            for finding in gly_findings:
+            for finding in findings:
+                substance = finding.get("substance", "unknown")
+
                 if finding["source_type"] == "bna":
-                    # Individual sample with measured glyphosate value
+                    # Individual sample with measured value
                     ppb = finding.get("ppb")
                     raw_cat = food_cat_raw or finding.get("food_raw", "unknown")
                     canonical = normalize_category(raw_cat)
@@ -379,7 +383,8 @@ class UKFSAFetcher(BaseFetcher):
                         )
                         continue
 
-                    stats = by_category[canonical]
+                    key = (canonical, substance)
+                    stats = by_category_substance[key]
                     stats["total"] += 1
                     if ppb is not None and ppb > 0:
                         stats["detected"] += 1
@@ -400,7 +405,8 @@ class UKFSAFetcher(BaseFetcher):
                     n_detected = finding.get("n_detected", 0)
                     ppb_values = finding.get("ppb_values", [])
 
-                    stats = by_category[canonical]
+                    key = (canonical, substance)
+                    stats = by_category_substance[key]
                     stats["total"] += n_samples
                     stats["detected"] += n_detected
                     stats["ppb_values"].extend(ppb_values)
@@ -413,45 +419,46 @@ class UKFSAFetcher(BaseFetcher):
                     n_above_mrl = finding.get("n_above_mrl", 0)
                     logger.info(
                         "UK_FSA: Analyte_Detections in %s: %d detections below MRL, "
-                        "%d above MRL (no food breakdown -- recording as aggregate)",
-                        ods_path.name, n_detected, n_above_mrl,
+                        "%d above MRL for %s (no food breakdown -- recording as aggregate)",
+                        ods_path.name, n_detected, n_above_mrl, substance,
                     )
                     # Store as an "all foods" aggregate row
                     raw_cat = "all foods"
                     canonical = normalize_category(raw_cat)
                     if canonical:
-                        stats = by_category[canonical]
+                        key = (canonical, substance)
+                        stats = by_category_substance[key]
                         stats["total"] += n_detected + n_above_mrl
                         stats["detected"] += n_detected + n_above_mrl
                         stats["raw_cats"].append(raw_cat)
 
         logger.info(
-            "UK_FSA: scanned %d sheets in %s, %d sheets contained glyphosate data",
-            sheet_count, ods_path.name, gly_sheet_count,
+            "UK_FSA: scanned %d sheets in %s, %d sheets contained pesticide data",
+            sheet_count, ods_path.name, data_sheet_count,
         )
 
         # Build output rows from aggregated data.
-        rows = self._build_output_rows(by_category, data_year, published_date, ods_path)
+        rows = self._build_output_rows(by_category_substance, data_year, published_date, ods_path)
 
         logger.info(
-            "UK_FSA: parsed %d category rows from %s",
+            "UK_FSA: parsed %d category-substance rows from %s",
             len(rows), ods_path.name,
         )
         return rows
 
-    def _find_glyphosate_in_sheet(
+    def _find_pesticide_data_in_sheet(
         self, df: pd.DataFrame, sheet_name: str, file_path: Path
     ) -> list[dict]:
         """
-        Scan a single sheet DataFrame for glyphosate data.
+        Scan a single sheet DataFrame for all pesticide substance data.
 
         Returns a list of finding dicts. Each finding has a "source_type" key
         indicating the data format ("bna", "sum", or "analyte") plus extracted
-        glyphosate data.
+        substance data including a "substance" field.
 
         Strategy:
         1. Check if this is a known Analyte_Detections sheet (2019-2020).
-        2. Check all cells for "glyphosate" text.
+        2. Detect substance/pesticide columns.
         3. Determine sheet type (BNA vs SUM/ST) and parse accordingly.
         """
         sheet_lower = sheet_name.strip().lower()
@@ -460,14 +467,23 @@ class UKFSAFetcher(BaseFetcher):
         if "analyte" in sheet_lower and "detection" in sheet_lower:
             return self._parse_analyte_sheet(df, sheet_name, file_path)
 
-        # --- Scan all cells for "glyphosate" ---
-        gly_cols = []
+        # --- Detect substance/pesticide columns ---
+        # Scan all columns for any that contain pesticide substance names.
+        # We look for columns whose values contain known pesticide-related text
+        # or match our substance column candidates.
+        substance_cols = []
         for col in df.columns:
+            col_lower = str(col).lower().strip()
+            # Check if the column name matches substance candidates
+            if any(candidate in col_lower for candidate in SUBSTANCE_COL_CANDIDATES):
+                substance_cols.append(col)
+                continue
+            # Check if column values contain pesticide-related content
             vals = df[col].dropna().astype(str).str.lower()
-            if vals.str.contains("glyphosate", na=False).any():
-                gly_cols.append(col)
+            if vals.str.contains(r"pesticide|residue|substance|analyte", na=False, regex=True).any():
+                substance_cols.append(col)
 
-        if not gly_cols:
+        if not substance_cols:
             return []
 
         # Determine sheet type from name suffix
@@ -482,13 +498,13 @@ class UKFSAFetcher(BaseFetcher):
         findings = []
 
         if is_bna:
-            findings = self._parse_bna_sheet(df, sheet_name, gly_cols, file_path)
+            findings = self._parse_bna_sheet(df, sheet_name, substance_cols, file_path)
         elif is_sum:
-            findings = self._parse_sum_sheet(df, sheet_name, gly_cols, file_path)
+            findings = self._parse_sum_sheet(df, sheet_name, substance_cols, file_path)
         else:
             # Unknown sheet type -- try both approaches
-            findings_bna = self._parse_bna_sheet(df, sheet_name, gly_cols, file_path)
-            findings_sum = self._parse_sum_sheet(df, sheet_name, gly_cols, file_path)
+            findings_bna = self._parse_bna_sheet(df, sheet_name, substance_cols, file_path)
+            findings_sum = self._parse_sum_sheet(df, sheet_name, substance_cols, file_path)
             findings = findings_bna if findings_bna else findings_sum
 
         return findings
@@ -501,6 +517,8 @@ class UKFSAFetcher(BaseFetcher):
 
         Columns: active/residue, number_of_detections_below_mrl,
                  number_of_detections_over_mrl.
+
+        Processes ALL substances (not just glyphosate).
         """
         df.columns = [c.lower().strip().replace(" ", "_") for c in df.columns]
 
@@ -517,17 +535,13 @@ class UKFSAFetcher(BaseFetcher):
         if not sub_col:
             return []
 
-        mask = df[sub_col].astype(str).str.lower().str.contains("glyphosate", na=False)
-        # Exclude AMPA-only rows
-        ampa_mask = df[sub_col].astype(str).str.lower().str.contains("ampa", na=False) & ~mask
-        gly_mask = mask & ~ampa_mask
-
-        gly_df = df[gly_mask.values]
-        if gly_df.empty:
-            return []
-
+        # Process all substance rows (no glyphosate/AMPA filtering)
         findings = []
-        for _, row in gly_df.iterrows():
+        for _, row in df.iterrows():
+            substance = str(row[sub_col]).strip()
+            if not substance or substance.lower() == "nan":
+                continue
+
             n_below = self._safe_int(row, [
                 "number_of_detections_below_mrl",
                 "number_findings_below_mrl",
@@ -547,23 +561,24 @@ class UKFSAFetcher(BaseFetcher):
 
             findings.append({
                 "source_type": "analyte",
+                "substance": substance,
                 "n_detected": n_detected,
                 "n_above_mrl": n_above or 0,
             })
 
         if findings:
             logger.info(
-                "UK_FSA: Analyte_Detections in %s sheet [%s]: %d glyphosate entries",
+                "UK_FSA: Analyte_Detections in %s sheet [%s]: %d substance entries",
                 file_path.name, sheet_name, len(findings),
             )
 
         return findings
 
     def _parse_bna_sheet(
-        self, df: pd.DataFrame, sheet_name: str, gly_cols: list, file_path: Path
+        self, df: pd.DataFrame, sheet_name: str, substance_cols: list, file_path: Path
     ) -> list[dict]:
         """
-        Parse a BNA (Brand Name Annex) sheet for glyphosate.
+        Parse a BNA (Brand Name Annex) sheet for all pesticide substances.
 
         BNA sheets have individual sample rows. The pesticide column contains
         free-text entries like "glyphosate 0.2 (MRL = 1.6)". The food category
@@ -614,57 +629,63 @@ class UKFSAFetcher(BaseFetcher):
                 pestic_col = col
                 break
 
-        # Also check gly_cols (already confirmed to contain glyphosate)
+        # Also check substance_cols as fallback
         if pestic_col is None:
-            pestic_col = gly_cols[-1]  # Last column is typically the pesticide col
+            pestic_col = substance_cols[-1]  # Last column is typically the pesticide col
 
-        # Scan for glyphosate values in the pesticide column
+        # Scan ALL values in the pesticide column (no glyphosate filter)
         findings = []
         pestic_values = df[pestic_col].dropna().astype(str)
-        gly_mask = pestic_values.str.lower().str.contains("glyphosate", na=False)
-        # Exclude AMPA
-        ampa_mask = pestic_values.str.lower().str.contains("ampa", na=False)
-        gly_only = gly_mask & ~ampa_mask
 
-        gly_values = pestic_values[gly_only]
-        for val in gly_values:
-            ppb = self._extract_glyphosate_ppb(val)
-            findings.append({
-                "source_type": "bna",
-                "ppb": ppb,
-                "raw_value": val,
-            })
+        for val in pestic_values:
+            val_stripped = val.strip()
+            if not val_stripped or val_stripped.lower() == "nan":
+                continue
+
+            # Try to extract substance name and concentration from free-text
+            # Pattern: "substance_name value (MRL = x)" e.g. "glyphosate 0.2 (MRL = 1.6)"
+            substance, ppb = self._extract_pesticide_ppb(val_stripped)
+            if substance and ppb is not None:
+                findings.append({
+                    "source_type": "bna",
+                    "substance": substance,
+                    "ppb": ppb,
+                    "raw_value": val_stripped,
+                })
+            elif substance:
+                # Substance mentioned but no parseable value
+                findings.append({
+                    "source_type": "bna",
+                    "substance": substance,
+                    "ppb": None,
+                    "raw_value": val_stripped,
+                })
 
         if findings:
             logger.info(
-                "UK_FSA: BNA sheet [%s] in %s: %d glyphosate findings",
+                "UK_FSA: BNA sheet [%s] in %s: %d pesticide findings",
                 sheet_name, file_path.name, len(findings),
             )
 
         return findings
 
     def _parse_sum_sheet(
-        self, df: pd.DataFrame, sheet_name: str, gly_cols: list, file_path: Path
+        self, df: pd.DataFrame, sheet_name: str, substance_cols: list, file_path: Path
     ) -> list[dict]:
         """
-        Parse a SUM/ST (summary) sheet for glyphosate.
+        Parse a SUM/ST (summary) sheet for all pesticide substances.
 
         SUM sheets have per-pesticide rows. Column 0 typically contains the
         pesticide name. The structure varies by year but common patterns are:
           - glyphosate | <0.05 (i.e. not found) | <count>
-          - glyphosate (0.05) | nan | nan    (LOD-only entry)
+          - chlorpyrifos (0.05) | nan | nan    (LOD-only entry)
         """
         findings = []
 
-        for col in gly_cols:
+        for col in substance_cols:
             vals = df[col].dropna().astype(str)
-            gly_mask = vals.str.lower().str.contains("glyphosate", na=False)
-            # Exclude AMPA and abbreviation codes like "GLY" alone
-            ampa_mask = vals.str.lower().str.contains("ampa", na=False)
-            gly_only = gly_mask & ~ampa_mask
 
-            gly_values = vals[gly_only]
-            for val in gly_values:
+            for val in vals:
                 val_lower = val.lower().strip()
 
                 # Skip pure abbreviation codes (e.g. "GLY") -- these are
@@ -672,51 +693,62 @@ class UKFSAFetcher(BaseFetcher):
                 if re.match(r"^[a-z]{2,4}$", val_lower):
                     continue
 
-                # Skip entries that are just "glyphosate" without a value --
+                # Skip empty / nan
+                if not val_lower or val_lower == "nan":
+                    continue
+
+                # Try to identify substance name from the cell value.
+                # For SUM sheets, the substance name is often the cell value itself
+                # (e.g. "glyphosate", "chlorpyrifos"), with detection data in
+                # adjacent columns.
+                substance_name = self._identify_substance(val_lower)
+                if not substance_name:
+                    continue
+
+                # Skip entries that are just the substance name without a value --
                 # the real data is on the next columns
-                if val_lower == "glyphosate":
+                if val_lower == substance_name.lower():
                     # Get the row index and read other columns for detection info
-                    idx_positions = gly_only[gly_only].index
+                    idx_positions = vals[vals == val].index
                     for idx in idx_positions:
                         if df.loc[idx, col] != val:
                             continue
-                        finding = self._parse_sum_row(df, idx, col)
+                        finding = self._parse_sum_row(df, idx, col, substance_name)
                         if finding:
                             findings.append(finding)
-                    break  # Already processed all rows for this column
+                    continue
 
                 # Check for LOD-only entry like "glyphosate (0.05)"
-                lod_match = _GLY_LOD_RE.match(val)
+                lod_match = _LOD_RE.match(val)
                 if lod_match and "mrl" not in val_lower:
                     # This is a LOD reference, no actual detections
-                    # (e.g. "glyphosate (0.05)" means glyphosate was tested
-                    # with LOD 0.05 mg/kg but not necessarily detected)
                     continue
 
                 # Check for BNA-style embedded value (shouldn't happen in SUM,
                 # but handle gracefully)
-                ppb = self._extract_glyphosate_ppb(val)
+                extracted_substance, ppb = self._extract_pesticide_ppb(val)
                 if ppb is not None:
                     findings.append({
                         "source_type": "bna",  # Treat as sample-level finding
+                        "substance": extracted_substance or substance_name,
                         "ppb": ppb,
                         "raw_value": val,
                     })
 
         if findings:
             logger.info(
-                "UK_FSA: SUM sheet [%s] in %s: %d glyphosate findings",
+                "UK_FSA: SUM sheet [%s] in %s: %d substance findings",
                 sheet_name, file_path.name, len(findings),
             )
 
         return findings
 
     def _parse_sum_row(
-        self, df: pd.DataFrame, idx: int, name_col: str
+        self, df: pd.DataFrame, idx: int, name_col: str, substance_name: str
     ) -> dict | None:
         """
         Parse a single row from a SUM sheet where the name column contains
-        exactly "glyphosate". Look at adjacent columns for detection data.
+        a substance name. Look at adjacent columns for detection data.
 
         Typical SUM row pattern:
           col0: "glyphosate"
@@ -748,7 +780,7 @@ class UKFSAFetcher(BaseFetcher):
             try:
                 count = int(float(cell_val))
                 # Heuristic: if we have a LOD text and this is a number,
-                # it's the count of samples where glyphosate was below LOD
+                # it's the count of samples where the substance was below LOD
                 # (i.e. tested but not detected at that LOD).
                 # The number represents samples with residue below LOD.
                 n_samples += count
@@ -766,37 +798,77 @@ class UKFSAFetcher(BaseFetcher):
 
         return {
             "source_type": "sum",
+            "substance": substance_name,
             "n_samples": n_samples,
             "n_detected": n_detected,
             "ppb_values": ppb_values,
         }
 
-    def _extract_glyphosate_ppb(self, text: str) -> float | None:
+    def _extract_pesticide_ppb(self, text: str) -> tuple[str | None, float | None]:
         """
-        Extract glyphosate concentration in ppb (ug/kg) from free-text.
+        Extract substance name and concentration in ppb (ug/kg) from free-text.
 
         Handles patterns like:
           "glyphosate 0.2 (MRL = 1.6)"
-          "glyphosate 0.07 (MRL = 0.1*)"
+          "chlorpyrifos 0.07 (MRL = 0.1*)"
 
-        Returns the value in ppb (mg/kg * 1000), or None if not parseable.
+        Returns (substance_name, ppb_value) or (substance_name, None) if value
+        not parseable, or (None, None) if no substance found.
         """
-        match = _GLY_VALUE_RE.search(text)
+        match = _VALUE_RE.search(text)
         if match:
-            mg_kg = float(match.group(1))
-            return mg_kg * 1000.0  # Convert mg/kg to ppb (ug/kg)
-        return None
+            substance = match.group(1).strip().rstrip(" ")
+            try:
+                mg_kg = float(match.group(2))
+                return substance, mg_kg * 1000.0  # Convert mg/kg to ppb (ug/kg)
+            except (ValueError, TypeError):
+                return substance, None
+        return None, None
+
+    def _identify_substance(self, text: str) -> str | None:
+        """
+        Try to identify a pesticide substance name from a text string.
+
+        For SUM sheets, the cell value is often just the substance name
+        (e.g. "glyphosate", "chlorpyrifos", "deltamethrin"). This method
+        checks if the text looks like a valid substance name.
+
+        Returns the substance name (title-cased) or None if not identifiable.
+        """
+        text = text.strip()
+        if not text or text.lower() == "nan":
+            return None
+
+        # Skip entries that look like numbers, LOD values, or structural markers
+        if re.match(r"^[\d<>=\.\s]+$", text):
+            return None
+        # Skip abbreviation codes (e.g. "GLY", "CLO")
+        if re.match(r"^[a-z]{2,4}$", text.lower()):
+            return None
+        # Skip "not found" patterns
+        if "not found" in text.lower():
+            return None
+        # Skip MRL-only entries
+        if re.match(r"^[^a-zA-Z]*mrl", text.lower()):
+            return None
+        # Must contain at least one letter and be a reasonable length
+        if not re.search(r"[a-zA-Z]", text):
+            return None
+        if len(text) > 80:  # Too long to be a substance name
+            return None
+
+        return text.title()
 
     def _build_output_rows(
         self,
-        by_category: dict[str, dict],
+        by_category_substance: dict[tuple[str, str], dict],
         data_year: int,
         published_date: str,
         file_path: Path,
     ) -> list[dict]:
-        """Build Tier 2 output rows from aggregated category data."""
+        """Build Tier 2 output rows from aggregated (category, substance) data."""
         rows = []
-        for food_category, stats in by_category.items():
+        for (food_category, substance), stats in by_category_substance.items():
             if stats["total"] == 0:
                 continue
 
@@ -823,6 +895,7 @@ class UKFSAFetcher(BaseFetcher):
                 "published_date": published_date,
                 "data_year": data_year,
                 "food_category": food_category,
+                "contaminant": substance,
                 "raw_category": raw_cat,
                 "samples_total": total,
                 "samples_detected": n_detected,
@@ -834,22 +907,21 @@ class UKFSAFetcher(BaseFetcher):
                 "methodology_note": (
                     f"UK FSA Pesticide Residues in Food (PRiF) monitoring programme. "
                     f"Individual sample results from annual data for {data_year}. "
-                    f"Glyphosate-specific results aggregated by canonical food category. "
-                    f"Multi-pesticide dataset filtered for glyphosate (AMPA excluded). "
+                    f"Results aggregated by canonical food category and substance. "
                     f"Data extracted from multi-sheet ODS workbook (BNA and SUM sheets). "
                     f"Original data in mg/kg, converted to ppb."
                 ),
                 "confidence": "high",
                 "raw_file_path": str(file_path),
                 "dedup_key": build_dedup_key(
-                    "UK_FSA", food_category, data_year
+                    "UK_FSA", food_category, substance, data_year
                 ),
             })
 
         return rows
 
     def _parse_csv(self, csv_path: Path) -> list[dict]:
-        """Parse a CSV data file for glyphosate rows."""
+        """Parse a CSV data file for all pesticide rows."""
         try:
             df = pd.read_csv(csv_path, low_memory=False)
         except UnicodeDecodeError:
@@ -859,10 +931,10 @@ class UKFSAFetcher(BaseFetcher):
                 raise ValueError(
                     f"Cannot read CSV {csv_path.name}: {e}"
                 ) from e
-        return self._extract_glyphosate_rows(df, csv_path)
+        return self._extract_pesticide_rows(df, csv_path)
 
     def _parse_excel(self, xlsx_path: Path) -> list[dict]:
-        """Parse an Excel data file for glyphosate rows."""
+        """Parse an Excel data file for all pesticide rows."""
         try:
             df = pd.read_excel(xlsx_path, sheet_name=0, engine="openpyxl")
         except Exception:
@@ -872,14 +944,14 @@ class UKFSAFetcher(BaseFetcher):
                 raise ValueError(
                     f"Cannot read Excel {xlsx_path.name}: {e}"
                 ) from e
-        return self._extract_glyphosate_rows(df, xlsx_path)
+        return self._extract_pesticide_rows(df, xlsx_path)
 
-    def _extract_glyphosate_rows(
+    def _extract_pesticide_rows(
         self, df: pd.DataFrame, file_path: Path
     ) -> list[dict]:
         """
-        Fallback glyphosate extraction for non-ODS formats (CSV, XLSX).
-        Uses dynamic column detection with the traditional approach.
+        Extract all pesticide substance data for non-ODS formats (CSV, XLSX).
+        Uses dynamic column detection. Processes ALL substances, not just glyphosate.
         """
         # Normalize column names for matching.
         df.columns = [c.lower().strip().replace(" ", "_") for c in df.columns]
@@ -905,43 +977,32 @@ class UKFSAFetcher(BaseFetcher):
                 f"Available: {list(df.columns)}"
             )
 
-        # Filter for glyphosate.
-        gly_mask = df[substance_col].astype(str).str.lower().str.contains(
-            "glyphosate", na=False
-        )
-        gly_df = df[gly_mask].copy()
+        # Drop rows with empty substance values.
+        clean_df = df[
+            df[substance_col].notna()
+            & (df[substance_col].astype(str).str.strip().str.lower() != "nan")
+            & (df[substance_col].astype(str).str.strip() != "")
+        ].copy()
 
-        if gly_df.empty:
-            logger.info("UK_FSA: no glyphosate rows in %s", file_path.name)
-            return []
-
-        # Exclude AMPA metabolite rows.
-        ampa_mask = gly_df[substance_col].astype(str).str.lower().str.contains(
-            "ampa", na=False
-        )
-        gly_df = gly_df[~ampa_mask].copy()
-
-        if gly_df.empty:
-            logger.info(
-                "UK_FSA: only AMPA (no glyphosate) in %s", file_path.name
-            )
+        if clean_df.empty:
+            logger.info("UK_FSA: no substance rows in %s", file_path.name)
             return []
 
         logger.info(
-            "UK_FSA: %d glyphosate sample rows in %s",
-            len(gly_df), file_path.name,
+            "UK_FSA: %d substance sample rows in %s",
+            len(clean_df), file_path.name,
         )
 
         # Infer data year from filename.
         data_year = self._extract_year_from_filename(file_path.name) or 2020
         published_date = f"{data_year + 1}-06-01"
 
-        # Aggregate by canonical food category.
-        by_category: dict[str, dict] = defaultdict(
+        # Aggregate by (canonical food category, substance).
+        by_category_substance: dict[tuple[str, str], dict] = defaultdict(
             lambda: {"total": 0, "detected": 0, "ppb_values": [], "raw_cats": []}
         )
 
-        for commodity, group in gly_df.groupby(commodity_col):
+        for (commodity, substance), group in clean_df.groupby([commodity_col, substance_col]):
             raw_cat = str(commodity).strip()
             if not raw_cat or raw_cat.lower() in ("nan", "total", "all"):
                 continue
@@ -950,6 +1011,10 @@ class UKFSAFetcher(BaseFetcher):
                 logger.debug(
                     "UK_FSA: no canonical category for '%s' -- skipping", raw_cat
                 )
+                continue
+
+            substance_name = str(substance).strip().title()
+            if not substance_name or substance_name.lower() == "nan":
                 continue
 
             total = len(group)
@@ -963,13 +1028,14 @@ class UKFSAFetcher(BaseFetcher):
                 n_detected = 0
                 ppb_detected = []
 
-            stats = by_category[food_category]
+            key = (food_category, substance_name)
+            stats = by_category_substance[key]
             stats["total"] += total
             stats["detected"] += n_detected
             stats["ppb_values"].extend(ppb_detected)
             stats["raw_cats"].append(raw_cat)
 
-        return self._build_output_rows(by_category, data_year, published_date, file_path)
+        return self._build_output_rows(by_category_substance, data_year, published_date, file_path)
 
     def _find_col(self, df: pd.DataFrame, candidates: list[str]) -> str | None:
         """Find the first matching column name from a list of candidates."""
