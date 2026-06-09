@@ -332,10 +332,10 @@ class DetectionEngine:
 
         residues = [
             CommodityResidue(
-                pesticide_name=r.get("pesticide_name", ""),
-                pct_samples_detected=r.get("pct_samples_detected", 0),
-                median_detected_ppb=r.get("median_detected_ppb", 0),
-                max_detected_ppb=r.get("max_detected_ppb", 0),
+                pesticide_name=r.get("pesticide_name") or r.get("pesticide", ""),
+                pct_samples_detected=r.get("pct_samples_detected") or r.get("detection_rate", 0),
+                median_detected_ppb=r.get("median_detected_ppb") or r.get("avg_ppb", 0),
+                max_detected_ppb=r.get("max_detected_ppb") or r.get("max_ppb", 0),
                 epa_tolerance_ppb=r.get("epa_tolerance_ppb", 0),
                 tolerance_revoked=r.get("tolerance_revoked", False),
                 pdp_year=r.get("pdp_year", 0),
