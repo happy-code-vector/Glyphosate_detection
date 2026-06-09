@@ -188,37 +188,68 @@ def _seed_category_aliases(conn):
         "INSERT OR IGNORE INTO category_aliases (alias, canonical_key) VALUES (?, ?)",
         aliases,
     )
+    invalidate_alias_cache()
     logger.info("Seeded %d category aliases from CSV", len(aliases))
+
+
+# Module-level cache for category aliases (loaded once, reused across calls)
+_alias_cache: Optional[dict[str, str]] = None  # alias -> canonical_key
+_alias_substring: Optional[list[tuple[str, str]]] = None  # (alias, key) for substring matching
+
+
+def _load_alias_cache(conn=None):
+    """Load category aliases into module-level cache."""
+    global _alias_cache, _alias_substring
+    if _alias_cache is not None:
+        return
+
+    def _load(c):
+        global _alias_cache, _alias_substring
+        rows = c.execute("SELECT alias, canonical_key FROM category_aliases").fetchall()
+        _alias_cache = {row[0]: row[1] for row in rows}
+        # Sort by alias length descending — prefer longer (more specific) matches
+        _alias_substring = sorted(
+            [(row[0], row[1]) for row in rows],
+            key=lambda x: len(x[0]),
+            reverse=True,
+        )
+
+    if conn:
+        _load(conn)
+    else:
+        with get_connection() as c:
+            _load(c)
+
+
+def invalidate_alias_cache():
+    """Clear the alias cache. Call after modifying category_aliases table."""
+    global _alias_cache, _alias_substring
+    _alias_cache = None
+    _alias_substring = None
 
 
 def normalize_category(raw: str, conn=None) -> Optional[str]:
     """
     Map any raw category string to a canonical key.
-    Uses the database aliases table. Falls back to substring matching.
+    Uses cached aliases for fast matching. Falls back to substring matching.
     Returns None if no match found — caller must handle this.
     """
     if not raw:
         return None
     cleaned = raw.lower().strip()
 
-    def _lookup(c):
-        # 1. Exact match
-        row = c.execute(
-            "SELECT canonical_key FROM category_aliases WHERE alias = ?", (cleaned,)
-        ).fetchone()
-        if row:
-            return row[0]
-        # 2. Substring: find all aliases that appear inside the raw string
-        rows = c.execute("SELECT alias, canonical_key FROM category_aliases").fetchall()
-        for alias, key in rows:
-            if alias in cleaned:
-                return key
-        return None
+    _load_alias_cache(conn)
 
-    if conn:
-        return _lookup(conn)
-    with get_connection() as c:
-        return _lookup(c)
+    # 1. Exact match (O(1) dict lookup)
+    if cleaned in _alias_cache:
+        return _alias_cache[cleaned]
+
+    # 2. Substring: find longest alias that appears inside the raw string
+    for alias, key in _alias_substring:
+        if alias in cleaned:
+            return key
+
+    return None
 
 
 def build_dedup_key(*parts) -> str:
