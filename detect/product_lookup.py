@@ -1,8 +1,16 @@
 import sqlite3
+import sys
+from pathlib import Path
 
 from detect.models import ProductResult
 
-VALID_CONTAMINANTS = {"glyphosate", "lead", "atrazine"}
+# Add data directory to path for contaminant imports
+sys.path.insert(0, str(Path(__file__).parent.parent / "data"))
+try:
+    from contaminants import CONTAMINANT_KEYS
+    VALID_CONTAMINANTS = set(CONTAMINANT_KEYS)
+except ImportError:
+    VALID_CONTAMINANTS = {"glyphosate", "lead", "atrazine"}
 
 
 class ProductLookupQuery:
