@@ -100,6 +100,7 @@ def seed_alternatives(dry_run=False):
             "lookup_key": key,
             "lookup_type": "product_slug",
             "flagged_product_name": data["flagged_product"],
+            "flagged_brand": data["brand"],
             "risk_label": data["action_label"],
             "flag_summary": f"{data['contaminants']} ({data['severity']})",
             "alternatives": json.dumps(data["alternatives"]),
@@ -123,10 +124,10 @@ def seed_alternatives(dry_run=False):
                 conn.execute("""
                     INSERT OR IGNORE INTO alternatives (
                         lookup_key, lookup_type, flagged_product_name,
-                        risk_label, flag_summary, alternatives, last_updated
+                        flagged_brand, risk_label, flag_summary, alternatives, last_updated
                     ) VALUES (
                         :lookup_key, :lookup_type, :flagged_product_name,
-                        :risk_label, :flag_summary, :alternatives,
+                        :flagged_brand, :risk_label, :flag_summary, :alternatives,
                         datetime('now')
                     )
                 """, row)

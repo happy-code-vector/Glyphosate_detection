@@ -1,17 +1,14 @@
 """
 fetchers/water_quality.py
 
-Multi-contaminant water monitoring data from USGS Water Quality Portal and EPA UCMR.
+Multi-contaminant water monitoring data from USGS Water Quality Portal.
 
-Supported contaminants: glyphosate, lead, atrazine.
-Each is queried separately from USGS WQP with contaminant-specific parameters.
+Source:
+  USGS Water Quality Portal
+  https://waterqualitydata.us
 
-Sources:
-  1. USGS WQP — surface water + groundwater detections nationwide
-     API: https://waterqualitydata.us/data/Result/search
-  2. EPA UCMR 3 — drinking water data (2013-2015)
-     URL: https://www.epa.gov/dwucmr/occurrence-data-unregulated-contaminant-monitoring-rule
-  3. Drinking water regulatory standards (EPA MCL, EU DWD, Health Canada)
+Downloads per-state CSV data, aggregates by (state, water_type, year),
+and inserts into the water_tests table.
 
 All values stored as ppb (ug/L).
 """
@@ -31,6 +28,25 @@ logger = logging.getLogger(__name__)
 # USGS Water Quality Portal
 # ─────────────────────────────────────────────────────────────────────
 WQP_BASE_URL = "https://www.waterqualitydata.us/data/Result/search"
+
+# State codes for per-state download
+STATE_CODES = {
+    "US:06": "California",
+    "US:19": "Iowa",
+    "US:17": "Illinois",
+    "US:39": "Ohio",
+    "US:55": "Wisconsin",
+    "US:26": "Michigan",
+    "US:27": "Minnesota",
+    "US:53": "Washington",
+    "US:41": "Oregon",
+    "US:51": "Virginia",
+    "US:36": "New York",
+    "US:48": "Texas",
+    "US:12": "Florida",
+    "US:42": "Pennsylvania",
+    "US:25": "Massachusetts",
+}
 
 # Site type → water_type mapping
 _SITE_TYPE_MAP = {
@@ -120,212 +136,154 @@ class WaterQualityFetcher(BaseFetcher):
         logger.info("Seeded %s drinking water standards", self.contaminant)
 
     def fetch(self) -> list[Path]:
+        """Download per-state water data files."""
         paths = []
-        wqp_path = self._fetch_wqp()
-        if wqp_path:
-            paths.append(wqp_path)
-        return paths
-
-    def _fetch_wqp(self) -> Path | None:
-        """Download water data from Water Quality Portal for this contaminant."""
-        cache_path = RAW_DATA_DIR / self.wqp_filename
-        if cache_path.exists():
-            logger.info("Cache hit: %s", self.wqp_filename)
-            return cache_path
-
         base_params = {
             "characteristicName": self.config["wqp_characteristic"],
             "sampleMedia": "Water",
             "mimeType": "csv",
             "sorted": "no",
         }
-        # Allow per-contaminant param overrides (e.g., sampleMedia casing)
         base_params.update(self.config.get("wqp_params_override", {}))
 
-        # Try unbounded query first
-        try:
-            logger.info("Downloading USGS WQP %s water data...", self.contaminant)
-            resp = SESSION.get(WQP_BASE_URL, params=base_params, timeout=300)
-            if resp.status_code == 200 and len(resp.content) > 1000:
-                cache_path.write_bytes(resp.content)
-                logger.info("WQP %s download: %d bytes", self.contaminant, len(resp.content))
-                return cache_path
-            logger.warning("WQP unbounded query for %s returned %d (%d bytes), trying state queries",
-                           self.contaminant, resp.status_code, len(resp.content))
-        except Exception as e:
-            logger.warning("WQP unbounded query for %s failed: %s, trying state queries",
-                           self.contaminant, e)
+        for statecode, state_name in STATE_CODES.items():
+            dest = RAW_DATA_DIR / f"wqp_{self.contaminant}_{state_name.lower().replace(' ', '_')}.csv"
+            if dest.exists():
+                logger.info("Cache hit: %s", dest.name)
+                paths.append(dest)
+                continue
 
-        # Fall back to state-based queries for large datasets (e.g., lead, atrazine)
-        # Key agricultural/industrial states with monitoring data
-        states = [
-            "US:06",  # California
-            "US:19",  # Iowa
-            "US:17",  # Illinois
-            "US:39",  # Ohio
-            "US:55",  # Wisconsin
-            "US:26",  # Michigan
-            "US:27",  # Minnesota
-            "US:53",  # Washington
-            "US:41",  # Oregon
-            "US:51",  # Virginia
-        ]
-
-        all_content = None
-        for state in states:
-            params = {**base_params, "statecode": state, "startDateLo": "01-01-2018", "startDateHi": "12-31-2023"}
+            params = {**base_params, "statecode": statecode}
             try:
-                logger.info("WQP %s: fetching %s...", self.contaminant, state)
-                resp = SESSION.get(WQP_BASE_URL, params=params, timeout=60)
+                logger.info("WQP %s: fetching %s...", self.contaminant, state_name)
+                resp = SESSION.get(WQP_BASE_URL, params=params, timeout=120)
                 if resp.status_code == 200 and len(resp.content) > 1000:
-                    if all_content is None:
-                        all_content = resp.content
-                    else:
-                        # Merge: skip header from subsequent chunks
-                        lines = resp.content.split(b"\n", 1)
-                        if len(lines) > 1:
-                            all_content += b"\n" + lines[1]
-                    logger.info("WQP %s %s: %d bytes", self.contaminant, state, len(resp.content))
+                    dest.write_bytes(resp.content)
+                    paths.append(dest)
+                    logger.info("WQP %s %s: %d bytes", self.contaminant, state_name, len(resp.content))
                 else:
                     logger.warning("WQP %s %s: status %d (%d bytes)",
-                                   self.contaminant, state, resp.status_code, len(resp.content))
+                                   self.contaminant, state_name, resp.status_code, len(resp.content))
             except Exception as e:
-                logger.warning("WQP %s %s failed: %s", self.contaminant, state, e)
+                logger.warning("WQP %s %s failed: %s", self.contaminant, state_name, e)
 
-        # Also try date ranges as fallback
+        # Also try date range fallback for states without data
         date_ranges = self.config.get("wqp_date_ranges", [])
         for start, end in date_ranges:
             params = {**base_params, "startDateLo": start, "startDateHi": end}
+            dest = RAW_DATA_DIR / f"wqp_{self.contaminant}_{start}_{end}.csv"
+            if dest.exists():
+                paths.append(dest)
+                continue
             try:
                 logger.info("WQP %s: fetching %s to %s...", self.contaminant, start, end)
                 resp = SESSION.get(WQP_BASE_URL, params=params, timeout=300)
                 if resp.status_code == 200 and len(resp.content) > 1000:
-                    if all_content is None:
-                        all_content = resp.content
-                    else:
-                        # Merge: skip header from subsequent chunks
-                        lines = resp.content.split(b"\n", 1)
-                        if len(lines) > 1:
-                            all_content += b"\n" + lines[1]
-                    logger.info("WQP %s %s-%s: %d bytes", self.contaminant, start, end,
-                                len(resp.content))
-                else:
-                    logger.warning("WQP %s %s-%s: status %d (%d bytes)",
-                                   self.contaminant, start, end, resp.status_code,
-                                   len(resp.content))
+                    dest.write_bytes(resp.content)
+                    paths.append(dest)
+                    logger.info("WQP %s %s-%s: %d bytes", self.contaminant, start, end, len(resp.content))
             except Exception as e:
                 logger.warning("WQP %s %s-%s failed: %s", self.contaminant, start, end, e)
 
-        if all_content and len(all_content) > 1000:
-            cache_path.write_bytes(all_content)
-            logger.info("WQP %s total download: %d bytes", self.contaminant, len(all_content))
-            return cache_path
+        if not paths:
+            logger.error("WQP %s: all queries returned empty data", self.contaminant)
 
-        logger.error("WQP %s: all queries returned empty data", self.contaminant)
-        return None
+        return paths
 
     def parse(self, files: list[Path]) -> list[dict]:
+        """Parse per-state water data files and aggregate by (state, water_type, year)."""
         all_rows = []
-        file_map = {f.name: f for f in files}
-        wqp_path = file_map.get(self.wqp_filename)
-        if wqp_path:
-            all_rows.extend(self._parse_wqp(wqp_path))
+        for path in files:
+            # Extract state name from filename
+            state = self._extract_state_from_filename(path)
+            rows = self._parse_state_file(path, state)
+            all_rows.extend(rows)
         return all_rows
 
-    def _parse_wqp(self, csv_path: Path) -> list[dict]:
-        """Parse WQP CSV water data for this contaminant."""
+    def _extract_state_from_filename(self, path: Path) -> str:
+        """Extract state name from filename like 'wqp_glyphosate_california.csv'."""
+        name = path.stem  # e.g., "wqp_glyphosate_california"
+        parts = name.split("_")
+        # Remove the first two parts (wqp, contaminant)
+        if len(parts) >= 3:
+            state_part = "_".join(parts[2:])
+            # Handle date range files
+            if "-" in state_part and state_part.replace("-", "").isdigit():
+                return "National"
+            return state_part.replace("_", " ").title()
+        return "National"
+
+    def _parse_state_file(self, path: Path, state: str) -> list[dict]:
+        """Parse a single state's water data file."""
         try:
-            df = pd.read_csv(csv_path, low_memory=False)
+            df = pd.read_csv(path, low_memory=False, encoding="latin-1")
         except Exception as e:
-            logger.error("WQP CSV parse failed for %s: %s", self.contaminant, e)
+            logger.warning("WQP %s: failed to read %s: %s", self.contaminant, path.name, e)
             return []
 
-        logger.info("WQP %s: %d rows, columns: %s",
-                     self.contaminant, len(df), list(df.columns)[:15])
+        if df.empty:
+            return []
 
+        # Normalize column names
         df.columns = [c.strip() for c in df.columns]
 
         # Find key columns
-        result_col = next(
-            (c for c in df.columns if c.lower() in ("resultmeasurevalue", "resultmeasure/value")),
-            None,
-        )
-        unit_col = next(
-            (c for c in df.columns if "measureunitcode" in c.lower() or "measure/unitcode" in c.lower()),
-            None,
-        )
-        date_col = next(
-            (c for c in df.columns if "activitystartdate" in c.lower()),
-            None,
-        )
-        site_type_col = next(
-            (c for c in df.columns if "sitetype" in c.lower() or "ActivityMediaName" in c),
-            None,
-        )
-        char_col = next(
-            (c for c in df.columns if "characteristicname" in c.lower()), None,
-        )
-        detection_col = next(
-            (c for c in df.columns if "resultdetectioncondition" in c.lower()),
-            None,
-        )
+        result_col = self._find_col(df, ["ResultMeasureValue", "ResultMeasure/MeasureValue", "result", "value"])
+        unit_col = self._find_col(df, ["ResultMeasure/MeasureUnitCode", "MeasureUnitCode", "unit"])
+        date_col = self._find_col(df, ["ActivityStartDate", "StartDate", "date"])
+        site_type_col = self._find_col(df, ["MonitoringLocationTypeName", "SiteType", "site_type"])
+        char_col = self._find_col(df, ["CharacteristicName", "characteristicname", "characteristic"])
+        det_cond_col = self._find_col(df, ["ResultDetectionConditionText", "DetectionCondition"])
 
         if not result_col:
-            logger.error("WQP %s: no result column found", self.contaminant)
+            logger.warning("WQP %s: no result column in %s", self.contaminant, path.name)
             return []
 
-        # Filter for this contaminant only
-        data = df.copy()
+        # Filter to our contaminant
         if char_col:
-            contam_name = self.config["wqp_characteristic"].lower()
-            data = data[
-                data[char_col].str.lower().str.contains(contam_name, na=False)
-            ].copy()
+            char_mask = df[char_col].astype(str).str.lower().str.contains(
+                self.config["wqp_characteristic"].lower(), na=False
+            )
+            df = df[char_mask]
 
-        if data.empty:
-            logger.warning("WQP %s: no rows found", self.contaminant)
+        if df.empty:
             return []
-
-        logger.info("WQP %s: %d result rows", self.contaminant, len(data))
-
-        # Determine year
-        if date_col:
-            data["_year"] = pd.to_datetime(data[date_col], errors="coerce").dt.year
-            data = data[data["_year"].notna() & (data["_year"] >= 1970)].copy()
-        else:
-            data["_year"] = None
 
         # Parse result values
-        data["_ppb"] = pd.to_numeric(data[result_col], errors="coerce")
+        df["_ppb"] = pd.to_numeric(df[result_col], errors="coerce")
 
-        # Unit conversion: mg/L → ppb (× 1000), ug/L → ppb (× 1)
+        # Unit conversion
         if unit_col:
-            data["_unit"] = data[unit_col].fillna("").astype(str).str.lower().str.strip()
-        else:
-            data["_unit"] = "ug/l"
-        data["_conversion"] = data["_unit"].apply(
-            lambda u: 1000.0 if "mg/l" in str(u) else 1.0
-        )
-        data["_ppb"] = data["_ppb"] * data["_conversion"]
+            units = df[unit_col].astype(str).str.lower()
+            mg_mask = units.str.contains("mg/l", na=False)
+            df.loc[mg_mask, "_ppb"] = df.loc[mg_mask, "_ppb"] * 1000
 
-        # Detect below-detection
-        data["_below_det"] = False
-        if detection_col:
-            data["_below_det"] = data[detection_col].astype(str).str.lower().str.contains(
-                "below|not detected|nd|non-detect", na=False
+        # Detection status
+        if det_cond_col:
+            det_conds = df[det_cond_col].astype(str).str.lower()
+            below_keywords = ["below", "not detected", "nd", "non-detect", "non detect"]
+            df["_below_det"] = det_conds.apply(
+                lambda x: any(kw in x for kw in below_keywords)
             )
+        else:
+            df["_below_det"] = df["_ppb"].isna() | (df["_ppb"] <= 0)
+
+        # Parse years
+        if date_col:
+            df["_year"] = pd.to_datetime(df[date_col], errors="coerce").dt.year
+            df = df[df["_year"] >= 1970]
+        else:
+            df["_year"] = 0
 
         # Map water type
         if site_type_col:
-            data["_water_type"] = data[site_type_col].apply(_map_site_type)
+            df["_water_type"] = df[site_type_col].apply(_map_site_type)
         else:
-            data["_water_type"] = "surface"
+            df["_water_type"] = "surface"
 
-        # ── Build rows ──────────────────────────────────────────────
+        # Aggregate by (state, water_type, year)
         rows = []
-        agg_groups = data.groupby(["_water_type", "_year"], dropna=False)
-
-        for (wtype, year), group in agg_groups:
+        for (wtype, year), group in df.groupby(["_water_type", "_year"], dropna=False):
             year_clean = int(year) if pd.notna(year) else 0
             wtype_clean = str(wtype)
 
@@ -341,9 +299,9 @@ class WaterQualityFetcher(BaseFetcher):
                 "contaminant": self.contaminant,
                 "source_name": "USGS_WQP",
                 "source_url": "https://waterqualitydata.us",
-                "report_label": f"USGS WQP {self.contaminant.title()} Water {year_clean}",
+                "report_label": f"USGS WQP {self.contaminant.title()} Water {state} {year_clean}",
                 "data_year": year_clean,
-                "state": "National",
+                "state": state,
                 "water_type": wtype_clean,
                 "is_aggregate": 1,
                 "samples_total": total,
@@ -352,15 +310,23 @@ class WaterQualityFetcher(BaseFetcher):
                 "avg_ppb": avg_ppb,
                 "max_ppb": max_ppb,
                 "methodology_note": (
-                    f"USGS Water Quality Portal aggregate. "
+                    f"USGS Water Quality Portal. "
                     f"{total} water samples for {self.contaminant} "
-                    f"({wtype_clean}), {year_clean}. Units: ug/L (ppb)."
+                    f"in {state} ({wtype_clean}), {year_clean}. Units: ug/L (ppb)."
                 ),
                 "confidence": "high",
                 "dedup_key": build_dedup_key(
-                    self.contaminant, "USGS_WQP", wtype_clean, year_clean
+                    self.contaminant, "USGS_WQP", state, wtype_clean, year_clean
                 ),
             })
 
-        logger.info("WQP %s: parsed %d aggregate rows", self.contaminant, len(rows))
+        logger.info("WQP %s %s: parsed %d aggregate rows from %s",
+                     self.contaminant, state, len(rows), path.name)
         return rows
+
+    def _find_col(self, df, candidates):
+        """Find first matching column name."""
+        for col in candidates:
+            if col in df.columns:
+                return col
+        return None

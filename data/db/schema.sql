@@ -334,6 +334,7 @@ CREATE TABLE IF NOT EXISTS alternatives (
     lookup_key          TEXT PRIMARY KEY,           -- UPC or category slug
     lookup_type         TEXT NOT NULL,              -- 'upc' or 'category_slug'
     flagged_product_name TEXT,
+    flagged_brand       TEXT,                       -- Brand of the flagged product
     risk_label          TEXT,                       -- 'AVOID', 'CAUTION', 'USE WITH CAUTION'
     flag_summary        TEXT,
     alternatives        TEXT,                       -- JSON array of alternative products

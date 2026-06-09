@@ -359,62 +359,77 @@ class DetectionEngine:
 
         Args:
             product_name: Name of the flagged product (e.g. 'Cheerios (Original)')
-            brand: Optional brand name for better matching
+            brand: Optional brand name for disambiguation
 
         Returns:
             Dict with flagged_product_name, risk_label, flag_summary, alternatives list
             None if no alternatives found
         """
-        # 1. Exact match
+        # 1. Exact match on product name + brand (most precise)
+        if brand:
+            row = self._conn.execute(
+                "SELECT * FROM alternatives WHERE flagged_product_name = ? AND LOWER(flagged_brand) = ?",
+                (product_name, brand.lower().strip()),
+            ).fetchone()
+            if row:
+                return self._build_alternatives_result(row)
+
+        # 2. Exact match on product name only
         row = self._conn.execute(
             "SELECT * FROM alternatives WHERE flagged_product_name = ?",
             (product_name,),
         ).fetchone()
+        if row:
+            return self._build_alternatives_result(row)
 
-        # 2. Case-insensitive exact match
-        if not row:
-            row = self._conn.execute(
-                "SELECT * FROM alternatives WHERE LOWER(flagged_product_name) = ?",
-                (product_name.lower(),),
-            ).fetchone()
+        # 3. Case-insensitive exact match
+        row = self._conn.execute(
+            "SELECT * FROM alternatives WHERE LOWER(flagged_product_name) = ?",
+            (product_name.lower(),),
+        ).fetchone()
+        if row:
+            return self._build_alternatives_result(row)
 
-        # 3. Brand + partial name match (e.g. "Coca-Cola" + "Original" matches "Coca-Cola Classic")
-        if not row and brand:
+        # 4. Brand + word match (e.g. "Coca-Cola" + "Original" matches "Coca-Cola Classic")
+        if brand:
             brand_lower = brand.lower().strip()
             name_words = [w for w in product_name.lower().split() if len(w) > 2]
             for word in name_words:
                 row = self._conn.execute(
-                    "SELECT * FROM alternatives WHERE LOWER(flagged_product_name) LIKE ? "
+                    "SELECT * FROM alternatives WHERE LOWER(flagged_brand) = ? "
                     "AND LOWER(flagged_product_name) LIKE ?",
-                    (f"%{brand_lower}%", f"%{word}%"),
+                    (brand_lower, f"%{word}%"),
                 ).fetchone()
                 if row:
-                    break
+                    return self._build_alternatives_result(row)
 
-        # 4. Partial word match (any significant word from product name)
-        if not row:
-            name_words = [w for w in product_name.lower().split() if len(w) > 3]
-            for word in name_words:
-                row = self._conn.execute(
-                    "SELECT * FROM alternatives WHERE LOWER(flagged_product_name) LIKE ?",
-                    (f"%{word}%",),
-                ).fetchone()
-                if row:
-                    break
-
-        # 5. Brand-only match (e.g. "Nutella" brand matches "Nutella" product)
-        if not row and brand:
+        # 5. Partial word match (any significant word from product name)
+        name_words = [w for w in product_name.lower().split() if len(w) > 3]
+        for word in name_words:
             row = self._conn.execute(
                 "SELECT * FROM alternatives WHERE LOWER(flagged_product_name) LIKE ?",
-                (f"%{brand.lower().strip()}%",),
+                (f"%{word}%",),
             ).fetchone()
+            if row:
+                return self._build_alternatives_result(row)
 
-        if not row:
-            return None
+        # 6. Brand-only match
+        if brand:
+            row = self._conn.execute(
+                "SELECT * FROM alternatives WHERE LOWER(flagged_brand) = ?",
+                (brand.lower().strip(),),
+            ).fetchone()
+            if row:
+                return self._build_alternatives_result(row)
 
+        return None
+
+    def _build_alternatives_result(self, row) -> dict:
+        """Build result dict from alternatives row."""
         return {
             "lookup_key": row["lookup_key"],
             "flagged_product_name": row["flagged_product_name"],
+            "flagged_brand": row["flagged_brand"],
             "risk_label": row["risk_label"],
             "flag_summary": row["flag_summary"],
             "alternatives": json.loads(row["alternatives"]) if row["alternatives"] else [],
