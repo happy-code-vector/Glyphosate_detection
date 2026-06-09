@@ -1,3 +1,4 @@
+import json
 import os
 import sqlite3
 from typing import Optional
@@ -13,6 +14,10 @@ from detect.models import (
     ProductResult,
     WaterQualityResult,
     InternationalComparisonResult,
+    IngredientDetail,
+    RegulatoryFlag,
+    CommodityDetail,
+    CommodityResidue,
 )
 
 
@@ -81,14 +86,6 @@ class DetectionEngine:
         1. Product → Check if specific product is flagged glyphosate-free
         2. Ingredient → Map each ingredient to category, use category data
         3. Category → Fall back to product's primary food category
-
-        Args:
-            product_name: Name of the product (for Tier 1 lookup)
-            ingredients: Either:
-                - List of dicts with 'id', 'name', 'text', 'percent' (from OFF API)
-                - Raw ingredients string (fallback, will be parsed)
-            contaminant: Contaminant to check (default: glyphosate)
-            food_category: Optional fallback category if ingredient mapping fails
         """
         return self._ingredient_risk.execute(
             product_name, ingredients, contaminant, food_category
@@ -105,25 +102,13 @@ class DetectionEngine:
         Complete flow:
         1. Look up product via Open Food Facts API
         2. Run three-tier risk scoring (product → ingredient → category)
-
-        Args:
-            barcode: Product barcode (EAN-13, UPC, etc.)
-            contaminant: Contaminant to check (default: glyphosate)
-
-        Returns:
-            IngredientRiskResult with risk_level, score, and breakdown
-            None if product not found in Open Food Facts
         """
-        # Step 1: Look up product from Open Food Facts
         product = self._off_client.lookup(barcode)
         if not product:
             return None
 
-        # Step 2: Run ingredient risk scoring
-        # Use first OFF category as fallback food_category
         food_category = None
         if product.get("categories"):
-            # Try to map first OFF category to our canonical categories
             from db.database import normalize_category
             for cat in product["categories"]:
                 mapped = normalize_category(cat, conn=self._conn)
@@ -133,7 +118,182 @@ class DetectionEngine:
 
         return self._ingredient_risk.execute(
             product_name=product["product_name"],
-            ingredients=product["ingredients"],  # Now structured list from OFF API
+            ingredients=product["ingredients"],
             contaminant=contaminant,
             food_category=food_category,
         )
+
+    # ═════════════════════════════════════════════
+    # REGULATORY QUERY METHODS
+    # ═════════════════════════════════════════════
+
+    def ingredient_flags(self, ingredient_name: str) -> Optional[IngredientDetail]:
+        """
+        Look up regulatory flags for a specific ingredient.
+
+        Args:
+            ingredient_name: Ingredient name or ID (e.g. 'red_40', 'potassium bromate')
+
+        Returns:
+            IngredientDetail with all flags, IARC/NTP data, FDA status
+            None if ingredient not found
+        """
+        # Try direct ID match first, then alias match
+        row = self._conn.execute(
+            "SELECT * FROM ingredients WHERE ingredient_id = ?",
+            (ingredient_name.lower().replace(" ", "_"),),
+        ).fetchone()
+
+        if not row:
+            # Try alias search
+            row = self._conn.execute(
+                "SELECT * FROM ingredients WHERE display_name LIKE ? "
+                "OR aliases LIKE ?",
+                (f"%{ingredient_name}%", f"%{ingredient_name}%"),
+            ).fetchone()
+
+        if not row:
+            return None
+
+        # Get flags
+        flag_rows = self._conn.execute(
+            "SELECT * FROM regulatory_flags WHERE ingredient_id = ?",
+            (row["ingredient_id"],),
+        ).fetchall()
+
+        flags = [
+            RegulatoryFlag(
+                flag_id=r["flag_id"],
+                ingredient_id=r["ingredient_id"],
+                jurisdiction=r["jurisdiction"],
+                flag_type=r["flag_type"],
+                regulatory_body=r["regulatory_body"],
+                regulation_citation=r["regulation_citation"],
+                source_url=r["source_url"],
+                effective_date=r["effective_date"],
+                compliance_date=r["compliance_date"],
+                notes=r["notes"],
+            )
+            for r in flag_rows
+        ]
+
+        aliases = json.loads(row["aliases"]) if row["aliases"] else []
+        flag_types = json.loads(row["flag_types"]) if row["flag_types"] else []
+
+        return IngredientDetail(
+            ingredient_id=row["ingredient_id"],
+            display_name=row["display_name"],
+            aliases=aliases,
+            flag_types=flag_types,
+            flags=flags,
+            ntp_classification=row["ntp_classification"],
+            iarc_classification=row["iarc_classification"],
+            fda_status=row["fda_status"],
+            fda_cfr_citation=row["fda_cfr_citation"],
+        )
+
+    def commodity_residues(self, commodity_slug: str) -> Optional[CommodityDetail]:
+        """
+        Get pesticide residue data for a commodity.
+
+        Args:
+            commodity_slug: Commodity identifier (e.g. 'strawberry', 'wheat')
+
+        Returns:
+            CommodityDetail with residue data and ingredient aliases
+            None if commodity not found
+        """
+        row = self._conn.execute(
+            "SELECT * FROM commodities WHERE commodity_slug = ?",
+            (commodity_slug.lower(),),
+        ).fetchone()
+
+        if not row:
+            return None
+
+        aliases = json.loads(row["ingredient_aliases"]) if row["ingredient_aliases"] else []
+        raw_residues = json.loads(row["residues"]) if row["residues"] else []
+
+        residues = [
+            CommodityResidue(
+                pesticide_name=r.get("pesticide_name", ""),
+                pct_samples_detected=r.get("pct_samples_detected", 0),
+                median_detected_ppb=r.get("median_detected_ppb", 0),
+                max_detected_ppb=r.get("max_detected_ppb", 0),
+                epa_tolerance_ppb=r.get("epa_tolerance_ppb", 0),
+                tolerance_revoked=r.get("tolerance_revoked", False),
+                pdp_year=r.get("pdp_year", 0),
+            )
+            for r in raw_residues
+        ]
+
+        return CommodityDetail(
+            commodity_slug=row["commodity_slug"],
+            display_name=row["display_name"],
+            ingredient_aliases=aliases,
+            pdp_commodity_code=row["pdp_commodity_code"],
+            pdp_year_latest=row["pdp_year_latest"],
+            residues=residues,
+            dirty_dozen=bool(row["dirty_dozen"]),
+        )
+
+    def list_ingredients(self) -> list[IngredientDetail]:
+        """List all ingredients in the database."""
+        rows = self._conn.execute("SELECT * FROM ingredients ORDER BY ingredient_id").fetchall()
+        results = []
+        for row in rows:
+            flag_rows = self._conn.execute(
+                "SELECT * FROM regulatory_flags WHERE ingredient_id = ?",
+                (row["ingredient_id"],),
+            ).fetchall()
+
+            flags = [
+                RegulatoryFlag(
+                    flag_id=r["flag_id"],
+                    ingredient_id=r["ingredient_id"],
+                    jurisdiction=r["jurisdiction"],
+                    flag_type=r["flag_type"],
+                    regulatory_body=r["regulatory_body"],
+                    regulation_citation=r["regulation_citation"],
+                    source_url=r["source_url"],
+                    effective_date=r["effective_date"],
+                    compliance_date=r["compliance_date"],
+                    notes=r["notes"],
+                )
+                for r in flag_rows
+            ]
+
+            aliases = json.loads(row["aliases"]) if row["aliases"] else []
+            flag_types = json.loads(row["flag_types"]) if row["flag_types"] else []
+
+            results.append(IngredientDetail(
+                ingredient_id=row["ingredient_id"],
+                display_name=row["display_name"],
+                aliases=aliases,
+                flag_types=flag_types,
+                flags=flags,
+                ntp_classification=row["ntp_classification"],
+                iarc_classification=row["iarc_classification"],
+                fda_status=row["fda_status"],
+                fda_cfr_citation=row["fda_cfr_citation"],
+            ))
+        return results
+
+    def list_commodities(self) -> list[CommodityDetail]:
+        """List all commodities in the database."""
+        rows = self._conn.execute(
+            "SELECT * FROM commodities ORDER BY commodity_slug"
+        ).fetchall()
+        results = []
+        for row in rows:
+            aliases = json.loads(row["ingredient_aliases"]) if row["ingredient_aliases"] else []
+            results.append(CommodityDetail(
+                commodity_slug=row["commodity_slug"],
+                display_name=row["display_name"],
+                ingredient_aliases=aliases,
+                pdp_commodity_code=row["pdp_commodity_code"],
+                pdp_year_latest=row["pdp_year_latest"],
+                residues=[],
+                dirty_dozen=bool(row["dirty_dozen"]),
+            ))
+        return results

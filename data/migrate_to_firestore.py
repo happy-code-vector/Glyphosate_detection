@@ -41,6 +41,10 @@ TABLES = [
     "water_tests",
     "biomonitoring",
     "ingest_log",
+    "ingredients",
+    "regulatory_flags",
+    "commodities",
+    "alternatives",
 ]
 
 # ── Columns that are 0/1 integers → booleans ──
@@ -54,11 +58,19 @@ BOOL_COLUMNS = {
     "biomonitoring": [],
     "category_aliases": [],
     "ingest_log": [],
+    "ingredients": [],
+    "regulatory_flags": [],
+    "commodities": ["dirty_dozen"],
+    "alternatives": [],
 }
 
 # ── Columns to skip (auto-generated in SQLite, not needed in Firestore) ──
 SKIP_COLUMNS = {
-    "ingest_log": ["id"],  # use auto-generated Firestore ID
+    "ingest_log": ["id"],
+    "ingredients": [],
+    "regulatory_flags": [],
+    "commodities": [],
+    "alternatives": [],
 }
 
 
@@ -74,6 +86,14 @@ def get_document_id(table: str, row: dict) -> str | None:
         return row.get("alias", None)
     if table == "ingest_log":
         return None  # auto-generate
+    if table == "ingredients":
+        return row.get("ingredient_id", None)
+    if table == "regulatory_flags":
+        return row.get("flag_id", None)
+    if table == "commodities":
+        return row.get("commodity_slug", None)
+    if table == "alternatives":
+        return row.get("lookup_key", None)
     return row.get("dedup_key", None)
 
 
@@ -188,39 +208,37 @@ def source_priority(source_name: str) -> int:
 def precompute_food_overview(db, conn: sqlite3.Connection):
     """
     Pre-compute app_food_overview collection.
-    Mirrors the SQLite view: one doc per food_category with best-source stats.
+    Mirrors the SQLite view: one doc per food_category+contaminant with best-source stats.
     """
     logger.info("Pre-computing app_food_overview...")
 
-    # Get all category summaries (glyphosate only)
+    # Get all category summaries (all contaminants)
     summaries = conn.execute("""
-        SELECT food_category, source_name, data_year, samples_total,
+        SELECT food_category, contaminant, source_name, data_year, samples_total,
                samples_detected, detection_rate, avg_ppb, max_ppb, confidence
         FROM category_summaries
-        WHERE contaminant = 'glyphosate'
     """).fetchall()
 
-    # Group by food_category, pick best source
+    # Group by (food_category, contaminant), pick best source
     best = {}
     for row in summaries:
-        cat = row[0]
-        priority = source_priority(row[1])
-        key = (cat)
-        if key not in best or (priority, row[2]) > (source_priority(best[key][1]), best[key][2]):
+        cat, contaminant = row[0], row[1]
+        priority = source_priority(row[2])
+        key = (cat, contaminant)
+        if key not in best or (priority, row[3]) > (source_priority(best[key][2]), best[key][3]):
             best[key] = row
 
-    # Product stats per category
+    # Product stats per (category, contaminant)
     product_stats = conn.execute("""
-        SELECT food_category,
+        SELECT food_category, contaminant,
                COUNT(*) AS total,
                SUM(CASE WHEN below_detection = 0 THEN 1 ELSE 0 END) AS with_detection,
                ROUND(AVG(measured_ppb), 1) AS avg_ppb,
                MAX(measured_ppb) AS max_ppb
         FROM product_tests
-        WHERE contaminant = 'glyphosate'
-        GROUP BY food_category
+        GROUP BY food_category, contaminant
     """).fetchall()
-    ps_map = {r[0]: r for r in product_stats}
+    ps_map = {(r[0], r[1]): r for r in product_stats}
 
     # Certified product counts
     cert_counts = conn.execute("""
@@ -232,11 +250,13 @@ def precompute_food_overview(db, conn: sqlite3.Connection):
 
     # Build and write documents
     docs = []
-    for cat, row in best.items():
-        food_category, source_name, data_year, samples_total, samples_detected, detection_rate, avg_ppb, max_ppb, confidence = row
-        ps = ps_map.get(cat)
+    for (cat, contaminant), row in best.items():
+        food_category, contam, source_name, data_year, samples_total, samples_detected, detection_rate, avg_ppb, max_ppb, confidence = row
+        ps = ps_map.get((cat, contaminant))
+        doc_id = sanitize_doc_id(f"{cat}_{contaminant}")
         docs.append({
             "food_category": food_category,
+            "contaminant": contaminant,
             "best_source": source_name,
             "best_data_year": data_year,
             "detection_rate": detection_rate,
@@ -246,37 +266,45 @@ def precompute_food_overview(db, conn: sqlite3.Connection):
             "samples_detected": samples_detected,
             "risk_level": compute_risk_level(detection_rate, max_ppb),
             "confidence": confidence,
-            "total_products_tested": ps[1] if ps else 0,
-            "products_with_detection": ps[2] if ps else 0,
-            "avg_product_ppb": ps[3] if ps else 0,
-            "max_product_ppb": ps[4] if ps else 0,
+            "total_products_tested": ps[2] if ps else 0,
+            "products_with_detection": ps[3] if ps else 0,
+            "avg_product_ppb": ps[4] if ps else 0,
+            "max_product_ppb": ps[5] if ps else 0,
             "certified_products_available": cc_map.get(cat, 0),
+            "_doc_id": doc_id,
         })
 
     batch = db.batch()
+    count = 0
     for doc in docs:
-        ref = db.collection("app_food_overview").document(sanitize_doc_id(doc["food_category"]))
+        doc_id = doc.pop("_doc_id")
+        ref = db.collection("app_food_overview").document(doc_id)
         batch.set(ref, doc)
-    batch.commit()
+        count += 1
+        if count >= BATCH_LIMIT:
+            batch.commit()
+            batch = db.batch()
+            count = 0
+    if count > 0:
+        batch.commit()
     logger.info("  Wrote %d app_food_overview documents", len(docs))
 
 
 def precompute_product_lookup(db, conn: sqlite3.Connection):
     """
     Pre-compute app_product_lookup collection.
-    Same as product_tests but with computed risk_level.
+    Same as product_tests but with computed risk_level. All contaminants.
     """
     logger.info("Pre-computing app_product_lookup...")
 
     rows = conn.execute("""
-        SELECT product_name, food_category, source_name, report_label,
+        SELECT product_name, food_category, contaminant, source_name, report_label,
                data_year, measured_ppb, below_detection, limit_of_detection,
                is_organic, is_grf_certified, confidence, methodology_note,
                source_url, updated_at, dedup_key
         FROM product_tests
-        WHERE contaminant = 'glyphosate'
     """).fetchall()
-    columns = ["product_name", "food_category", "source_name", "report_label",
+    columns = ["product_name", "food_category", "contaminant", "source_name", "report_label",
                "data_year", "measured_ppb", "below_detection", "limit_of_detection",
                "is_organic", "is_grf_certified", "confidence", "methodology_note",
                "source_url", "updated_at", "dedup_key"]
@@ -309,7 +337,7 @@ def precompute_regulatory_limits(db, conn: sqlite3.Connection):
     logger.info("Pre-computing app_regulatory_limits...")
 
     rows = conn.execute("""
-        SELECT cs.food_category, cs.source_name, cs.data_year, cs.detection_rate,
+        SELECT cs.food_category, cs.contaminant, cs.source_name, cs.data_year, cs.detection_rate,
                cs.max_ppb AS measured_max_ppb, cs.avg_ppb AS measured_avg_ppb,
                tl.tolerance_ppb AS epa_tolerance_ppb,
                tl.tolerance_ppm AS epa_tolerance_ppm,
@@ -325,12 +353,11 @@ def precompute_regulatory_limits(db, conn: sqlite3.Connection):
             ON cs.food_category = tl.food_category
             AND cs.contaminant = tl.contaminant
         WHERE cs.detection_rate > 0
-        AND cs.contaminant = 'glyphosate'
-        ORDER BY cs.food_category, cs.data_year DESC
+        ORDER BY cs.contaminant, cs.food_category, cs.data_year DESC
     """).fetchall()
 
-    # Group by food_category → array of comparisons
-    columns = ["food_category", "source_name", "data_year", "detection_rate",
+    # Group by (food_category, contaminant) → array of comparisons
+    columns = ["food_category", "contaminant", "source_name", "data_year", "detection_rate",
                "measured_max_ppb", "measured_avg_ppb", "epa_tolerance_ppb",
                "epa_tolerance_ppm", "tolerance_source", "regulation_reference",
                "pct_of_tolerance"]
@@ -338,16 +365,19 @@ def precompute_regulatory_limits(db, conn: sqlite3.Connection):
     grouped = {}
     for row in rows:
         d = dict(zip(columns, row))
-        cat = d["food_category"]
-        if cat not in grouped:
-            grouped[cat] = []
-        grouped[cat].append(d)
+        cat = d.pop("food_category")
+        contam = d.pop("contaminant")
+        key = (cat, contam)
+        if key not in grouped:
+            grouped[key] = {"food_category": cat, "contaminant": contam, "entries": []}
+        grouped[key]["entries"].append(d)
 
     batch = db.batch()
     count = 0
-    for cat, entries in grouped.items():
-        ref = db.collection("app_regulatory_limits").document(sanitize_doc_id(cat))
-        batch.set(ref, {"food_category": cat, "entries": entries})
+    for (cat, contam), doc in grouped.items():
+        doc_id = sanitize_doc_id(f"{cat}_{contam}")
+        ref = db.collection("app_regulatory_limits").document(doc_id)
+        batch.set(ref, doc)
         count += 1
         if count >= BATCH_LIMIT:
             batch.commit()
@@ -360,12 +390,12 @@ def precompute_regulatory_limits(db, conn: sqlite3.Connection):
 
 
 def precompute_international_comparison(db, conn: sqlite3.Connection):
-    """Pre-compute app_international_comparison: MRL comparisons."""
+    """Pre-compute app_international_comparison: MRL comparisons. All contaminants."""
     logger.info("Pre-computing app_international_comparison...")
 
     rows = conn.execute("""
-        SELECT im.food_category, im.country_region, im.mrl_ppm, im.mrl_ppb,
-               im.regulatory_body, im.source_url,
+        SELECT im.food_category, im.pesticide AS contaminant, im.country_region,
+               im.mrl_ppm, im.mrl_ppb, im.regulatory_body, im.source_url,
                cs.detection_rate, cs.max_ppb AS measured_max_ppb,
                CASE
                    WHEN im.mrl_ppb > 0 AND cs.max_ppb IS NOT NULL
@@ -375,12 +405,11 @@ def precompute_international_comparison(db, conn: sqlite3.Connection):
         FROM international_mrls im
         LEFT JOIN category_summaries cs
             ON im.food_category = cs.food_category
-            AND cs.contaminant = 'glyphosate'
-        WHERE im.pesticide = 'glyphosate'
-        ORDER BY im.food_category, im.mrl_ppb ASC
+            AND cs.contaminant = im.pesticide
+        ORDER BY im.pesticide, im.food_category, im.mrl_ppb ASC
     """).fetchall()
 
-    columns = ["food_category", "country_region", "mrl_ppm", "mrl_ppb",
+    columns = ["food_category", "contaminant", "country_region", "mrl_ppm", "mrl_ppb",
                "regulatory_body", "source_url", "detection_rate",
                "measured_max_ppb", "pct_of_mrl"]
 
@@ -388,15 +417,23 @@ def precompute_international_comparison(db, conn: sqlite3.Connection):
     for row in rows:
         d = dict(zip(columns, row))
         cat = d["food_category"]
-        if cat not in grouped:
-            grouped[cat] = {"food_category": cat, "contaminant": "glyphosate", "entries": []}
-        grouped[cat]["entries"].append(d)
+        contam = d["contaminant"]
+        key = (cat, contam)
+        if key not in grouped:
+            grouped[key] = {"food_category": cat, "contaminant": contam, "entries": []}
+        grouped[key]["entries"].append({k: v for k, v in d.items() if k not in ("food_category", "contaminant")})
 
     batch = db.batch()
     count = 0
-    for cat, doc in grouped.items():
-        ref = db.collection("app_international_comparison").document(sanitize_doc_id(cat))
+    for (cat, contam), doc in grouped.items():
+        doc_id = sanitize_doc_id(f"{cat}_{contam}")
+        ref = db.collection("app_international_comparison").document(doc_id)
         batch.set(ref, doc)
+        count += 1
+        if count >= BATCH_LIMIT:
+            batch.commit()
+            batch = db.batch()
+            count = 0
         count += 1
         if count >= BATCH_LIMIT:
             batch.commit()
@@ -409,11 +446,11 @@ def precompute_international_comparison(db, conn: sqlite3.Connection):
 
 
 def precompute_water_overview(db, conn: sqlite3.Connection):
-    """Pre-compute app_water_overview: aggregated water stats by state."""
+    """Pre-compute app_water_overview: aggregated water stats by state. All contaminants."""
     logger.info("Pre-computing app_water_overview...")
 
     rows = conn.execute("""
-        SELECT wt.state, wt.water_type, wt.source_name, wt.report_label,
+        SELECT wt.contaminant, wt.state, wt.water_type, wt.source_name, wt.report_label,
                wt.data_year, wt.samples_total, wt.samples_detected,
                wt.detection_rate, wt.avg_ppb, wt.max_ppb,
                tl.tolerance_ppb AS epa_mcl_ppb,
@@ -427,26 +464,28 @@ def precompute_water_overview(db, conn: sqlite3.Connection):
             ON tl.food_category = 'drinking_water' AND tl.source = 'EPA_MCL'
             AND tl.contaminant = wt.contaminant
         WHERE wt.is_aggregate = 1
-        AND wt.contaminant = 'glyphosate'
-        ORDER BY wt.state, wt.water_type, wt.data_year DESC
+        ORDER BY wt.contaminant, wt.state, wt.water_type, wt.data_year DESC
     """).fetchall()
 
-    columns = ["state", "water_type", "source_name", "report_label",
+    columns = ["contaminant", "state", "water_type", "source_name", "report_label",
                "data_year", "samples_total", "samples_detected",
                "detection_rate", "avg_ppb", "max_ppb", "epa_mcl_ppb", "pct_of_mcl"]
 
     grouped = {}
     for row in rows:
         d = dict(zip(columns, row))
+        contam = d["contaminant"]
         state = d["state"] or "unknown"
-        if state not in grouped:
-            grouped[state] = {"state": state, "entries": []}
-        grouped[state]["entries"].append(d)
+        key = (contam, state)
+        if key not in grouped:
+            grouped[key] = {"contaminant": contam, "state": state, "entries": []}
+        grouped[key]["entries"].append({k: v for k, v in d.items() if k not in ("contaminant", "state")})
 
     batch = db.batch()
     count = 0
-    for state, doc in grouped.items():
-        ref = db.collection("app_water_overview").document(sanitize_doc_id(state))
+    for (contam, state), doc in grouped.items():
+        doc_id = sanitize_doc_id(f"{contam}_{state}")
+        ref = db.collection("app_water_overview").document(doc_id)
         batch.set(ref, doc)
         count += 1
         if count >= BATCH_LIMIT:
