@@ -182,7 +182,7 @@ def compute_product_risk(row: dict) -> str:
 
 def source_priority(source_name: str) -> int:
     """Source priority for best-summary selection."""
-    return {"EWG": 4, "FDA": 3, "CFIA": 2, "EFSA": 1}.get(source_name, 0)
+    return {"FDA": 3, "CFIA": 2, "EFSA": 1}.get(source_name, 0)
 
 
 def precompute_food_overview(db, conn: sqlite3.Connection):

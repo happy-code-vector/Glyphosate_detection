@@ -6,7 +6,7 @@ Safe to re-run any time — idempotent via dedup_key.
 
 Usage:
     python run_pipeline.py                  # run all sources
-    python run_pipeline.py --source ewg     # run one source only
+    python run_pipeline.py --source fda     # run one source only
     python run_pipeline.py --validate       # validate DB after run
 """
 
@@ -31,15 +31,13 @@ logging.basicConfig(
 logger = logging.getLogger("pipeline")
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--source", help="Run only this source: ewg/florida/cfia/efsa/fda/usda_pdp/uk_fsa/ca_dpr/germany_bvl/epa_tolerances/australia_fsnz/codex_mrls/japan_brazil_mrls/academic_papers/detox_project/cdc_nhanes/clean_label_project/consumer_reports/detox_certifications/epa_full_tolerances/usda_fas_mrls/water_quality_glyphosate/water_quality_lead/water_quality_atrazine")
+parser.add_argument("--source", help="Run only this source: florida/cfia/efsa/fda/usda_pdp/uk_fsa/ca_dpr/germany_bvl/epa_tolerances/australia_fsnz/codex_mrls/japan_brazil_mrls/academic_papers/detox_project/cdc_nhanes/clean_label_project/consumer_reports/detox_certifications/epa_full_tolerances/usda_fas_mrls/water_quality_glyphosate/water_quality_lead/water_quality_atrazine")
 parser.add_argument("--validate", action="store_true")
 args = parser.parse_args()
 
 
 def run_all():
     from db.database import initialize
-    # EWG fetcher disabled — EWG data is not licensed for commercial use
-    # from fetchers.ewg import EWGFetcher
     from fetchers.florida_hff import FloridaHFFetcher
     from fetchers.sources import CFIAFetcher, EFSAFetcher, FDAFetcher
     from fetchers.usda_pdp import USDA_PDPFetcher
@@ -76,7 +74,6 @@ def run_all():
         ("cfia",            CFIAFetcher),
         ("efsa",            EFSAFetcher),
         ("fda",             FDAFetcher),
-        # ("ewg",             EWGFetcher),  # Disabled — not licensed for commercial use
         ("florida",         FloridaHFFetcher),
         ("usda_pdp",        USDA_PDPFetcher),
         ("uk_fsa",          UKFSAFetcher),

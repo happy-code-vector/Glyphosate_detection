@@ -25,7 +25,7 @@ def seed_food_data(conn: sqlite3.Connection):
         "(source_name, source_url, report_label, published_date, data_year, "
         "food_category, raw_category, contaminant, samples_total, samples_detected, "
         "detection_rate, avg_ppb, max_ppb, confidence, dedup_key) "
-        "VALUES ('EWG', 'https://example.com', 'EWG 2024', '2024-01-01', 2024, "
+        "VALUES ('FDA', 'https://example.com', 'FDA 2024', '2024-01-01', 2024, "
         "'oats', 'Oats', 'glyphosate', 100, 80, 0.80, 250.0, 1200.0, 'high', 'test-cs-oats-gly')"
     )
     conn.execute(
@@ -33,7 +33,7 @@ def seed_food_data(conn: sqlite3.Connection):
         "(source_name, source_url, report_label, published_date, data_year, "
         "food_category, raw_category, contaminant, samples_total, samples_detected, "
         "detection_rate, avg_ppb, max_ppb, confidence, dedup_key) "
-        "VALUES ('EWG', 'https://example.com', 'EWG 2024', '2024-01-01', 2024, "
+        "VALUES ('FDA', 'https://example.com', 'FDA 2024', '2024-01-01', 2024, "
         "'oats', 'Oats', 'lead', 50, 10, 0.20, 3.5, 12.0, 'high', 'test-cs-oats-lead')"
     )
     conn.execute(

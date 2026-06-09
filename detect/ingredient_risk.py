@@ -247,7 +247,6 @@ class IngredientRiskQuery:
             WHERE food_category = ? AND contaminant = ?
             ORDER BY
                 CASE source_name
-                    WHEN 'EWG' THEN 4
                     WHEN 'FDA' THEN 3
                     WHEN 'CFIA' THEN 2
                     WHEN 'EFSA' THEN 1
@@ -318,7 +317,6 @@ class IngredientRiskQuery:
             WHERE food_category = ? AND contaminant = ?
             ORDER BY
                 CASE source_name
-                    WHEN 'EWG' THEN 4
                     WHEN 'FDA' THEN 3
                     WHEN 'CFIA' THEN 2
                     WHEN 'EFSA' THEN 1
@@ -363,7 +361,6 @@ class IngredientRiskQuery:
             WHERE food_category = ? AND contaminant = ?
             ORDER BY
                 CASE source_name
-                    WHEN 'EWG' THEN 4
                     WHEN 'FDA' THEN 3
                     WHEN 'CFIA' THEN 2
                     WHEN 'EFSA' THEN 1

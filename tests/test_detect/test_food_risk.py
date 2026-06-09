@@ -20,7 +20,7 @@ class TestFoodRiskQuery(unittest.TestCase):
         self.assertIsInstance(result, FoodRiskResult)
         self.assertEqual(result.food_category, "oats")
         self.assertEqual(result.contaminant, "glyphosate")
-        self.assertEqual(result.best_source, "EWG")
+        self.assertEqual(result.best_source, "FDA")
         self.assertEqual(result.data_year, 2024)
         self.assertAlmostEqual(result.detection_rate, 0.8)
         self.assertEqual(result.max_ppb, 1200.0)

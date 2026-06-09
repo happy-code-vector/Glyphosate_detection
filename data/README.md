@@ -1,8 +1,9 @@
 # ResidueIQ Data Pipeline
 
 ## What this is
-A complete Python pipeline that fetches glyphosate detection data from four
-public sources, normalizes it into a unified schema, and writes it to Supabase.
+A complete Python pipeline that fetches contaminant detection data from 30+
+public sources, normalizes it into a unified schema, and writes it to SQLite
+(ready for Firestore migration).
 
 No brand matching. No mock data. Pure category-based detection rates + named
 product results where they actually exist.
@@ -10,22 +11,17 @@ product results where they actually exist.
 ## Files
 | File | Purpose |
 |---|---|
-| `schema.sql` | Run this in Supabase SQL editor first |
-| `category_map.py` | 206 ingredient strings → 19 canonical categories |
-| `fetch_cfia.py` | Canada CFIA: 12 category rows |
-| `fetch_efsa.py` | EFSA EU: ~35 category rows (downloads Zenodo ZIP) |
-| `fetch_fda.py` | FDA FY2023: ~40 category rows |
-| `fetch_ewg.py` | EWG PDFs: ~100 named product rows + 4 category rows |
-| `fetch_florida.py` | Florida HFF: 6 named product rows (seeded, scrape future) |
-| `build_ingredient_map.py` | Converts category_map.py → DB rows |
-| `upsert_supabase.py` | Writes all rows to Supabase |
+| `db/schema.sql` | Full SQLite schema: 12 tables, 11+ views |
+| `db/database.py` | Core DB operations, migrations, inserts |
+| `db/category_aliases.csv` | ~206 ingredient strings → canonical categories |
+| `contaminants.py` | Contaminant registry (glyphosate, lead, atrazine, + more) |
 | `run_pipeline.py` | Master runner — run this |
+| `migrate_to_firestore.py` | SQLite → Firestore migration script |
+| `seed_ingredients.py` | Seed regulatory data (ingredients, flags, commodities) |
 
 ## Setup
 ```bash
 pip install -r requirements.txt
-export SUPABASE_URL=your_url
-export SUPABASE_SERVICE_KEY=your_service_key
 ```
 
 ## Run
@@ -33,21 +29,40 @@ export SUPABASE_SERVICE_KEY=your_service_key
 # Full pipeline
 python run_pipeline.py
 
-# Dry run (writes JSON, no DB)
-python run_pipeline.py --dry-run
-
 # Single source
-python run_pipeline.py --source ewg
+python run_pipeline.py --source fda
 python run_pipeline.py --source cfia
 python run_pipeline.py --source efsa
-python run_pipeline.py --source fda
-python run_pipeline.py --source florida
+python run_pipeline.py --source usda_pdp
+
+# Validate DB after run
+python run_pipeline.py --validate
+
+# Seed regulatory data
+python seed_ingredients.py
+
+# Migrate to Firestore
+python migrate_to_firestore.py
 ```
 
-## Tables written to
-- `ingredient_category_map` — 206 rows (run first, used by app)
-- `glyphosate_categories` — ~100 rows from all sources
-- `glyphosate_named_products` — ~120 rows (EWG + Florida only)
+## Data Sources (30+)
+
+### Government (public domain)
+CFIA, EFSA, FDA, USDA PDP, UK FSA, CA DPR, Germany BVL, EPA Tolerances,
+EPA Full Tolerances, Australia FSANZ, Codex MRLs, Japan/Brazil MRLs,
+USDA FAS MRLs, CDC NHANES
+
+### Independent testing
+Detox Project, Clean Label Project, Consumer Reports, HRI Labs,
+Florida Healthy Foods First, Academic Papers, Moms Across America,
+Food Democracy Now, Soil Association
+
+### Certification registries
+GRF (Glyphosate Residue Free), USDA Organic, EU Organic,
+Canada Organic, Non-GMO Project, Clean Label Certified
+
+### Water quality
+USGS Water Quality Portal (glyphosate, lead, atrazine)
 
 ## Important notes for developer
 
@@ -60,37 +75,15 @@ Print `df.columns` on first run to confirm.
 Verify column names in SampleData2023.txt by checking FDA's User Manual PDF
 at the report page before running. Column names change between fiscal years.
 
-### EWG
-PDF parsing is fragile. Run `python fetch_ewg.py` first and inspect output.
-If rows come back empty, the PDF table structure changed — use pdfplumber
-to inspect the page manually.
-
-### Category priority at query time
+### Source priority at query time
 When the same food_category has rows from multiple sources, use this priority:
-1. EWG (most US-specific)
-2. FDA (US regulatory)
-3. CFIA (Canadian, comparable)
-4. EFSA (EU, least relevant for US app)
-
-Query pattern:
-```sql
-SELECT * FROM glyphosate_categories
-WHERE food_category = 'oats'
-ORDER BY
-  CASE source_name
-    WHEN 'EWG'  THEN 1
-    WHEN 'FDA'  THEN 2
-    WHEN 'CFIA' THEN 3
-    WHEN 'EFSA' THEN 4
-  END,
-  data_year DESC
-LIMIT 1;
-```
+1. FDA (US regulatory)
+2. CFIA (Canadian, comparable)
+3. EFSA (EU, least relevant for US app)
 
 ## Re-running when new data drops
-Set Make.com to monitor the five source URLs.
-When alert fires for a source:
+Set up monitoring for source URLs. When new data drops:
 ```bash
 python run_pipeline.py --source [source_name]
 ```
-Pipeline upserts — it will not create duplicates.
+Pipeline upserts — it will not create duplicates (idempotent via dedup_key).

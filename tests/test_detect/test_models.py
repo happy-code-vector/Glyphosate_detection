@@ -22,7 +22,7 @@ class TestModels(unittest.TestCase):
     def test_food_risk_result(self):
         result = FoodRiskResult(
             food_category="oats", contaminant="glyphosate",
-            best_source="EWG", data_year=2024, detection_rate=0.8,
+            best_source="FDA", data_year=2024, detection_rate=0.8,
             avg_ppb=250.0, max_ppb=1200.0, samples_total=100,
             samples_detected=80, risk_level="high", confidence="high",
             total_products_tested=2, products_with_detection=2,

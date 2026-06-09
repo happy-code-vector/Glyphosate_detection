@@ -46,7 +46,7 @@ class TestIngredientRiskQuery(unittest.TestCase):
             "(source_name, source_url, report_label, published_date, data_year, "
             "food_category, raw_category, contaminant, samples_total, samples_detected, "
             "detection_rate, avg_ppb, max_ppb, confidence, dedup_key) "
-            "VALUES ('EWG', 'https://example.com', 'EWG 2024', '2024-01-01', 2024, "
+            "VALUES ('FDA', 'https://example.com', 'FDA 2024', '2024-01-01', 2024, "
             "'corn', 'Corn', 'glyphosate', 80, 50, 0.625, 150.0, 800.0, 'high', 'test-cs-corn-gly')"
         )
         self.conn.commit()
@@ -87,7 +87,7 @@ class TestIngredientRiskQuery(unittest.TestCase):
             "(source_name, source_url, report_label, published_date, data_year, "
             "food_category, raw_category, contaminant, product_name, measured_ppb, "
             "below_detection, is_grf_certified, confidence, dedup_key) "
-            "VALUES ('EWG', 'https://example.com', 'EWG 2024', '2024-01-01', 2024, "
+            "VALUES ('FDA', 'https://example.com', 'FDA 2024', '2024-01-01', 2024, "
             "'oats', 'Oats', 'glyphosate', 'Clean Oats', NULL, "
             "1, 0, 'high', 'test-pt-clean-oats')"
         )
