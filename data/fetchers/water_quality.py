@@ -260,10 +260,10 @@ class WaterQualityFetcher(BaseFetcher):
 
         # Detection status
         if det_cond_col:
-            det_conds = df[det_cond_col].astype(str).str.lower()
+            det_conds = df[det_cond_col].fillna("").astype(str).str.lower()
             below_keywords = ["below", "not detected", "nd", "non-detect", "non detect"]
             df["_below_det"] = det_conds.apply(
-                lambda x: any(kw in x for kw in below_keywords)
+                lambda x: any(kw in str(x) for kw in below_keywords)
             )
         else:
             df["_below_det"] = df["_ppb"].isna() | (df["_ppb"] <= 0)
