@@ -1116,41 +1116,50 @@ class FDAFetcher(BaseFetcher):
 
         logger.info("FDA: %d total product-country rows", len(df))
 
-        # Process ALL pesticides, grouped by (ProdName, ResName)
+        # Pre-filter: only keep products that match our category aliases
+        # This avoids expensive substring matching for 300K+ unmatched groups
+        unique_prods = df["ProdName"].unique()
+        matched_prods = {p for p in unique_prods if normalize_category(p)}
+        df = df[df["ProdName"].isin(matched_prods)]
+        logger.info("FDA: %d rows after category filtering (%d products matched)",
+                     len(df), len(matched_prods))
+
+        if df.empty:
+            logger.warning("FDA: no rows match category aliases")
+            return []
+
+        # Process ALL pesticides using vectorized pandas operations (not iterrows)
+        # Convert numeric columns once
+        for col in ["Spls.", "Pos.", "Mean", "Maximum"]:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+
+        # Also handle alternative column names (some years use different names)
+        spls_col = "Spls." if "Spls." in df.columns else "Spls#"
+        pos_col = "Pos." if "Pos." in df.columns else "Pos#"
+
+        # Aggregate by (ProdName, ResName) using groupby + agg
+        agg_df = df.groupby(["ProdName", "ResName"]).agg(
+            total=(spls_col, "sum"),
+            detected=(pos_col, "sum"),
+            mean_max=("Mean", "max"),
+            max_max=("Maximum", "max"),
+        ).reset_index()
+
+        # Filter out zero-sample rows
+        agg_df = agg_df[agg_df["total"] > 0]
+
+        # Add food_category mapping
+        agg_df["food_category"] = agg_df["ProdName"].apply(normalize_category)
+        agg_df = agg_df[agg_df["food_category"].notna()]
+
+        # Convert ppm to ppb
+        agg_df["avg_ppb"] = agg_df["mean_max"].apply(lambda x: round(x * 1000, 2) if x > 0 else None)
+        agg_df["max_ppb"] = agg_df["max_max"].apply(lambda x: round(x * 1000, 2) if x > 0 else None)
+        agg_df["detection_rate"] = (agg_df["detected"] / agg_df["total"]).round(4)
+
         rows = []
-        for (prod_name, res_name), group in df.groupby(["ProdName", "ResName"]):
-            raw_cat = str(prod_name).strip()
-            pest_name = str(res_name).strip().lower()
-            if not raw_cat or raw_cat.lower() == "nan":
-                continue
-            if not pest_name or pest_name == "nan":
-                continue
-
-            food_category = normalize_category(raw_cat)
-            if not food_category:
-                continue
-
-            total = 0
-            detected = 0
-            ppb_values = []
-            for _, row in group.iterrows():
-                total += int(row.get("Spls.", 0) or 0)
-                detected += int(row.get("Pos.", 0) or 0)
-                mean_val = pd.to_numeric(row.get("Mean", 0), errors="coerce") or 0
-                max_val = pd.to_numeric(row.get("Maximum", 0), errors="coerce") or 0
-                # FDA Mean is in ppm — convert to ppb
-                if mean_val > 0:
-                    ppb_values.append(mean_val * 1000)
-                if max_val > 0:
-                    ppb_values.append(max_val * 1000)
-
-            if total == 0:
-                continue
-
-            detection_rate = round(detected / total, 4)
-            avg_ppb = round(sum(ppb_values) / len(ppb_values), 2) if ppb_values else None
-            max_ppb = round(max(ppb_values), 2) if ppb_values else None
-
+        for _, row in agg_df.iterrows():
             rows.append({
                 "tier": 2,
                 "source_name": "FDA",
@@ -1158,25 +1167,25 @@ class FDAFetcher(BaseFetcher):
                 "report_label": report["label"],
                 "published_date": report["published_date"],
                 "data_year": report["data_year"],
-                "food_category": food_category,
-                "raw_category": raw_cat,
-                "contaminant": pest_name,
-                "samples_total": total,
-                "samples_detected": detected,
-                "detection_rate": detection_rate,
-                "avg_ppb": avg_ppb,
-                "max_ppb": max_ppb,
+                "food_category": row["food_category"],
+                "raw_category": str(row["ProdName"]).strip(),
+                "contaminant": str(row["ResName"]).strip().lower(),
+                "samples_total": int(row["total"]),
+                "samples_detected": int(row["detected"]),
+                "detection_rate": float(row["detection_rate"]),
+                "avg_ppb": row["avg_ppb"],
+                "max_ppb": row["max_ppb"],
                 "original_unit": "ppm",
                 "unit_conversion": 1000.0,
                 "methodology_note": (
-                    "FDA Pesticide Residue Monitoring Program FY2023. "
+                    f"FDA Pesticide Residue Monitoring Program {report['label']}. "
                     "Aggregated across all countries of origin per product type. "
-                    f"Mean and Maximum from FDA summary stats for {pest_name} in {raw_cat} "
+                    f"Mean and Maximum from FDA summary stats for {str(row['ResName']).strip().lower()} in {str(row['ProdName']).strip()} "
                     "(ppm converted to ppb)."
                 ),
                 "confidence": "high",
                 "raw_file_path": str(data_path),
-                "dedup_key": build_dedup_key("FDA", food_category, pest_name, report["data_year"]),
+                "dedup_key": build_dedup_key("FDA", row["food_category"], str(row["ResName"]).strip().lower(), report["data_year"]),
             })
 
         logger.info("FDA: parsed %d (category, pesticide) rows", len(rows))
@@ -1202,6 +1211,15 @@ class FDAFetcher(BaseFetcher):
             return []
 
         logger.info("FDA samples: %d individual sample rows", len(df))
+
+        # Pre-filter: only keep products that match our category aliases
+        unique_prods = df["ProdName"].unique()
+        matched_prods = {p for p in unique_prods if normalize_category(p)}
+        df = df[df["ProdName"].isin(matched_prods)]
+        logger.info("FDA samples: %d rows after category filtering", len(df))
+
+        if df.empty:
+            return []
 
         # Process ALL pesticides, grouped by (ProdName, ResName)
         rows = []
