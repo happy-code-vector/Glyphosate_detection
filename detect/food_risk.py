@@ -10,8 +10,10 @@ class FoodRiskQuery:
     def execute(
         self, food_category: str, contaminant: str | None = None
     ) -> FoodRiskResult | list[FoodRiskResult] | None:
+        resolved = self._resolve_category(food_category)
+
         sql = "SELECT * FROM app_food_overview WHERE food_category = ?"
-        params: list = [food_category]
+        params: list = [resolved]
 
         if contaminant is not None:
             sql += " AND contaminant = ?"
@@ -49,6 +51,78 @@ class FoodRiskQuery:
             certified_products_available=d.get("certified_products_available", 0),
             regulatory_comparison=reg_entries,
         )
+
+    def _resolve_category(self, name: str) -> str:
+        """Resolve a user-provided category name to the canonical form in the DB.
+
+        Tries in order:
+        1. Exact match in app_food_overview
+        2. Lookup via category_aliases table
+        3. Singular/plural variations (strip/add 's', 'es', 'ies'→'y')
+        4. Case-insensitive LIKE match in app_food_overview
+        5. Return original as-is (will yield empty results)
+        """
+        # 1. Exact match
+        row = self._conn.execute(
+            "SELECT 1 FROM app_food_overview WHERE food_category = ? LIMIT 1",
+            (name,),
+        ).fetchone()
+        if row:
+            return name
+
+        # 2. Category aliases lookup
+        alias_row = self._conn.execute(
+            "SELECT canonical_key FROM category_aliases WHERE alias = ?",
+            (name.lower(),),
+        ).fetchone()
+        if alias_row:
+            canonical = alias_row["canonical_key"]
+            # Check if canonical key exists in the view
+            row = self._conn.execute(
+                "SELECT 1 FROM app_food_overview WHERE food_category = ? LIMIT 1",
+                (canonical,),
+            ).fetchone()
+            if row:
+                return canonical
+
+        # 3. Singular/plural variations
+        variants = set()
+        lower = name.lower().strip()
+        variants.add(lower)
+        # Strip trailing 's' (strawberries → strawberry)
+        if lower.endswith("ies"):
+            variants.add(lower[:-3] + "y")  # berries → berry
+        if lower.endswith("es"):
+            variants.add(lower[:-2])  # tomatoes → tomato
+        if lower.endswith("s") and not lower.endswith("ss"):
+            variants.add(lower[:-1])  # oats → oat
+        # Add trailing 's' (strawberry → strawberries)
+        if not lower.endswith("s"):
+            variants.add(lower + "s")
+            if lower.endswith("y"):
+                variants.add(lower[:-1] + "ies")  # berry → berries
+
+        for v in variants:
+            if v == name:
+                continue
+            row = self._conn.execute(
+                "SELECT 1 FROM app_food_overview WHERE food_category = ? LIMIT 1",
+                (v,),
+            ).fetchone()
+            if row:
+                return v
+
+        # 4. Case-insensitive LIKE match
+        like_row = self._conn.execute(
+            "SELECT food_category FROM app_food_overview "
+            "WHERE LOWER(food_category) = ? LIMIT 1",
+            (lower,),
+        ).fetchone()
+        if like_row:
+            return like_row["food_category"]
+
+        # 5. Give up — return original
+        return name
 
     def _get_regulatory_comparison(
         self, food_category: str, contaminant: str
