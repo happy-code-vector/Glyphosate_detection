@@ -4,6 +4,7 @@ Core database operations. All pipeline code imports from here.
 """
 
 import csv
+import re
 import sqlite3
 import hashlib
 import logging
@@ -292,6 +293,195 @@ def build_dedup_key(*parts) -> str:
     return hashlib.sha256(combined.encode()).hexdigest()[:32]
 
 
+# ---------------------------------------------------------------------------
+# Contaminant name normalization
+# ---------------------------------------------------------------------------
+
+# German umlaut replacements
+_UMLAUT_MAP = str.maketrans({"ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss"})
+
+# Curated German → English contaminant name mappings (top BVL entries)
+_CONTAMINANT_ALIASES: dict[str, str] = {
+    # Simple German chemical names
+    "acephat": "acephate",
+    "amitrol": "amitrol",
+    "atrazin": "atrazine",
+    "azoxystrobin": "azoxystrobin",
+    "bifenthrin": "bifenthrin",
+    "boscalid": "boscalid",
+    "captan": "captan",
+    "carbaryl": "carbaryl",
+    "chlorantraniliprol": "chlorantraniliprole",
+    "chloridazon-desphenyl": "chloridazon",
+    "chloridazondesphenyl": "chloridazon",
+    "chlorothalonil": "chlorothalonil",
+    "chlorpropham": "chlorpropham",
+    "chlorpyrifos": "chlorpyrifos",
+    "clothianidin": "clothianidin",
+    "cypermethrin": "cypermethrin",
+    "cyproconazol": "cyproconazole",
+    "cyprodinil": "cyprodinil",
+    "deltamethrin": "deltamethrin",
+    "diazinon": "diazinon",
+    "dichlofluanid": "dichlofluanid",
+    "dieldrin": "dieldrin",
+    "difenoconazol": "difenoconazole",
+    "dimethoat": "dimethoate",
+    "dithiocarbamate": "dithiocarbamate",
+    "dodin": "dodine",
+    "endosulfan": "endosulfan",
+    "endrin": "endrin",
+    "epoxiconazol": "epoxiconazole",
+    "etofenprox": "etofenprox",
+    "fenhexamid": "fenhexamid",
+    "fenpropathrin": "fenpropathrin",
+    "fenpyroximat": "fenpyroximate",
+    "flonicamid": "flonicamid",
+    "fluazinam": "fluazinam",
+    "fludioxonil": "fludioxonil",
+    "flufenacet": "flufenacet",
+    "fluopyram": "fluopyram",
+    "fluopicolid": "fluopicolide",
+    "flutriafol": "flutriafol",
+    "fluxapyroxad": "fluxapyroxad",
+    "folpet": "folpet",
+    "glufosinate": "glufosinate",
+    "glyphosat": "glyphosate",
+    "heptachlor": "heptachlor",
+    "hexaconazol": "hexaconazole",
+    "imidacloprid": "imidacloprid",
+    "indoxacarb": "indoxacarb",
+    "iprodion": "iprodione",
+    "isoprothiolane": "isoprothiolane",
+    "kupfer cu": "copper",
+    "lambda-cyhalothrin": "lambda-cyhalothrin",
+    "lindan": "lindane",
+    "linuron": "linuron",
+    "malathion": "malathion",
+    "mandipropamid": "mandipropamide",
+    "mandipropamide": "mandipropamide",
+    "metalaxyl": "metalaxyl",
+    "methamidophos": "methamidophos",
+    "methomyl": "methomyl",
+    "metolachlor": "metolachlor",
+    "metribuzin": "metribuzin",
+    "myclobutanil": "myclobutanil",
+    "nikotin": "nicotine",
+    "omethoat": "omethoate",
+    "oxamyl": "oxamyl",
+    "parathion": "parathion",
+    "pendimethalin": "pendimethalin",
+    "permethrin": "permethrin",
+    "phosmet": "phosmet",
+    "propamocarb": "propamocarb",
+    "propiconazol": "propiconazole",
+    "propiconazole": "propiconazole",
+    "propoxur": "propoxur",
+    "prothioconazole": "prothioconazole",
+    "pyraclostrobin": "pyraclostrobin",
+    "pyrimethanil": "pyrimethanil",
+    "pyriproxyfen": "pyriproxyfen",
+    "quecksilber hg": "mercury",
+    "schwefel s": "sulfur",
+    "spinosad": "spinosad",
+    "spinosyn a": "spinosad",
+    "spinosyn d": "spinosad",
+    "spirodiclofen": "spirodiclofen",
+    "spirotetramat": "spirotetramat",
+    "tebuconazol": "tebuconazole",
+    "tebuconazole": "tebuconazole",
+    "tebufenpyrad": "tebufenpyrad",
+    "thiacloprid": "thiacloprid",
+    "thiamethoxam": "thiamethoxam",
+    "thiophanat-methyl": "thiophanate-methyl",
+    "trifloxystrobin": "trifloxystrobin",
+    "trifluralin": "trifluralin",
+    "triticonazole": "triticonazole",
+    "vinclozolin": "vinclozolin",
+    # Compound / descriptive German names → canonical
+    "chlorat": "chlorate",
+    "phosphonsaeure": "fosetyl",
+    "phosphonsäure": "fosetyl",
+    "bromhaltige begasungsmittel berechnet als bromid": "bromide",
+    "bromhaltige begasungsmittel": "bromide",
+    "boscalid; nicobifen": "boscalid",
+    "dithiocarbamate berechnet als cs2": "dithiocarbamate",
+    "fosetyl, summe aus fosetyl und phosphonsaeure, einschliesslich der salze,": "fosetyl",
+    "fosetyl, summe aus fosetyl und phosphonsaeure, einschliesslich der salze": "fosetyl",
+    "fosetyl": "fosetyl",
+    "iprodion; glycophen": "iprodione",
+    "carbendazim": "carbendazim",
+    "dichlorobenzophenone, p,p'-": "dichlorobenzophenone",
+    "pp-dde": "dde",
+    "dde p,p'": "dde",
+    "pp-ddt": "ddt",
+    "ddt p,p'": "ddt",
+    "ddd p,p'": "ddd",
+    "2,6-dichlorbenzamid": "2,6-dichlorobenzamide",
+    "3,4-dichloraniline": "3,4-dichloroaniline",
+    "3-chloranilin": "3-chloroaniline",
+    "hexachlorbenzol hcb": "hexachlorobenzene",
+    # "Summe aus ... als X" patterns handled by extraction logic below
+}
+
+# German descriptive pattern keywords to strip
+_GERMAN_DESCRIPTIVE_RE = re.compile(
+    r",?\s*(?:summe|gesamt|insgesamt|berechnet|ausgedr[\wü]*ckt|einschlie[\wü]*lich|"
+    r"nach hydrolyse|der isomere|metabolit von|salze|insgesamt berechnet|"
+    r"gesamt-|abbauprodukt von|frei).*",
+    re.IGNORECASE,
+)
+
+# Known non-contaminant status strings to reject
+_STATUS_KEYWORDS = frozenset({
+    "no residue found", "residue detected", "none found", "pesticide screen",
+    "pesticide_unknown", "no data",
+})
+
+
+def normalize_contaminant(raw: str) -> str:
+    """Normalize a contaminant name to a canonical lowercase form.
+
+    Handles:
+    - Case normalization (always lowercase)
+    - German umlauts (ä→ae, ö→oe, ü→ue, ß→ss)
+    - Curated German → English aliases (e.g., Tebuconazol → tebuconazole)
+    - Long German descriptive strings (e.g., "X, Summe aus ..., als X" → X)
+    - Status strings rejected → returns empty string
+    """
+    if not raw:
+        return ""
+
+    cleaned = raw.strip().lower().translate(_UMLAUT_MAP)
+
+    # Reject status strings
+    if cleaned in _STATUS_KEYWORDS:
+        return ""
+
+    # Direct alias lookup
+    if cleaned in _CONTAMINANT_ALIASES:
+        return _CONTAMINANT_ALIASES[cleaned]
+
+    # Try extracting from "X, Summe/Gesamt/ausgedrückt als ..." patterns
+    extracted = _GERMAN_DESCRIPTIVE_RE.sub("", cleaned).strip().rstrip(",")
+    if extracted and extracted != cleaned and len(extracted) > 2:
+        # Check if extracted name is an alias
+        if extracted in _CONTAMINANT_ALIASES:
+            return _CONTAMINANT_ALIASES[extracted]
+        return extracted
+
+    # Try "Metabolit von X" pattern
+    metabolit_match = re.search(r"metabolit von\s+(.+?)(?:\s*$)", cleaned)
+    if metabolit_match:
+        parent = metabolit_match.group(1).strip().rstrip(".")
+        if parent in _CONTAMINANT_ALIASES:
+            return _CONTAMINANT_ALIASES[parent]
+        return parent
+
+    # Return cleaned name as-is (already lowercased + umlauts replaced)
+    return cleaned
+
+
 def insert_rows(rows: list[dict], source_name: str, source_file: str = "") -> dict:
     """
     Insert a batch of normalized rows. Routes to product_tests (Tier 1)
@@ -340,6 +530,7 @@ def _insert_product(conn, row: dict) -> int:
         "methodology_note": None, "raw_file_path": None,
     }
     r = {**defaults, **row}
+    r["contaminant"] = normalize_contaminant(r["contaminant"])
     conn.execute("""
         INSERT OR IGNORE INTO product_tests (
             source_name, source_url, report_label, published_date, data_year,
@@ -371,6 +562,7 @@ def _insert_water(conn, row: dict) -> int:
         "methodology_note": None, "confidence": None,
     }
     r = {**defaults, **row}
+    r["contaminant"] = normalize_contaminant(r["contaminant"])
     conn.execute("""
         INSERT OR IGNORE INTO water_tests (
             source_name, source_url, report_label, data_year,
@@ -404,6 +596,7 @@ def _insert_category(conn, row: dict) -> int:
         "is_organic": 0, "methodology_note": None, "raw_file_path": None,
     }
     r = {**defaults, **row}
+    r["contaminant"] = normalize_contaminant(r["contaminant"])
     conn.execute("""
         INSERT OR IGNORE INTO category_summaries (
             source_name, source_url, report_label, published_date, data_year,
