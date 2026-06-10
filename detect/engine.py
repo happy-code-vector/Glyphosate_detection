@@ -71,8 +71,42 @@ class DetectionEngine:
         state: str | None = None,
         contaminant: str | None = None,
         water_type: str | None = None,
-    ) -> list[WaterQualityResult]:
-        return self._water_quality.execute(state, contaminant, water_type)
+        zip_code: str | None = None,
+    ) -> list[WaterQualityResult] | dict:
+        """
+        Query water quality data by state or zip code.
+
+        Args:
+            state: US state name (e.g. 'California')
+            contaminant: Specific contaminant to filter by
+            water_type: 'surface' or 'groundwater'
+            zip_code: US zip code (e.g. '90210') — resolved to state automatically
+
+        Returns:
+            list[WaterQualityResult] if data found
+            dict with 'error' key if zip code not resolvable or no data
+        """
+        # If zip code provided, resolve to state
+        if zip_code and not state:
+            from detect.zip_to_state import zip_to_state, is_us_zip
+            if not is_us_zip(zip_code):
+                return {"error": f"Invalid zip code: {zip_code}", "data": []}
+            resolved_state = zip_to_state(zip_code)
+            if not resolved_state:
+                return {"error": f"Could not resolve zip code: {zip_code}", "data": []}
+            state = resolved_state.replace("_", " ")
+
+        results = self._water_quality.execute(state, contaminant, water_type)
+
+        # If zip code was used and no results, return helpful message
+        if zip_code and not results:
+            return {
+                "error": f"No water quality data available for zip code {zip_code} ({state})",
+                "data": [],
+                "suggestion": "Water quality data is currently available for US states only. International coverage coming soon.",
+            }
+
+        return results
 
     def international_comparison(
         self, food_category: str, contaminant: str = "glyphosate"
