@@ -387,13 +387,14 @@ class DetectionEngine:
             dirty_dozen=bool(row["dirty_dozen"]),
         )
 
-    def lookup_alternatives(self, product_name: str, brand: str = None) -> Optional[dict]:
+    def lookup_alternatives(self, product_name: str, brand: str = None, food_category: str = None) -> Optional[dict]:
         """
         Look up alternative products for a flagged product.
 
         Args:
             product_name: Name of the flagged product (e.g. 'Cheerios (Original)')
             brand: Optional brand name for disambiguation
+            food_category: Optional food category for certified product fallback
 
         Returns:
             Dict with flagged_product_name, risk_label, flag_summary, alternatives list
@@ -456,7 +457,103 @@ class DetectionEngine:
             if row:
                 return self._build_alternatives_result(row)
 
+        # 7. Category-based fallback: certified products in same food category
+        if food_category:
+            return self._category_fallback(product_name, food_category)
+
         return None
+
+    def _category_fallback(self, product_name: str, food_category: str) -> Optional[dict]:
+        """
+        Fallback: find certified products in the same food category.
+        Uses raw_category for better matching and filters out irrelevant products.
+        """
+        # Get product name keywords for type matching
+        name_words = set(w.lower() for w in product_name.split() if len(w) > 3)
+        stop_words = {"with", "from", "this", "that", "have", "been", "your", "their", "original", "classic", "natural", "organic"}
+        name_words -= stop_words
+
+        # Query certified products in same category, using raw_category for filtering
+        rows = self._conn.execute('''
+            SELECT product_name, brand, certification, food_category, raw_category
+            FROM certified_products
+            WHERE food_category = ?
+            ORDER BY
+                CASE certification
+                    WHEN 'Glyphosate Residue Free' THEN 1
+                    WHEN 'Clean Label Project Certified' THEN 2
+                    WHEN 'USDA Organic' THEN 3
+                    WHEN 'EU Organic' THEN 4
+                    WHEN 'Canada Organic' THEN 5
+                    WHEN 'Soil Association Organic' THEN 6
+                    WHEN 'Non-GMO Project Verified' THEN 7
+                    ELSE 8
+                END
+            LIMIT 50
+        ''', (food_category,)).fetchall()
+
+        if not rows:
+            return None
+
+        # Filter and score using raw_category + product name
+        scored = []
+        for row in rows:
+            cert_name = row[0].lower()
+            cert_brand = (row[1] or "").lower()
+            raw_cat = (row[4] or "").lower()
+            cert_text = f"{cert_name} {cert_brand} {raw_cat}"
+
+            # Skip if raw_category is clearly irrelevant (supplements, wine, etc.)
+            skip_keywords = ["supplement", "wine", "vitamin", "protein powder", "bone broth"]
+            if any(sk in raw_cat for sk in skip_keywords):
+                continue
+
+            # Score by keyword overlap with product name AND raw_category
+            name_matches = sum(1 for w in name_words if w in cert_text)
+            # Bonus: if raw_category contains product name keywords
+            cat_matches = sum(1 for w in name_words if w in raw_cat)
+            total_score = name_matches + cat_matches * 2  # Category match weighted higher
+
+            scored.append((total_score, row))
+
+        # Sort by score (descending)
+        scored.sort(key=lambda x: -x[0])
+
+        # Take top 5, but only if score > 0
+        alternatives = []
+        for score, row in scored[:5]:
+            if score <= 0:
+                continue
+            alternatives.append({
+                "name": row[0],
+                "brand": row[1] or "",
+                "why_better": f"{row[2]} certified",
+                "certification": row[2],
+                "affiliate_eligible": False,
+            })
+
+        if not alternatives:
+            return None
+
+        return {
+            "lookup_key": f"category:{food_category}",
+            "flagged_product_name": product_name,
+            "flagged_brand": None,
+            "risk_label": "CAUTION",
+            "flag_summary": f"Certified alternatives in {food_category}",
+            "alternatives": alternatives,
+        }
+
+    def _build_alternatives_result(self, row) -> dict:
+        """Build result dict from alternatives row."""
+        return {
+            "lookup_key": row["lookup_key"],
+            "flagged_product_name": row["flagged_product_name"],
+            "flagged_brand": row["flagged_brand"],
+            "risk_label": row["risk_label"],
+            "flag_summary": row["flag_summary"],
+            "alternatives": json.loads(row["alternatives"]) if row["alternatives"] else [],
+        }
 
     def _build_alternatives_result(self, row) -> dict:
         """Build result dict from alternatives row."""
