@@ -38,9 +38,7 @@ USDA_PDP_REPORTS = [
     {"label": "USDA PDP 2012", "url": "https://www.ams.usda.gov/sites/default/files/media/2012PDPDatabase.zip", "zip_filename": "usda_pdp_2012.zip", "data_year": 2012, "published_date": "2014-01-01"},
     {"label": "USDA PDP 2013", "url": "https://www.ams.usda.gov/sites/default/files/media/2013PDPDatabase.zip", "zip_filename": "usda_pdp_2013.zip", "data_year": 2013, "published_date": "2015-01-01"},
     {"label": "USDA PDP 2014", "url": "https://www.ams.usda.gov/sites/default/files/media/2014PDPDatabase.zip", "zip_filename": "usda_pdp_2014.zip", "data_year": 2014, "published_date": "2016-01-01"},
-    {"label": "USDA PDP 2015", "url": "https://www.ams.usda.gov/sites/default/files/media/2015PDPDatabase.zip", "zip_filename": "usda_pdp_2015.zip", "data_year": 2015, "published_date": "2017-01-01"},
-    {"label": "USDA PDP 2016", "url": "https://www.ams.usda.gov/sites/default/files/media/2016PDPDatabase.zip", "zip_filename": "usda_pdp_2016.zip", "data_year": 2016, "published_date": "2018-01-01"},
-    {"label": "USDA PDP 2017", "url": "https://www.ams.usda.gov/sites/default/files/media/2017PDPDatabase.zip", "zip_filename": "usda_pdp_2017.zip", "data_year": 2017, "published_date": "2019-01-01"},
+    # 2015-2017 removed: USDA server returns 404 for these URLs
     {"label": "USDA PDP 2018", "url": "https://www.ams.usda.gov/sites/default/files/media/2018PDPDatabase.zip", "zip_filename": "usda_pdp_2018.zip", "data_year": 2018, "published_date": "2020-01-01"},
     {"label": "USDA PDP 2019", "url": "https://www.ams.usda.gov/sites/default/files/media/2019PDPDatabase.zip", "zip_filename": "usda_pdp_2019.zip", "data_year": 2019, "published_date": "2021-01-01"},
     {"label": "USDA PDP 2020", "url": "https://www.ams.usda.gov/sites/default/files/media/2020PDPDatabase.zip", "zip_filename": "usda_pdp_2020.zip", "data_year": 2020, "published_date": "2022-01-01"},

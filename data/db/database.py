@@ -40,6 +40,7 @@ def initialize():
         _migrate_legacy(conn)
         conn.executescript(SCHEMA_PATH.read_text(encoding='utf-8'))
         _migrate_add_contaminant_column(conn)
+        _migrate_add_new_columns(conn)
         _seed_category_aliases(conn)
     logger.info("Database initialized at %s", DB_PATH)
 
@@ -62,6 +63,39 @@ def _migrate_add_contaminant_column(conn):
             )
     conn.executescript(SCHEMA_PATH.read_text(encoding='utf-8'))
     logger.info("Contaminant column migration complete")
+
+
+def _migrate_add_new_columns(conn):
+    """Add new columns to existing tables for regulatory features."""
+    # Add contaminant_type to ingredients
+    cols = conn.execute("PRAGMA table_info(ingredients)").fetchall()
+    col_names = [c[1] for c in cols]
+    if "contaminant_type" not in col_names:
+        logger.info("Adding contaminant_type column to ingredients")
+        conn.execute("ALTER TABLE ingredients ADD COLUMN contaminant_type TEXT")
+
+    # Add contaminant_type to regulatory_flags
+    cols = conn.execute("PRAGMA table_info(regulatory_flags)").fetchall()
+    col_names = [c[1] for c in cols]
+    if "contaminant_type" not in col_names:
+        logger.info("Adding contaminant_type column to regulatory_flags")
+        conn.execute("ALTER TABLE regulatory_flags ADD COLUMN contaminant_type TEXT")
+
+    # Add contaminant to certified_products
+    cols = conn.execute("PRAGMA table_info(certified_products)").fetchall()
+    col_names = [c[1] for c in cols]
+    if "contaminant" not in col_names:
+        logger.info("Adding contaminant column to certified_products")
+        conn.execute("ALTER TABLE certified_products ADD COLUMN contaminant TEXT")
+
+    # Add flagged_brand to alternatives
+    cols = conn.execute("PRAGMA table_info(alternatives)").fetchall()
+    col_names = [c[1] for c in cols]
+    if "flagged_brand" not in col_names:
+        logger.info("Adding flagged_brand column to alternatives")
+        conn.execute("ALTER TABLE alternatives ADD COLUMN flagged_brand TEXT")
+
+    logger.info("New columns migration complete")
 
 
 def _migrate_legacy(conn):

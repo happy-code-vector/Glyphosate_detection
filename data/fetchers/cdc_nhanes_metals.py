@@ -73,8 +73,8 @@ METAL_CYCLES = [
                 "analyte": "Arsenic",
                 "filename": "UAS_J.XPT",
                 "url": "https://wwwn.cdc.gov/Nchs/Nhanes/2017-2018/UAS_J.XPT",
-                "var": "LBXUAS",
-                "flag_var": None,  # No below-detection flag for arsenic
+                "var": "URXUAS3",  # Arsenic III (inorganic arsenic)
+                "flag_var": "URDUA3LC",  # Below-detection flag
                 "weight_var": "WTSA2YR",
                 "lod": 0.6,
                 "unit": "ug/L",
