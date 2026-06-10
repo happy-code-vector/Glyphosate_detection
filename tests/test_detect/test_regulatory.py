@@ -56,8 +56,8 @@ class TestIngredientFlags(unittest.TestCase):
         self.assertEqual(result.fda_status, "permitted")
 
     def test_ingredient_flags_by_name(self):
-        """Look up ingredient by display name substring."""
-        result = self.engine.ingredient_flags("bromate")
+        """Look up ingredient by alias."""
+        result = self.engine.ingredient_flags("bromated flour")
         self.assertIsNotNone(result)
         self.assertEqual(result.ingredient_id, "potassium_bromate")
 

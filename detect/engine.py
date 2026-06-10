@@ -295,12 +295,20 @@ class DetectionEngine:
         ).fetchone()
 
         if not row:
-            # Try alias search
-            row = self._conn.execute(
-                "SELECT * FROM ingredients WHERE display_name LIKE ? "
-                "OR aliases LIKE ?",
-                (f"%{ingredient_name}%", f"%{ingredient_name}%"),
-            ).fetchone()
+            # Try alias search — exact match within aliases list
+            name_lower = ingredient_name.lower()
+            candidates = self._conn.execute(
+                "SELECT * FROM ingredients WHERE aliases LIKE ?",
+                (f"%{name_lower}%",),
+            ).fetchall()
+            for c in candidates:
+                try:
+                    alias_list = json.loads(c["aliases"]) if c["aliases"] else []
+                    if name_lower in [a.lower() for a in alias_list]:
+                        row = c
+                        break
+                except (json.JSONDecodeError, TypeError):
+                    pass
 
         if not row:
             return None
