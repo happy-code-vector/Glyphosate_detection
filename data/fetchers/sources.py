@@ -1110,6 +1110,10 @@ class FDAFetcher(BaseFetcher):
         df = df[df["ResName"].str.lower() != "nan"]
         df = df[df["ProdName"].str.lower() != "nan"]
 
+        # Filter out non-chemical status strings in ResName
+        _STATUS_KEYWORDS = {"no residue found", "residue detected", "none found", "pesticide screen"}
+        df = df[~df["ResName"].str.lower().isin(_STATUS_KEYWORDS)]
+
         if df.empty:
             logger.warning("FDA: no data rows found")
             return []
@@ -1205,6 +1209,10 @@ class FDAFetcher(BaseFetcher):
         df["ProdName"] = df["ProdName"].astype(str).str.strip()
         df = df[df["ResName"].str.lower() != "nan"]
         df = df[df["ProdName"].str.lower() != "nan"]
+
+        # Filter out non-chemical status strings in ResName
+        _STATUS_KEYWORDS = {"no residue found", "residue detected", "none found", "pesticide screen"}
+        df = df[~df["ResName"].str.lower().isin(_STATUS_KEYWORDS)]
 
         if df.empty:
             logger.info("FDA samples: no data rows in %s", sample_path.name)

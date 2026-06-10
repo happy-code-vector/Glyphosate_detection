@@ -315,8 +315,10 @@ class WaterQualityFetcher(BaseFetcher):
 
         # Parse years
         if date_col:
+            from datetime import datetime
             df["_year"] = pd.to_datetime(df[date_col], errors="coerce").dt.year
-            df = df[df["_year"] >= 1970]
+            _current_year = datetime.now().year
+            df = df[(df["_year"] >= 1970) & (df["_year"] <= _current_year)]
         else:
             df["_year"] = 0
 
