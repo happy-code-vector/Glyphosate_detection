@@ -19,6 +19,7 @@ from detect.models import (
     CommodityDetail,
     CommodityResidue,
     ProductScanResult,
+    ContaminantReport,
 )
 
 
@@ -131,6 +132,26 @@ class DetectionEngine:
         return self._ingredient_risk.execute(
             product_name, ingredients, contaminant, food_category
         )
+
+    def scan_all_contaminants(self, food_category: str) -> "ContaminantReport":
+        """
+        Scan ALL contaminants for a food category using regulatory data.
+
+        Compares measured levels (from category_summaries) against MRLs
+        (from international_mrls) and tolerances (from tolerance_limits).
+
+        Returns a ContaminantReport with per-contaminant risk assessment,
+        sorted by risk level (high first).
+
+        Args:
+            food_category: Canonical food category (e.g., 'oats', 'wheat')
+
+        Returns:
+            ContaminantReport with list of ContaminantDetail entries
+        """
+        from detect.ingredient_risk import IngredientRiskQuery
+        query = IngredientRiskQuery(self._conn)
+        return query.scan_all_contaminants(food_category)
 
     # Tier → data_confidence mapping per handoff spec
     _TIER_TO_CONFIDENCE = {
@@ -245,7 +266,15 @@ class DetectionEngine:
         # Step 3: Commodity matching
         commodities_matched = self._match_ingredients_to_commodities(ingredient_list)
 
-        # Step 4: Data confidence from tier
+        # Step 4: Multi-contaminant report (all contaminants for this food category)
+        contaminant_report = None
+        if food_category:
+            try:
+                contaminant_report = self.scan_all_contaminants(food_category)
+            except Exception:
+                pass  # Non-critical — don't fail the scan
+
+        # Step 5: Data confidence from tier
         data_confidence = self._TIER_TO_CONFIDENCE.get(
             risk_result.tier_used if risk_result else "none", "low"
         )
@@ -271,6 +300,7 @@ class DetectionEngine:
             contaminant=contaminant,
             ingredient_scores=risk_result.ingredient_scores if risk_result else [],
             notes=risk_result.notes if risk_result else [],
+            contaminant_report=contaminant_report,
         )
 
     # ═════════════════════════════════════════════

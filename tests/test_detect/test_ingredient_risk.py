@@ -112,7 +112,8 @@ class TestIngredientRiskQuery(unittest.TestCase):
         )
 
         self.assertEqual(result.tier_used, "product")
-        self.assertEqual(result.risk_level, "high")  # 730 ppb >= 500 is high
+        # 730 ppb is well below EPA tolerance of 30,000 ppb for oats/glyphosate
+        self.assertEqual(result.risk_level, "low")
         self.assertIn("730", result.notes[0])
 
     def test_tier2_ingredient_scoring(self):

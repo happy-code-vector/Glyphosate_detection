@@ -8,7 +8,8 @@ Risk hierarchy:
 2. Ingredient → Map each ingredient to category, use category_summaries data
 3. Category → Fall back to product's primary food category aggregate
 
-Uses existing normalize_category() from data/db/database.py for ingredient→category mapping.
+Risk assessment uses regulatory data (international_mrls, tolerance_limits)
+instead of hardcoded thresholds. Heavy metals have special handling (no safe level).
 """
 
 import sqlite3
@@ -21,6 +22,7 @@ from typing import List, Optional
 sys.path.insert(0, str(Path(__file__).parent.parent / "data"))
 
 from detect.ingredient_parser import parse_ingredients
+from detect.models import ContaminantDetail, ContaminantReport
 
 
 @dataclass
@@ -207,7 +209,9 @@ class IngredientRiskQuery:
             elif d["below_detection"]:
                 d["risk_level"] = "none"
             elif d["measured_ppb"] is not None:
-                d["risk_level"] = self._ppb_to_risk_level(d["measured_ppb"], contaminant)
+                d["risk_level"] = self._ppb_to_risk_level(
+                    d["measured_ppb"], contaminant, d.get("food_category")
+                )
             else:
                 d["risk_level"] = "unknown"
             return d
@@ -366,33 +370,181 @@ class IngredientRiskQuery:
 
         return dict(row) if row else None
 
-    # ── Risk level helpers ───────────────────────────────────────────────
+    # ── Multi-contaminant scan ───────────────────────────────────────────
 
-    @staticmethod
-    def _ppb_to_risk_level(ppb: float, contaminant: str) -> str:
-        """Convert ppb measurement to risk level.
+    def scan_all_contaminants(self, food_category: str) -> ContaminantReport:
+        """Scan ALL contaminants for a food category using regulatory data.
 
-        Uses contaminant-specific thresholds from CONTAMINANTS registry
-        if available. For unknown pesticides, uses generic thresholds
-        based on detection rate (tier 2/3) rather than ppb.
+        Returns a ContaminantReport with per-contaminant risk assessment,
+        comparing measured levels against MRLs and tolerances from the DB.
         """
+        # Get all contaminants with detections for this category
+        rows = self._conn.execute(
+            """
+            SELECT contaminant, detection_rate, avg_ppb, max_ppb,
+                   samples_total, samples_detected, source_name, data_year
+            FROM category_summaries
+            WHERE food_category = ?
+            AND detection_rate > 0
+            ORDER BY detection_rate DESC
+            """,
+            (food_category,),
+        ).fetchall()
+
+        contaminants = []
+        for row in rows:
+            d = dict(row)
+            contam = d["contaminant"]
+            max_ppb = d.get("max_ppb") or 0
+            avg_ppb = d.get("avg_ppb")
+
+            # Get contaminant type
+            contam_type = self._get_contaminant_type(contam)
+
+            # Get risk assessment using regulatory data
+            risk_level, risk_reason, mrl, mrl_src, tol, tol_src = \
+                self._ppb_to_risk_detail(max_ppb, contam, food_category)
+
+            # Calculate percentages
+            pct_of_mrl = (max_ppb / mrl * 100) if mrl and mrl > 0 and max_ppb else None
+            pct_of_tol = (max_ppb / tol * 100) if tol and tol > 0 and max_ppb else None
+
+            contaminants.append(ContaminantDetail(
+                contaminant=contam,
+                contaminant_type=contam_type,
+                food_category=food_category,
+                measured_avg_ppb=avg_ppb,
+                measured_max_ppb=max_ppb if max_ppb > 0 else None,
+                detection_rate=d["detection_rate"],
+                samples_total=d["samples_total"],
+                samples_detected=d["samples_detected"],
+                source_name=d["source_name"],
+                data_year=d.get("data_year"),
+                mrl_ppb=mrl,
+                mrl_source=mrl_src,
+                tolerance_ppb=tol,
+                tolerance_source=tol_src,
+                pct_of_mrl=pct_of_mrl,
+                pct_of_tolerance=pct_of_tol,
+                risk_level=risk_level,
+                risk_reason=risk_reason,
+                confidence="high" if mrl or tol else "medium",
+            ))
+
+        # Sort: high first, then medium, then low
+        risk_order = {"high": 0, "medium": 1, "low": 2, "none": 3, "unknown": 4}
+        contaminants.sort(key=lambda c: (risk_order.get(c.risk_level, 4), -c.detection_rate))
+
+        high = sum(1 for c in contaminants if c.risk_level == "high")
+        medium = sum(1 for c in contaminants if c.risk_level == "medium")
+        low = sum(1 for c in contaminants if c.risk_level == "low")
+
+        if high > 0:
+            overall = "high"
+            overall_score = 1.0
+        elif medium > 0:
+            overall = "medium"
+            overall_score = 0.66
+        elif low > 0:
+            overall = "low"
+            overall_score = 0.33
+        else:
+            overall = "none"
+            overall_score = 0.0
+
+        return ContaminantReport(
+            food_category=food_category,
+            contaminant=None,
+            contaminants=contaminants,
+            total_detected=len(contaminants),
+            high_risk_count=high,
+            medium_risk_count=medium,
+            low_risk_count=low,
+            overall_risk_level=overall,
+            overall_score=overall_score,
+        )
+
+    def _get_contaminant_type(self, contaminant: str) -> str:
+        """Get contaminant type from ingredients table or contaminants registry."""
+        # Try ingredients table first
+        row = self._conn.execute(
+            "SELECT contaminant_type FROM ingredients WHERE ingredient_id = ?",
+            (contaminant.lower().replace(" ", "_"),),
+        ).fetchone()
+        if row and row["contaminant_type"]:
+            return row["contaminant_type"]
+
+        # Try contaminants.py registry
         try:
             from contaminants import CONTAMINANTS
-            config = CONTAMINANTS.get(contaminant)
-            if config and "risk_thresholds" in config:
-                t = config["risk_thresholds"]
-                if ppb >= t["high"]:
-                    return "high"
-                elif ppb >= t["medium"]:
-                    return "medium"
-                elif ppb > 0:
-                    return "low"
-                return "none"
+            config = CONTAMINANTS.get(contaminant.lower())
+            if config:
+                return config.get("type", "unknown")
         except ImportError:
             pass
 
-        # Fallback for unknown contaminants — use generic thresholds
-        # These are intentionally conservative (low thresholds)
+        # Infer from name
+        if contaminant.lower() in self._HEAVY_METALS:
+            return "heavy_metal"
+        return "pesticide"  # Default assumption
+
+    # ── Risk level helpers ───────────────────────────────────────────────
+
+    # Heavy metals have "no safe level" per FDA — any detection is at least MEDIUM
+    _HEAVY_METALS = frozenset({
+        "lead", "inorganic_arsenic", "cadmium", "mercury", "arsenic",
+    })
+
+    def _ppb_to_risk_level(
+        self, ppb: float, contaminant: str, food_category: str | None = None
+    ) -> str:
+        """Convert ppb measurement to risk level using regulatory data.
+
+        Priority:
+        1. Strictest MRL from international_mrls for this contaminant+category
+        2. Lowest tolerance from tolerance_limits (EPA, FDA)
+        3. Special handling for heavy metals (no safe level)
+        4. Fallback: generic thresholds (last resort)
+        """
+        if ppb is None or ppb <= 0:
+            return "none"
+
+        contaminant_lower = contaminant.lower()
+
+        # Heavy metals: any detection is at least MEDIUM (no safe level per FDA)
+        is_heavy_metal = contaminant_lower in self._HEAVY_METALS
+
+        # Try international_mrls first (strictest country limit)
+        mrl = self._get_strictest_mrl(contaminant, food_category)
+        if mrl and mrl > 0:
+            pct = ppb / mrl
+            if pct >= 1.0:
+                return "high"
+            elif pct >= 0.5:
+                return "medium"
+            elif is_heavy_metal:
+                return "medium"  # Heavy metals: any detection = medium
+            elif ppb > 0:
+                return "low"
+            return "none"
+
+        # Try tolerance_limits
+        tolerance = self._get_lowest_tolerance(contaminant, food_category)
+        if tolerance and tolerance > 0:
+            pct = ppb / tolerance
+            if pct >= 1.0:
+                return "high"
+            elif pct >= 0.5:
+                return "medium"
+            elif is_heavy_metal:
+                return "medium"
+            elif ppb > 0:
+                return "low"
+            return "none"
+
+        # No regulatory data — use detection rate as proxy
+        if is_heavy_metal and ppb > 0:
+            return "medium"  # Heavy metals: any detection = medium
         if ppb >= 500:
             return "high"
         elif ppb >= 100:
@@ -400,6 +552,149 @@ class IngredientRiskQuery:
         elif ppb > 0:
             return "low"
         return "none"
+
+    def _ppb_to_risk_detail(
+        self, ppb: float, contaminant: str, food_category: str | None = None
+    ) -> tuple[str, str, float | None, str | None, float | None, str | None]:
+        """Return (risk_level, risk_reason, mrl_ppb, mrl_source, tolerance_ppb, tolerance_source)."""
+        if ppb is None or ppb <= 0:
+            return "none", "Not detected", None, None, None, None
+
+        contaminant_lower = contaminant.lower()
+        is_heavy_metal = contaminant_lower in self._HEAVY_METALS
+
+        # Try international_mrls
+        mrl, mrl_source = self._get_strictest_mrl_with_source(contaminant, food_category)
+        if mrl and mrl > 0:
+            pct = ppb / mrl * 100
+            if pct >= 100:
+                return "high", f"Exceeds {mrl_source} MRL ({pct:.0f}%)", mrl, mrl_source, None, None
+            elif pct >= 50:
+                return "medium", f"Approaching {mrl_source} MRL ({pct:.0f}%)", mrl, mrl_source, None, None
+            elif is_heavy_metal:
+                return "medium", f"Heavy metal detected ({pct:.0f}% of {mrl_source} MRL, no safe level)", mrl, mrl_source, None, None
+            else:
+                return "low", f"Below {mrl_source} MRL ({pct:.0f}%)", mrl, mrl_source, None, None
+
+        # Try tolerance_limits
+        tolerance, tol_source = self._get_lowest_tolerance_with_source(contaminant, food_category)
+        if tolerance and tolerance > 0:
+            pct = ppb / tolerance * 100
+            if pct >= 100:
+                return "high", f"Exceeds {tol_source} limit ({pct:.0f}%)", None, None, tolerance, tol_source
+            elif pct >= 50:
+                return "medium", f"Approaching {tol_source} limit ({pct:.0f}%)", None, None, tolerance, tol_source
+            elif is_heavy_metal:
+                return "medium", f"Heavy metal detected ({pct:.0f}% of {tol_source} limit, no safe level)", None, None, tolerance, tol_source
+            else:
+                return "low", f"Below {tol_source} limit ({pct:.0f}%)", None, None, tolerance, tol_source
+
+        # No regulatory data
+        if is_heavy_metal:
+            return "medium", "Heavy metal detected (no regulatory benchmark available)", None, None, None, None
+        if ppb >= 500:
+            return "high", f"High concentration ({ppb}ppb, no regulatory benchmark)", None, None, None, None
+        elif ppb >= 100:
+            return "medium", f"Moderate concentration ({ppb}ppb, no regulatory benchmark)", None, None, None, None
+        elif ppb > 0:
+            return "low", f"Low concentration ({ppb}ppb, no regulatory benchmark)", None, None, None, None
+        return "none", "Not detected", None, None, None, None
+
+    def _get_strictest_mrl(
+        self, contaminant: str, food_category: str | None = None
+    ) -> float | None:
+        """Get the strictest (lowest) MRL from international_mrls."""
+        if food_category:
+            row = self._conn.execute(
+                "SELECT MIN(mrl_ppb) as min_mrl FROM international_mrls "
+                "WHERE LOWER(pesticide) = ? AND LOWER(food_category) = ? "
+                "AND mrl_ppb > 0",
+                (contaminant.lower(), food_category.lower()),
+            ).fetchone()
+            if row and row["min_mrl"]:
+                return row["min_mrl"]
+
+        # Fallback: any category
+        row = self._conn.execute(
+            "SELECT MIN(mrl_ppb) as min_mrl FROM international_mrls "
+            "WHERE LOWER(pesticide) = ? AND mrl_ppb > 0",
+            (contaminant.lower(),),
+        ).fetchone()
+        return row["min_mrl"] if row and row["min_mrl"] else None
+
+    def _get_strictest_mrl_with_source(
+        self, contaminant: str, food_category: str | None = None
+    ) -> tuple[float | None, str | None]:
+        """Get the strictest MRL and which country set it."""
+        if food_category:
+            row = self._conn.execute(
+                "SELECT mrl_ppb, country_region FROM international_mrls "
+                "WHERE LOWER(pesticide) = ? AND LOWER(food_category) = ? "
+                "AND mrl_ppb > 0 "
+                "ORDER BY mrl_ppb ASC LIMIT 1",
+                (contaminant.lower(), food_category.lower()),
+            ).fetchone()
+            if row and row["mrl_ppb"]:
+                return row["mrl_ppb"], row["country_region"]
+
+        # Fallback: any category
+        row = self._conn.execute(
+            "SELECT mrl_ppb, country_region FROM international_mrls "
+            "WHERE LOWER(pesticide) = ? AND mrl_ppb > 0 "
+            "ORDER BY mrl_ppb ASC LIMIT 1",
+            (contaminant.lower(),),
+        ).fetchone()
+        if row and row["mrl_ppb"]:
+            return row["mrl_ppb"], row["country_region"]
+        return None, None
+
+    def _get_lowest_tolerance(
+        self, contaminant: str, food_category: str | None = None
+    ) -> float | None:
+        """Get the lowest tolerance from tolerance_limits."""
+        if food_category:
+            row = self._conn.execute(
+                "SELECT MIN(tolerance_ppb) as min_tol FROM tolerance_limits "
+                "WHERE LOWER(contaminant) = ? AND LOWER(food_category) = ? "
+                "AND tolerance_ppb > 0",
+                (contaminant.lower(), food_category.lower()),
+            ).fetchone()
+            if row and row["min_tol"]:
+                return row["min_tol"]
+
+        # Fallback: any category
+        row = self._conn.execute(
+            "SELECT MIN(tolerance_ppb) as min_tol FROM tolerance_limits "
+            "WHERE LOWER(contaminant) = ? AND tolerance_ppb > 0",
+            (contaminant.lower(),),
+        ).fetchone()
+        return row["min_tol"] if row and row["min_tol"] else None
+
+    def _get_lowest_tolerance_with_source(
+        self, contaminant: str, food_category: str | None = None
+    ) -> tuple[float | None, str | None]:
+        """Get the lowest tolerance and its source."""
+        if food_category:
+            row = self._conn.execute(
+                "SELECT tolerance_ppb, source FROM tolerance_limits "
+                "WHERE LOWER(contaminant) = ? AND LOWER(food_category) = ? "
+                "AND tolerance_ppb > 0 "
+                "ORDER BY tolerance_ppb ASC LIMIT 1",
+                (contaminant.lower(), food_category.lower()),
+            ).fetchone()
+            if row and row["tolerance_ppb"]:
+                return row["tolerance_ppb"], row["source"]
+
+        # Fallback: any category
+        row = self._conn.execute(
+            "SELECT tolerance_ppb, source FROM tolerance_limits "
+            "WHERE LOWER(contaminant) = ? AND tolerance_ppb > 0 "
+            "ORDER BY tolerance_ppb ASC LIMIT 1",
+            (contaminant.lower(),),
+        ).fetchone()
+        if row and row["tolerance_ppb"]:
+            return row["tolerance_ppb"], row["source"]
+        return None, None
 
     @staticmethod
     def _detection_rate_to_risk_level(detection_rate: float) -> str:
