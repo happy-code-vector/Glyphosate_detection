@@ -54,7 +54,7 @@ FDA_SOURCES = [
         "format": "xlsx",
         "data_year": 2023,
         "published_date": "2023-01-01",
-        "header_row": 1,
+        "header_row": 3,  # Row 0-2 are title/description, Row 3 is headers
     },
     {
         "name": "FDA Cadmium and Lead in Infant Food",
@@ -250,11 +250,11 @@ class FDAToxicElementsFetcher(BaseFetcher):
         1. Single value column (e.g., "As Concentration (ppb)")
         2. Multi-column (e.g., "Cadmium (ppb)", "Lead (ppb)" as separate columns)
         """
-        # Find key columns
-        product_col = self._find_col(df, ['Sample Description', 'Baby Food Name', 'Product',
-                                           'Product Name', 'product_name', 'Food', 'Food Product'])
-        category_col = self._find_col(df, ['Product Category', 'Baby Food Category', 'Category',
-                                            'Food Category', 'Food Type', 'Type'])
+        # Find key columns — order matters: more specific first
+        product_col = self._find_col(df, ['Sample Description', 'Baby Food Name',
+                                           'Product Name', 'product_name', 'Food Product'])
+        category_col = self._find_col(df, ['Product Category', 'Baby Food Category',
+                                            'Food Category', 'Food Type'])
         year_col = self._find_col(df, ['Fiscal Year', 'Year', 'FY', 'data_year'])
 
         if not product_col:
@@ -412,15 +412,21 @@ class FDAToxicElementsFetcher(BaseFetcher):
 
     @staticmethod
     def _find_col(df, candidates: list[str]) -> str | None:
-        """Find a column by trying multiple candidate names."""
+        """Find a column by trying multiple candidate names.
+
+        Exact match first, then partial match (only for candidates >= 5 chars
+        to avoid 'Product' matching 'Product Category').
+        """
         for c in candidates:
             if c in df.columns:
                 return c
             for col in df.columns:
                 if col.lower() == c.lower():
                     return col
+        # Partial match — only for longer candidates to avoid false matches
         for c in candidates:
-            for col in df.columns:
-                if c.lower() in col.lower():
-                    return col
+            if len(c) >= 5:
+                for col in df.columns:
+                    if c.lower() in col.lower():
+                        return col
         return None
