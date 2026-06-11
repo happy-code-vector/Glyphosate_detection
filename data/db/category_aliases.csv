@@ -1106,3 +1106,78 @@ cocoa,cocoa
 chocolate,cocoa
 wine,grape
 beer,barley
+"chicken breast, fried with skin, fast-food",poultry
+"chicken nuggets, fast-food",poultry
+"chicken breast, oven-roasted, skin removed",poultry
+"chicken leg, fried with skin, fast-food",poultry
+"chicken thigh, oven-roasted, skin removed",poultry
+"broth, chicken, cartoned",poultry
+"turkey breast, oven-roasted",poultry
+"turkey, ground, pan-cooked",poultry
+"bf, turkey and broth/gravy",poultry
+"luncheon meat, turkey",poultry
+"pork bacon, oven-cooked","hog, meat"
+"ham, cured (not canned), baked","hog, meat"
+"bf, beef and broth/gravy","cattle, meat"
+"salami, dry/hard","hog, meat"
+"luncheon meat, bologna","hog, meat"
+"luncheon meat, ham","hog, meat"
+"tilapia, baked",fish
+"cod, baked",fish
+"shrimp, pre-cooked, shells removed, no tails",fish
+"fish sticks or patty, frozen, oven-cooked",fish
+"kale, fresh, pan-cooked",fresh_vegetables
+"kale, raw, pan-cooked",fresh_vegetables
+"olives, black, pitted",fresh_vegetables
+"tofu, firm, plain, drained",soybeans
+"tofu, firm, plain, drained solids",soybeans
+brownie,wheat
+breakfast tart/toaster pastry,wheat
+mayonnaise,egg
+"mustard, yellow, plain",mustard
+"sauce, barbecue",tomato
+"salad dressing, italian, regular",fresh_vegetables
+"salad dressing, ranch, regular",fresh_vegetables
+"salad dressing, ranch, low-calorie",fresh_vegetables
+"brown gravy, canned or bottled","cattle, meat"
+"soup, clam chowder, new england, canned, ready to serve",fish
+"soup, vegetable, canned, ready to serve",fresh_vegetables
+"soup, vegetable beef, canned, ready to serve","cattle, meat"
+"wine, red",grape
+"wine, white",grape
+beer,barley
+"alcohol, distilled, vodka",wheat
+"alcohol, distilled, whiskey/scotch",wheat
+"carbonated beverage, cola, regular",corn
+"carbonated beverage, cola, diet",corn
+"beverage, energy",corn
+"beverage, sports",corn
+"almonds, shelled",almond
+"powder, protein",soybeans
+almond,almonds
+olive,table olives
+poultry,chicken
+mustard,mustard seeds
+"rettich, radieschen",fresh_vegetables
+rettiche/radieschen,fresh_vegetables
+gruenkohle,fresh_vegetables
+"pfeffer, schwarz und weiss",fresh_vegetables
+artischocken,fresh_vegetables
+chicoree,fresh_vegetables
+petersilienwurzel,fresh_vegetables
+kohlrabi,fresh_vegetables
+"zuchtpilz, kulturpilz (getrocknet)",fresh_vegetables
+schwarzwurzeln,fresh_vegetables
+"brunnenkresse, wasserspinat, mukunuwenna",fresh_vegetables
+kurkuma,fresh_vegetables
+zimt,fresh_vegetables
+hopfen (getrocknet),hops
+guave,fresh_fruit
+guaven,fresh_fruit
+coffee,coffee
+tea,tea
+sonstige erzeugnisse von landtieren,cattle
+sonstige nutztiere muskel,cattle
+"gefluegel, strausse, tauben muskel",chicken
+infant_cereal,fresh_fruit
+"komplettmahlzeiten, beikost u. sonstige fuer saeuglinge/kleinkinder",fresh_fruit
