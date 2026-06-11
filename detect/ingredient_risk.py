@@ -410,6 +410,9 @@ class IngredientRiskQuery:
             (food_category,),
         ).fetchall()
 
+        # Look up consumption tier once for this food category
+        consumption_tier = self._get_consumption_tier(food_category)
+
         contaminants = []
         for row in rows:
             d = dict(row)
@@ -422,7 +425,7 @@ class IngredientRiskQuery:
 
             # Get risk assessment using regulatory data
             risk_level, risk_reason, mrl, mrl_src, tol, tol_src = \
-                self._ppb_to_risk_detail(max_ppb, contam, food_category)
+                self._ppb_to_risk_detail(max_ppb, contam, food_category, consumption_tier)
 
             # Calculate percentages
             pct_of_mrl = (max_ppb / mrl * 100) if mrl and mrl > 0 and max_ppb else None
