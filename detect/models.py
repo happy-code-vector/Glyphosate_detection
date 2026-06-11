@@ -192,6 +192,24 @@ class ContaminantReport:
 
 
 @dataclass
+class BiomonitoringResult:
+    """CDC NHANES biomonitoring data — human exposure levels."""
+    analyte: str  # e.g., "Glyphosate", "Lead"
+    cycle: str  # e.g., "2017-2018"
+    population_group: str
+    sample_size: int
+    detected_count: int | None
+    detection_rate: float | None
+    geometric_mean: float | None
+    percentile_50: float | None
+    percentile_75: float | None
+    percentile_90: float | None
+    percentile_95: float | None
+    unit: str
+    lod: float | None
+
+
+@dataclass
 class ProductScanResult:
     """Full result of a barcode scan — includes flags and residue data."""
     upc: str

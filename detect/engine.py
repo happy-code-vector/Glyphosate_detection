@@ -20,6 +20,7 @@ from detect.models import (
     CommodityResidue,
     ProductScanResult,
     ContaminantReport,
+    BiomonitoringResult,
 )
 
 
@@ -113,6 +114,55 @@ class DetectionEngine:
         self, food_category: str, contaminant: str = "glyphosate"
     ) -> InternationalComparisonResult:
         return self._comparison.execute(food_category, contaminant)
+
+    def biomonitoring(
+        self, analyte: str | None = None, cycle: str | None = None
+    ) -> list[BiomonitoringResult]:
+        """
+        CDC NHANES biomonitoring data — human exposure levels.
+
+        Shows what percentage of the US population has detectable levels
+        of a contaminant in their blood/urine.
+
+        Args:
+            analyte: Filter by analyte name (e.g., "Glyphosate", "Lead")
+            cycle: Filter by NHANES cycle (e.g., "2017-2018")
+
+        Returns:
+            List of BiomonitoringResult with population-level statistics
+        """
+        conditions = []
+        params = []
+        if analyte:
+            conditions.append("analyte = ?")
+            params.append(analyte)
+        if cycle:
+            conditions.append("cycle = ?")
+            params.append(cycle)
+        where = " WHERE " + " AND ".join(conditions) if conditions else ""
+
+        rows = self._conn.execute(
+            f"SELECT * FROM biomonitoring{where} ORDER BY analyte, cycle", params
+        ).fetchall()
+
+        return [
+            BiomonitoringResult(
+                analyte=r["analyte"],
+                cycle=r["cycle"],
+                population_group=r["population_group"],
+                sample_size=r["sample_size"],
+                detected_count=r["detected_count"],
+                detection_rate=r["detection_rate"],
+                geometric_mean=r["geometric_mean"],
+                percentile_50=r["percentile_50"],
+                percentile_75=r["percentile_75"],
+                percentile_90=r["percentile_90"],
+                percentile_95=r["percentile_95"],
+                unit=r["unit"],
+                lod=r["lod"],
+            )
+            for r in rows
+        ]
 
     def ingredient_risk(
         self,
