@@ -24,7 +24,7 @@ Strategy:
 import logging
 from pathlib import Path
 
-from fetchers.base import BaseFetcher, RAW_DATA_DIR
+from fetchers.base import BaseFetcher, RAW_DATA_DIR, SESSION
 from db.database import build_dedup_key, get_connection, normalize_category
 
 logger = logging.getLogger(__name__)
@@ -151,7 +151,7 @@ class EFSAMrlFetcher(BaseFetcher):
         for url in [url] + alt_urls:
             try:
                 logger.info("EFSA MRL: fetching %s...", url)
-                resp = self.SESSION.get(url, timeout=120)
+                resp = SESSION.get(url, timeout=120)
                 if resp.status_code == 200 and len(resp.content) > 1000:
                     dest.write_bytes(resp.content)
                     logger.info("EFSA MRL: downloaded %d bytes", len(resp.content))

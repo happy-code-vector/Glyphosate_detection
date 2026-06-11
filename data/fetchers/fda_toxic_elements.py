@@ -26,7 +26,7 @@ Strategy:
 import logging
 from pathlib import Path
 
-from fetchers.base import BaseFetcher, RAW_DATA_DIR
+from fetchers.base import BaseFetcher, RAW_DATA_DIR, SESSION
 from db.database import normalize_category, build_dedup_key, get_connection
 
 logger = logging.getLogger(__name__)
@@ -111,7 +111,7 @@ class FDAToxicElementsFetcher(BaseFetcher):
 
             try:
                 logger.info("FDA ToxicElements: fetching %s...", source["name"])
-                resp = self.SESSION.get(source["url"], timeout=120)
+                resp = SESSION.get(source["url"], timeout=120)
                 if resp.status_code == 200 and len(resp.content) > 1000:
                     dest.write_bytes(resp.content)
                     paths.append(dest)
