@@ -265,6 +265,9 @@ CREATE TABLE IF NOT EXISTS international_mrls (
     dedup_key           TEXT UNIQUE
 );
 
+CREATE INDEX IF NOT EXISTS idx_imrl_food_category ON international_mrls(food_category);
+CREATE INDEX IF NOT EXISTS idx_imrl_pesticide ON international_mrls(pesticide);
+
 -- ═════════════════════════════════════════════
 -- REGULATORY TABLES (seed data)
 -- Maps to Firestore: ingredients, regulatory_flags, commodities, alternatives

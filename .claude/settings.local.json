@@ -1,34 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python main.py --fallback)",
-      "Bash(python -c ' *)",
-      "Bash(python -c \"from db.database import initialize, DB_PATH, build_dedup_key, normalize_category, insert_rows; print\\(f'db module OK, DB_PATH={DB_PATH}'\\)\")",
-      "Bash(python -c \"from fetchers.base import BaseFetcher, download_file, fetch_page; print\\('base module OK'\\)\")",
-      "Bash(python -c \"from fetchers.ewg import EWGFetcher; print\\('ewg module OK'\\)\")",
-      "Bash(python -c \"from fetchers.florida_hff import FloridaHFFetcher; print\\('florida module OK'\\)\")",
-      "Bash(python -c \"from fetchers.sources import CFIAFetcher, EFSAFetcher, FDAFetcher; print\\('sources module OK'\\)\")",
-      "Bash(python -c \"from run_pipeline import run_all, validate; print\\('run_pipeline imports OK'\\)\")",
-      "Bash(python -c \"from db.database import initialize; initialize\\(\\); print\\('DB initialized successfully'\\)\")",
-      "Bash(python -c ' *c)",
-      "mcp__ide__executeCode",
-      "Bash(python *)",
-      "Bash(git *)",
-      "Bash(sqlite3 residueiq.db \"SELECT COUNT\\(*\\) FROM glyphosate_measurements\")",
-      "Bash(sqlite3 *)",
-      "Bash(curl -s *)",
-      "Bash(ls /c/Python*)",
-      "Read(//c/Users/**)",
-      "Bash(/c/Users/Administrator/AppData/Local/Programs/Python/Python312/python.exe -m pip install PyPDF2)",
-      "Bash(/c/Users/Administrator/AppData/Local/Programs/Python/Python312/python.exe -c ' *)",
-      "Bash(*)",
-      "PowerShell(cd \"F:\\\\Projects\\\\Arasheed\\\\Glyphosate Detection\\\\data\"; $sources = @\\(\"ewg\",\"florida\",\"usda_pdp\",\"epa_tolerances\",\"academic_papers\",\"cdc_nhanes\",\"uk_fsa\",\"ca_dpr\",\"germany_bvl\",\"australia_fsnz\",\"codex_mrls\",\"japan_brazil_mrls\",\"cfia\",\"efsa\",\"fda\",\"detox_project\",\"clean_label_project\",\"consumer_reports\",\"detox_certifications\",\"epa_full_tolerances\",\"usda_fas_mrls\"\\); foreach \\($src in $sources\\) { Write-Host \"=== $src ===\" ; python run_pipeline.py --source $src 2>&1 | Select-String -Pattern \"complete|failed|FAILED|Error\" ; Write-Host \"\" })",
-      "PowerShell(python -m pip install xlrd odfpy 2>&1 | Select-Object -Last 3)",
-      "mcp__plugin_context-mode_context-mode__ctx_fetch_and_index",
-      "mcp__plugin_context-mode_context-mode__ctx_search",
-      "mcp__plugin_context-mode_context-mode__ctx_execute",
-      "mcp__plugin_context-mode_context-mode__ctx_execute_file",
-      "mcp__plugin_context-mode_context-mode__ctx_batch_execute"
+      "*"
     ]
   }
 }
