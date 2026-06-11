@@ -57,6 +57,7 @@ def run_all():
     from fetchers.epa_full_tolerances import EPAFullTolerancesFetcher
     from fetchers.usda_fas_mrls import USDAFASMRLFetcher
     from fetchers.efsa_mrls import EFSAMrlFetcher
+    from fetchers.epa_cfr_tolerances import EPACFRTolerancesFetcher
     from fetchers.fda_toxic_elements import FDAToxicElementsFetcher
     from fetchers.fda_total_diet_study import FDATotalDietStudyFetcher
     from fetchers.water_quality import WaterQualityFetcher
@@ -84,6 +85,7 @@ def run_all():
         ("ca_dpr",          CADPRFetcher),
         ("germany_bvl",     GermanyBVLFetcher),
         ("epa_tolerances",  EPATolerancesFetcher),
+        ("epa_cfr_tolerances", EPACFRTolerancesFetcher),
         ("australia_fsnz",  AustraliaFSANZFetcher),
         ("codex_mrls",      CodexMRLsFetcher),
         ("japan_brazil_mrls", JapanBrazilMRLFetcher),
