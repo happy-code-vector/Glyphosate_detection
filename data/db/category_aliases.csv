@@ -271,7 +271,7 @@ natural flavoring,fresh_vegetables
 artificial flavoring,fresh_vegetables
 vanilla,fresh_vegetables
 vanilla extract,fresh_vegetables
-milk,fresh_fruit
+milk,milk
 skimmed milk powder,fresh_fruit
 skim milk powder,fresh_fruit
 whole milk powder,fresh_fruit
@@ -1181,3 +1181,109 @@ sonstige nutztiere muskel,cattle
 "gefluegel, strausse, tauben muskel",chicken
 infant_cereal,fresh_fruit
 "komplettmahlzeiten, beikost u. sonstige fuer saeuglinge/kleinkinder",fresh_fruit
+chicken,chicken
+cattle,cattle
+egg,egg
+peanuts,peanuts
+coffee,coffee
+tea,tea
+mustard seeds,mustard seeds
+table olives,olive
+olive,olive
+gruenkohle,fresh_vegetables
+"pfeffer, schwarz und weiss",spices
+kohlrabi,fresh_vegetables
+chicoree,fresh_vegetables
+petersilienwurzeln,fresh_vegetables
+kuemmel,spices
+kardamom,spices
+thymian,spices
+rosmarin,spices
+kerbel,spices
+portulak,fresh_vegetables
+chiasamen,seeds
+paranuesse,nuts
+datteln,dates
+"feigen, getrocknet",dried_fruit
+"aprikosen, getrocknet",dried_fruit
+ananassaft,fruit_juice
+kirschsaft,fruit_juice
+johannisbeernektar,fruit_juice
+nektarinen,stone_fruit
+mispel,fresh_fruit
+mispeln,fresh_fruit
+kuerbiskernoel,oils
+romanesco,fresh_vegetables
+rote rueben,root_vegetables
+indischer wassernabel,fresh_vegetables
+"komplettmahlzeiten, beikost u. sonstige f. saeuglinge/kleinkinder",baby_food
+saeuglingsanfangsnahrungen,baby_food
+milch und milchprodukte schafe,dairy
+milch und milchprodukte ziegen,dairy
+schaf muskel,sheep
+gefluegel: muskel,poultry
+rinder: sahne,dairy
+sonstige erzeugnisse von landtieren,other_meat
+sonstige nutztiere: muskel,other_meat
+algae and prokaryotes organisms,algae
+wine,wine
+beer,beer
+brownie,wheat
+salad dressing,oils
+"soup, vegetable",fresh_vegetables
+"soup, clam chowder",fish
+"soup, vegetable beef",cattle
+mayonnaise,eggs
+"mustard, yellow",mustard seeds
+"sauce, barbecue",tomato
+tofu,soybeans
+"powder, protein",soybeans
+"carbonated beverage, cola",corn
+"beverage, energy",corn
+"beverage, sports",corn
+"alcohol, distilled",grain
+breakfast tart/toaster pastry,wheat
+fish sticks or patty,fish
+fruit_juice,juice
+dried_fruit,fresh_fruit
+stone_fruit,fresh_fruit
+dates,fresh_fruit
+spices,fresh_vegetables
+dairy,milk
+seeds,fresh_vegetables
+nuts,fresh_vegetables
+oils,canola
+other_meat,cattle
+algae,fresh_vegetables
+wine,grape
+beer,barley
+grain,wheat
+"milk, whole",milk
+"milk, skim",milk
+"milk, 2%",milk
+"milk, 1%",milk
+"milk, fat-free",milk
+buttermilk,milk
+cream,milk
+sour cream,milk
+whipped cream,milk
+half and half,milk
+evaporated milk,milk
+condensed milk,milk
+dry milk,milk
+powdered milk,milk
+"cheese, cheddar",milk
+"cheese, mozzarella",milk
+"cheese, swiss",milk
+"cheese, american",milk
+"cheese, cottage",milk
+"cheese, cream",milk
+"yogurt, plain",milk
+"yogurt, vanilla",milk
+"yogurt, fruit",milk
+ice cream,milk
+butter,milk
+ghee,milk
+kefir,milk
+whey,milk
+lactose,milk
