@@ -58,6 +58,7 @@ def run_all():
     from fetchers.usda_fas_mrls import USDAFASMRLFetcher
     from fetchers.efsa_mrls import EFSAMrlFetcher
     from fetchers.fda_toxic_elements import FDAToxicElementsFetcher
+    from fetchers.fda_total_diet_study import FDATotalDietStudyFetcher
     from fetchers.water_quality import WaterQualityFetcher
     from fetchers.moms_across_america import MomsAcrossAmericaFetcher
     from fetchers.food_democracy_now import FoodDemocracyNowFetcher
@@ -97,6 +98,7 @@ def run_all():
         ("usda_fas_mrls",       USDAFASMRLFetcher),
         ("efsa_mrls",           EFSAMrlFetcher),
         ("fda_toxic_elements",  FDAToxicElementsFetcher),
+        ("fda_total_diet_study", FDATotalDietStudyFetcher),
         ("moms_across_america",  MomsAcrossAmericaFetcher),
         ("food_democracy_now",   FoodDemocracyNowFetcher),
         ("soil_association",     SoilAssociationFetcher),

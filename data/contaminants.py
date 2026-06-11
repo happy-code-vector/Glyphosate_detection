@@ -588,6 +588,139 @@ CONTAMINANTS = {
         "risk_thresholds": {"high": 500, "medium": 100, "low": 0},
         "fda_status": "permitted",
     },
+
+    # ══════════════════════════════════════════
+    # ENVIRONMENTAL CONTAMINANTS
+    # FDA Total Diet Study + targeted programs
+    # ══════════════════════════════════════════
+    "perchlorate": {
+        "type": "environmental",
+        "cas_number": "14797-73-0",
+        "display_name": "Perchlorate",
+        "aliases": ["perchlorate", "clo4", "ammonium perchlorate"],
+        "units": "ppb",
+        "risk_thresholds": {"high": 15, "medium": 5, "low": 0},
+        "water_standards": [
+            {
+                "source": "EPA_MCL",
+                "tolerance_ppm": 0.056,
+                "tolerance_ppb": 56.0,
+                "regulation_reference": "EPA Perchlorate Final Rule 2024",
+            },
+        ],
+        "fda_status": "monitored",
+        "iarc_classification": None,
+        "ntp_classification": None,
+    },
+    "pfas_pfoa": {
+        "type": "environmental",
+        "cas_number": "335-67-1",
+        "display_name": "PFOA (Perfluorooctanoic acid)",
+        "aliases": ["pfoa", "perfluorooctanoic acid", "c8"],
+        "units": "ppt",
+        "risk_thresholds": {"high": 70, "medium": 20, "low": 0},
+        "water_standards": [
+            {
+                "source": "EPA_MCL",
+                "tolerance_ppm": 0.000000004,
+                "tolerance_ppb": 0.004,
+                "regulation_reference": "EPA PFAS National Primary Drinking Water Regulation 2024",
+            },
+        ],
+        "fda_status": "monitored",
+        "iarc_classification": "Group 1",
+    },
+    "pfas_pfos": {
+        "type": "environmental",
+        "cas_number": "1763-23-1",
+        "display_name": "PFOS (Perfluorooctane sulfonic acid)",
+        "aliases": ["pfos", "perfluorooctane sulfonic acid"],
+        "units": "ppt",
+        "risk_thresholds": {"high": 70, "medium": 20, "low": 0},
+        "water_standards": [
+            {
+                "source": "EPA_MCL",
+                "tolerance_ppm": 0.000000004,
+                "tolerance_ppb": 0.004,
+                "regulation_reference": "EPA PFAS National Primary Drinking Water Regulation 2024",
+            },
+        ],
+        "fda_status": "monitored",
+        "iarc_classification": None,
+    },
+    "dioxins": {
+        "type": "environmental",
+        "cas_number": "1746-01-6",
+        "display_name": "Dioxins (TCDD)",
+        "aliases": ["dioxin", "tcdd", "2,3,7,8-tcdd", "dioxins and furans"],
+        "units": "ppt",
+        "risk_thresholds": {"high": 1, "medium": 0.3, "low": 0},
+        "fda_status": "monitored",
+        "iarc_classification": "Group 1",
+        "ntp_classification": "Known to be a human carcinogen",
+    },
+    "pcbs": {
+        "type": "environmental",
+        "cas_number": "1336-36-3",
+        "display_name": "PCBs (Polychlorinated biphenyls)",
+        "aliases": ["pcb", "pcbs", "polychlorinated biphenyls", "aroclor"],
+        "units": "ppb",
+        "risk_thresholds": {"high": 500, "medium": 100, "low": 0},
+        "fda_status": "banned",
+        "iarc_classification": "Group 1",
+        "ntp_classification": "Known to be a human carcinogen",
+        "regulatory_flags": [
+            {"jurisdiction": "US_Federal", "flag_type": "us_banned", "regulatory_body": "EPA",
+             "regulation_citation": "Toxic Substances Control Act (TSCA)", "notes": "Banned in US since 1979"},
+        ],
+    },
+    "benzene": {
+        "type": "environmental",
+        "cas_number": "71-43-2",
+        "display_name": "Benzene",
+        "aliases": ["benzene", "c6h6"],
+        "units": "ppb",
+        "risk_thresholds": {"high": 5, "medium": 1, "low": 0},
+        "water_standards": [
+            {
+                "source": "EPA_MCL",
+                "tolerance_ppm": 0.005,
+                "tolerance_ppb": 5.0,
+                "regulation_reference": "40 CFR 141.61",
+            },
+        ],
+        "fda_status": "monitored",
+        "iarc_classification": "Group 1",
+        "ntp_classification": "Known to be a human carcinogen",
+    },
+    "radionuclides": {
+        "type": "environmental",
+        "cas_number": None,
+        "display_name": "Radionuclides (Cesium-137, Strontium-90)",
+        "aliases": ["radionuclide", "radionuclides", "cesium-137", "strontium-90", "radioactive"],
+        "units": "pCi/L",
+        "risk_thresholds": {"high": 50, "medium": 15, "low": 0},
+        "water_standards": [
+            {
+                "source": "EPA_MCL",
+                "tolerance_ppm": None,
+                "tolerance_ppb": None,
+                "regulation_reference": "40 CFR 141.66 — Radionuclides Rule",
+            },
+        ],
+        "fda_status": "monitored",
+    },
+    "microplastics": {
+        "type": "environmental",
+        "cas_number": None,
+        "display_name": "Microplastics and Nanoplastics",
+        "aliases": ["microplastic", "microplastics", "nanoplastic", "nanoplastics", "mnps"],
+        "units": "particles/L",
+        "risk_thresholds": {"high": 1000, "medium": 100, "low": 0},
+        "fda_status": "under_review",
+        "iarc_classification": None,
+        "ntp_classification": None,
+    },
 }
 
 CONTAMINANT_KEYS = list(CONTAMINANTS.keys())
