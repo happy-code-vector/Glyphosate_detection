@@ -68,69 +68,7 @@ CREATE TABLE IF NOT EXISTS international_mrls (
 #   Soybeans: US 20 ppm, EU 20 ppm, Canada 20 ppm, Japan 20 ppm
 # ---------------------------------------------------------------------------
 
-# Each entry: (raw_commodity, mrl_ppm, country_region, regulatory_body)
-INTERNATIONAL_MRLS: list[tuple[str, float, str, str]] = [
-    # ── EU (EFSA) ───────────────────────────────────────────────────────
-    # Generally the strictest regulatory body
-    ("Wheat",       10.0, "EU",       "EFSA"),
-    ("Barley",      20.0, "EU",       "EFSA"),
-    ("Oats",        20.0, "EU",       "EFSA"),
-    ("Rye",         10.0, "EU",       "EFSA"),
-    ("Corn",         1.0, "EU",       "EFSA"),
-    ("Rice",         0.1, "EU",       "EFSA"),
-    ("Sorghum",     10.0, "EU",       "EFSA"),
-    ("Soybeans",    20.0, "EU",       "EFSA"),
-    ("Canola",      10.0, "EU",       "EFSA"),
-    ("Sunflower",    7.0, "EU",       "EFSA"),
-    ("Apples",       0.5, "EU",       "EFSA"),
-    ("Grapes",       0.5, "EU",       "EFSA"),
-    ("Citrus",       0.5, "EU",       "EFSA"),
-    ("Tomatoes",     0.05, "EU",      "EFSA"),
-    ("Lettuce",      5.0, "EU",       "EFSA"),
-    ("Carrots",      0.05, "EU",      "EFSA"),
-    ("Potatoes",     0.5, "EU",       "EFSA"),
-    ("Peas",        10.0, "EU",       "EFSA"),
-    ("Beans",       10.0, "EU",       "EFSA"),
-    ("Lentils",     10.0, "EU",       "EFSA"),
-    ("Chickpeas",   10.0, "EU",       "EFSA"),
-    # ── Canada (Health Canada / PMRA) ───────────────────────────────────
-    ("Wheat",        5.0, "Canada",   "Health Canada"),
-    ("Barley",      10.0, "Canada",   "Health Canada"),
-    ("Oats",        15.0, "Canada",   "Health Canada"),
-    ("Rye",          5.0, "Canada",   "Health Canada"),
-    ("Corn",         1.0, "Canada",   "Health Canada"),
-    ("Rice",         0.1, "Canada",   "Health Canada"),
-    ("Soybeans",    20.0, "Canada",   "Health Canada"),
-    ("Canola",      10.0, "Canada",   "Health Canada"),
-    ("Apples",       0.5, "Canada",   "Health Canada"),
-    ("Grapes",       0.5, "Canada",   "Health Canada"),
-    ("Tomatoes",     0.5, "Canada",   "Health Canada"),
-    ("Lettuce",      5.0, "Canada",   "Health Canada"),
-    # ── Japan (MHLW) ────────────────────────────────────────────────────
-    ("Wheat",        5.0, "Japan",    "MHLW (Japan)"),
-    ("Barley",      10.0, "Japan",    "MHLW (Japan)"),
-    ("Oats",        10.0, "Japan",    "MHLW (Japan)"),
-    ("Corn",         1.0, "Japan",    "MHLW (Japan)"),
-    ("Rice",         0.1, "Japan",    "MHLW (Japan)"),
-    ("Soybeans",    20.0, "Japan",    "MHLW (Japan)"),
-    ("Canola",      10.0, "Japan",    "MHLW (Japan)"),
-    ("Apples",       0.5, "Japan",    "MHLW (Japan)"),
-    ("Grapes",       0.5, "Japan",    "MHLW (Japan)"),
-    # ── Australia (FSANZ) ───────────────────────────────────────────────
-    ("Wheat",        5.0, "Australia", "FSANZ"),
-    ("Barley",      10.0, "Australia", "FSANZ"),
-    ("Oats",        10.0, "Australia", "FSANZ"),
-    ("Corn",         1.0, "Australia", "FSANZ"),
-    ("Rice",         0.1, "Australia", "FSANZ"),
-    ("Soybeans",    20.0, "Australia", "FSANZ"),
-    ("Canola",      10.0, "Australia", "FSANZ"),
-    # ── Brazil (ANVISA) ─────────────────────────────────────────────────
-    ("Wheat",       10.0, "Brazil",   "ANVISA"),
-    ("Corn",         1.0, "Brazil",   "ANVISA"),
-    ("Rice",         0.1, "Brazil",   "ANVISA"),
-    ("Soybeans",    10.0, "Brazil",   "ANVISA"),
-    ("Canola",      10.0, "Brazil",   "ANVISA"),
-]
+# MRL data is in international_mrls_data.py
 
 
 class USDAFASMRLFetcher(BaseFetcher):

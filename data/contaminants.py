@@ -148,7 +148,7 @@ CONTAMINANTS = {
             },
         ],
         "fda_action_levels": {
-            "baby_food": {"ppb": 10, "reference": "FDA Closer to Zero action level for arsenic in baby food (infant rice cereal)"},
+            "baby_food": {"ppb": 100, "reference": "FDA Closer to Zero action level for inorganic arsenic in infant rice cereal (April 2024)"},
             "juice": {"ppb": 10, "reference": "FDA action level for inorganic arsenic in apple juice"},
         },
         "ab899": True,

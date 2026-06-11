@@ -98,7 +98,6 @@ COMMODITY_SEEDS = [
     {
         "commodity_slug": "carrot",
         "display_name": "Carrot",
-        "dirty_dozen": True,
         "consumption_tier": "daily",
         "ingredient_aliases": [
             "carrots", "organic carrots", "baby carrots", "carrot puree",
@@ -119,7 +118,6 @@ COMMODITY_SEEDS = [
     {
         "commodity_slug": "cucumber",
         "display_name": "Cucumber",
-        "dirty_dozen": True,
         "consumption_tier": "weekly",
         "ingredient_aliases": [
             "cucumbers", "pickles", "pickle juice", "gherkin",
@@ -128,7 +126,6 @@ COMMODITY_SEEDS = [
     {
         "commodity_slug": "orange",
         "display_name": "Orange",
-        "dirty_dozen": True,
         "consumption_tier": "weekly",
         "ingredient_aliases": [
             "oranges", "orange juice", "orange concentrate", "orange extract",
@@ -139,7 +136,6 @@ COMMODITY_SEEDS = [
     {
         "commodity_slug": "lemon",
         "display_name": "Lemon",
-        "dirty_dozen": True,
         "consumption_tier": "weekly",
         "ingredient_aliases": [
             "lemon", "lemon juice", "lemon extract", "lemon peel",
@@ -149,7 +145,6 @@ COMMODITY_SEEDS = [
     {
         "commodity_slug": "milk",
         "display_name": "Milk",
-        "dirty_dozen": True,
         "consumption_tier": "daily",
         "ingredient_aliases": [
             "milk", "whole milk", "skim milk", "low-fat milk", "nonfat milk",
@@ -160,7 +155,6 @@ COMMODITY_SEEDS = [
     {
         "commodity_slug": "egg",
         "display_name": "Egg",
-        "dirty_dozen": True,
         "consumption_tier": "daily",
         "ingredient_aliases": [
             "eggs", "whole eggs", "egg whites", "egg yolks", "dried eggs",
@@ -201,6 +195,7 @@ COMMODITY_SEEDS = [
     {
         "commodity_slug": "apple",
         "display_name": "Apple",
+        "dirty_dozen": True,
         "consumption_tier": "weekly",
         "ingredient_aliases": [
             "apples", "apple juice", "apple puree", "apple concentrate",
@@ -210,6 +205,7 @@ COMMODITY_SEEDS = [
     {
         "commodity_slug": "grape",
         "display_name": "Grape",
+        "dirty_dozen": True,
         "consumption_tier": "weekly",
         "ingredient_aliases": [
             "grapes", "grape juice", "raisins", "grape concentrate",
@@ -257,6 +253,7 @@ COMMODITY_SEEDS = [
     {
         "commodity_slug": "blueberry",
         "display_name": "Blueberry",
+        "dirty_dozen": True,
         "consumption_tier": "weekly",
         "ingredient_aliases": [
             "blueberries", "organic blueberries", "freeze-dried blueberries",
@@ -304,6 +301,7 @@ COMMODITY_SEEDS = [
     {
         "commodity_slug": "cherry",
         "display_name": "Cherry",
+        "dirty_dozen": True,
         "consumption_tier": "occasional",
         "ingredient_aliases": [
             "cherries", "cherry juice", "dried cherries", "maraschino cherries",
@@ -313,6 +311,7 @@ COMMODITY_SEEDS = [
     {
         "commodity_slug": "pear",
         "display_name": "Pear",
+        "dirty_dozen": True,
         "consumption_tier": "weekly",
         "ingredient_aliases": [
             "pears", "pear juice", "pear puree", "pear concentrate",
