@@ -44,10 +44,7 @@ def run_all():
     from fetchers.uk_fsa import UKFSAFetcher
     from fetchers.ca_dpr import CADPRFetcher
     from fetchers.germany_bvl import GermanyBVLFetcher
-    from fetchers.epa_tolerances import EPATolerancesFetcher
     from fetchers.australia_fsnz import AustraliaFSANZFetcher
-    from fetchers.codex_mrls import CodexMRLsFetcher
-    from fetchers.japan_brazil_mrls import JapanBrazilMRLFetcher
     from fetchers.academic_papers import AcademicPapersFetcher
     from fetchers.detox_project import DetoxProjectFetcher
     from fetchers.cdc_nhanes import CDC_NHANESFetcher
@@ -55,7 +52,6 @@ def run_all():
     from fetchers.consumer_reports import ConsumerReportsFetcher
     from fetchers.detox_certifications import DetoxCertificationsFetcher
     from fetchers.epa_full_tolerances import EPAFullTolerancesFetcher
-    from fetchers.usda_fas_mrls import USDAFASMRLFetcher
     from fetchers.efsa_mrls import EFSAMrlFetcher
     from fetchers.epa_cfr_tolerances import EPACFRTolerancesFetcher
     from fetchers.fda_toxic_elements import FDAToxicElementsFetcher
@@ -84,11 +80,8 @@ def run_all():
         ("uk_fsa",          UKFSAFetcher),
         ("ca_dpr",          CADPRFetcher),
         ("germany_bvl",     GermanyBVLFetcher),
-        ("epa_tolerances",  EPATolerancesFetcher),
         ("epa_cfr_tolerances", EPACFRTolerancesFetcher),
         ("australia_fsnz",  AustraliaFSANZFetcher),
-        ("codex_mrls",      CodexMRLsFetcher),
-        ("japan_brazil_mrls", JapanBrazilMRLFetcher),
         ("academic_papers", AcademicPapersFetcher),
         ("detox_project",   DetoxProjectFetcher),
         ("cdc_nhanes",      CDC_NHANESFetcher),
@@ -97,7 +90,6 @@ def run_all():
         ("consumer_reports",    ConsumerReportsFetcher),
         ("detox_certifications", DetoxCertificationsFetcher),
         ("epa_full_tolerances", EPAFullTolerancesFetcher),
-        ("usda_fas_mrls",       USDAFASMRLFetcher),
         ("efsa_mrls",           EFSAMrlFetcher),
         ("fda_toxic_elements",  FDAToxicElementsFetcher),
         ("fda_total_diet_study", FDATotalDietStudyFetcher),
