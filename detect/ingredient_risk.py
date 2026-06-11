@@ -555,15 +555,15 @@ class IngredientRiskQuery:
     ) -> str:
         """Convert ppb measurement to risk level using regulatory data.
 
-        Thresholds:
-        - ≥ 200% of MRL → HIGH (well above regulatory limit)
-        - ≥ 100% of MRL → MEDIUM (at or above limit)
-        - > 0%          → LOW (detected but below limit)
-        - No benchmark  → 'unknown' (honest, not fabricated)
+        Priority:
+        1. EPA tolerance_limits (US regulatory standard)
+        2. International MRLs (EFSA, Codex, Japan, etc.)
+        3. Return 'unknown' if no regulatory data exists
 
-        If consumption_tier is provided, ppb is multiplied by the tier weight
-        before comparison. This means turmeric at 150ppb (occasional, 0.3x)
-        scores lower than wheat at 150ppb (daily, 1.0x).
+        Thresholds:
+        - ≥ 200% of limit → HIGH (well above regulatory limit)
+        - ≥ 100% of limit → MEDIUM (at or above limit)
+        - > 0%            → LOW (detected but below limit)
         """
         if ppb is None or ppb <= 0:
             return "none"
@@ -572,19 +572,7 @@ class IngredientRiskQuery:
         multiplier = self._CONSUMPTION_MULTIPLIERS.get(consumption_tier, 1.0)
         adjusted_ppb = ppb * multiplier
 
-        # Try international_mrls first (strictest country limit)
-        mrl = self._get_strictest_mrl(contaminant, food_category)
-        if mrl and mrl > 0:
-            pct = adjusted_ppb / mrl
-            if pct >= 2.0:
-                return "high"
-            elif pct >= 1.0:
-                return "medium"
-            elif ppb > 0:
-                return "low"
-            return "none"
-
-        # Try tolerance_limits
+        # 1. Try EPA tolerance_limits first (US standard)
         tolerance = self._get_lowest_tolerance(contaminant, food_category)
         if tolerance and tolerance > 0:
             pct = adjusted_ppb / tolerance
@@ -596,8 +584,19 @@ class IngredientRiskQuery:
                 return "low"
             return "none"
 
-        # No regulatory data — return 'unknown' honestly
-        # Don't fabricate a risk level with arbitrary thresholds
+        # 2. Try international MRLs (EFSA, Codex, Japan, etc.)
+        mrl = self._get_strictest_mrl(contaminant, food_category)
+        if mrl and mrl > 0:
+            pct = adjusted_ppb / mrl
+            if pct >= 2.0:
+                return "high"
+            elif pct >= 1.0:
+                return "medium"
+            elif ppb > 0:
+                return "low"
+            return "none"
+
+        # 3. No regulatory data — return 'unknown' honestly
         return "unknown"
 
     def _ppb_to_risk_detail(
@@ -620,27 +619,7 @@ class IngredientRiskQuery:
         contaminant_lower = contaminant.lower()
         is_heavy_metal = contaminant_lower in self._HEAVY_METALS
 
-        # Try international_mrls
-        mrl, mrl_source = self._get_strictest_mrl_with_source(contaminant, food_category)
-        if mrl and mrl > 0:
-            pct = adjusted_ppb / mrl * 100
-            if pct >= 200:
-                reason = f"Exceeds {mrl_source} MRL ({pct:.0f}%)"
-                if is_heavy_metal:
-                    reason += " — heavy metal, no established safe level"
-                return "high", reason, mrl, mrl_source, None, None
-            elif pct >= 100:
-                reason = f"At {mrl_source} MRL ({pct:.0f}%)"
-                if is_heavy_metal:
-                    reason += " — heavy metal, no established safe level"
-                return "medium", reason, mrl, mrl_source, None, None
-            else:
-                reason = f"Below {mrl_source} MRL ({pct:.0f}%)"
-                if is_heavy_metal:
-                    reason += " — low confidence, consult regulatory guidance"
-                return "low", reason, mrl, mrl_source, None, None
-
-        # Try tolerance_limits
+        # 1. Try EPA tolerance_limits first (US standard)
         tolerance, tol_source = self._get_lowest_tolerance_with_source(contaminant, food_category)
         if tolerance and tolerance > 0:
             pct = adjusted_ppb / tolerance * 100
@@ -660,7 +639,27 @@ class IngredientRiskQuery:
                     reason += " — low confidence, consult regulatory guidance"
                 return "low", reason, None, None, tolerance, tol_source
 
-        # No regulatory data — return 'unknown' honestly
+        # 2. Try international MRLs (EFSA, Codex, Japan, etc.)
+        mrl, mrl_source = self._get_strictest_mrl_with_source(contaminant, food_category)
+        if mrl and mrl > 0:
+            pct = adjusted_ppb / mrl * 100
+            if pct >= 200:
+                reason = f"Exceeds {mrl_source} MRL ({pct:.0f}%)"
+                if is_heavy_metal:
+                    reason += " — heavy metal, no established safe level"
+                return "high", reason, mrl, mrl_source, None, None
+            elif pct >= 100:
+                reason = f"At {mrl_source} MRL ({pct:.0f}%)"
+                if is_heavy_metal:
+                    reason += " — heavy metal, no established safe level"
+                return "medium", reason, mrl, mrl_source, None, None
+            else:
+                reason = f"Below {mrl_source} MRL ({pct:.0f}%)"
+                if is_heavy_metal:
+                    reason += " — low confidence, consult regulatory guidance"
+                return "low", reason, mrl, mrl_source, None, None
+
+        # 3. No regulatory data — return 'unknown' honestly
         reason = "No regulatory benchmark available for comparison"
         if is_heavy_metal:
             reason += " — heavy metal, no established safe level"
