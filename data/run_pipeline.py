@@ -31,7 +31,7 @@ logging.basicConfig(
 logger = logging.getLogger("pipeline")
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--source", help="Run only this source: florida/cfia/efsa/fda/usda_pdp/uk_fsa/ca_dpr/germany_bvl/epa_tolerances/australia_fsnz/codex_mrls/japan_brazil_mrls/academic_papers/detox_project/cdc_nhanes/clean_label_project/consumer_reports/detox_certifications/epa_full_tolerances/usda_fas_mrls/water_quality/water_quality_glyphosate/water_quality_lead/water_quality_atrazine/water_quality_inorganic_arsenic/water_quality_cadmium/water_quality_mercury")
+parser.add_argument("--source", help="Run only this source: florida/cfia/efsa/fda/usda_pdp/uk_fsa/ca_dpr/germany_bvl/epa_cfr_tolerances/efsa_mrls/fda_toxic_elements/fda_total_diet_study/australia_fsnz/academic_papers/detox_project/cdc_nhanes/clean_label_project/consumer_reports/detox_certifications/water_quality/water_quality_glyphosate/water_quality_lead/water_quality_atrazine/water_quality_inorganic_arsenic/water_quality_cadmium/water_quality_mercury")
 parser.add_argument("--validate", action="store_true")
 args = parser.parse_args()
 
@@ -51,7 +51,6 @@ def run_all():
     from fetchers.clean_label_project import CleanLabelProjectFetcher
     from fetchers.consumer_reports import ConsumerReportsFetcher
     from fetchers.detox_certifications import DetoxCertificationsFetcher
-    from fetchers.epa_full_tolerances import EPAFullTolerancesFetcher
     from fetchers.efsa_mrls import EFSAMrlFetcher
     from fetchers.epa_cfr_tolerances import EPACFRTolerancesFetcher
     from fetchers.fda_toxic_elements import FDAToxicElementsFetcher
@@ -89,7 +88,6 @@ def run_all():
         ("clean_label_project", CleanLabelProjectFetcher),
         ("consumer_reports",    ConsumerReportsFetcher),
         ("detox_certifications", DetoxCertificationsFetcher),
-        ("epa_full_tolerances", EPAFullTolerancesFetcher),
         ("efsa_mrls",           EFSAMrlFetcher),
         ("fda_toxic_elements",  FDAToxicElementsFetcher),
         ("fda_total_diet_study", FDATotalDietStudyFetcher),
