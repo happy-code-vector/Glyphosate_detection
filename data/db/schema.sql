@@ -323,7 +323,8 @@ CREATE TABLE IF NOT EXISTS commodities (
     pdp_year_latest     INTEGER,
     residues            TEXT,                       -- JSON array of residue data
     dirty_dozen         INTEGER DEFAULT 0,          -- boolean
-    last_pdp_update     TEXT
+    last_pdp_update     TEXT,
+    consumption_tier    TEXT DEFAULT 'occasional'    -- 'daily', 'weekly', 'occasional', 'rare'
 );
 
 -- ─────────────────────────────────────────────
@@ -385,6 +386,10 @@ CREATE INDEX IF NOT EXISTS idx_dv_table_row ON data_versions(table_name, row_id)
 -- ─────────────────────────────────────────────
 -- app_food_overview: One row per food category per contaminant
 -- Best-available stats with source priority resolution.
+--
+-- Two risk signals:
+--   risk_level: ppb-vs-tolerance (primary, regulatory-based)
+--   detection_frequency: how often detected (secondary, prevalence)
 -- ─────────────────────────────────────────────
 DROP VIEW IF EXISTS app_food_overview;
 CREATE VIEW app_food_overview AS
@@ -406,7 +411,7 @@ WITH best_summary AS (
             WHEN cs.detection_rate >= 0.31 THEN 'medium'
             WHEN cs.detection_rate >  0.0  THEN 'low'
             ELSE 'none'
-        END AS risk_level,
+        END AS detection_frequency,
         ROW_NUMBER() OVER (
             PARTITION BY cs.food_category, cs.contaminant
             ORDER BY
@@ -440,6 +445,16 @@ cert_count AS (
     CROSS JOIN (SELECT DISTINCT contaminant FROM category_summaries) cc
     WHERE cp.contaminant IS NULL OR cp.contaminant = cc.contaminant
     GROUP BY cp.food_category, cc.contaminant
+),
+tolerance_data AS (
+    SELECT
+        food_category,
+        contaminant,
+        MIN(tolerance_ppb) AS min_tolerance_ppb,
+        MIN(source)        AS tolerance_source
+    FROM tolerance_limits
+    WHERE tolerance_ppb > 0
+    GROUP BY food_category, contaminant
 )
 SELECT
     bs.contaminant,
@@ -451,13 +466,26 @@ SELECT
     bs.max_ppb              AS max_ppb,
     bs.samples_total,
     bs.samples_detected,
-    bs.risk_level,
+    -- Primary risk: ppb-vs-tolerance (regulatory-based)
+    CASE
+        WHEN bs.max_ppb IS NULL OR bs.max_ppb <= 0 THEN 'none'
+        WHEN td.min_tolerance_ppb IS NOT NULL AND td.min_tolerance_ppb > 0 THEN
+            CASE
+                WHEN bs.max_ppb / td.min_tolerance_ppb >= 2.0 THEN 'high'
+                WHEN bs.max_ppb / td.min_tolerance_ppb >= 1.0 THEN 'medium'
+                ELSE 'low'
+            END
+        ELSE 'unknown'
+    END AS risk_level,
+    bs.detection_frequency,
     bs.confidence,
     COALESCE(ps.total_products_tested, 0)    AS total_products_tested,
     COALESCE(ps.products_with_detection, 0)  AS products_with_detection,
     COALESCE(ps.avg_product_ppb, 0)          AS avg_product_ppb,
     COALESCE(ps.max_product_ppb, 0)          AS max_product_ppb,
-    COALESCE(cc.certified_product_count, 0)  AS certified_products_available
+    COALESCE(cc.certified_product_count, 0)  AS certified_products_available,
+    td.min_tolerance_ppb                     AS tolerance_ppb,
+    td.tolerance_source
 FROM best_summary bs
 LEFT JOIN product_stats ps
     ON bs.food_category = ps.food_category
@@ -465,11 +493,15 @@ LEFT JOIN product_stats ps
 LEFT JOIN cert_count cc
     ON bs.food_category = cc.food_category
     AND bs.contaminant = cc.contaminant
+LEFT JOIN tolerance_data td
+    ON bs.food_category = td.food_category
+    AND bs.contaminant = td.contaminant
 WHERE bs.rn = 1;
 
 -- ─────────────────────────────────────────────
 -- app_product_lookup: Optimized for barcode/name search
 -- All individual product results with category context.
+-- Uses tolerance_limits for risk_level when available.
 -- ─────────────────────────────────────────────
 DROP VIEW IF EXISTS app_product_lookup;
 CREATE VIEW app_product_lookup AS
@@ -494,12 +526,21 @@ SELECT
         WHEN pt.is_organic = 1 AND pt.below_detection = 1 THEN 'organic_clean'
         WHEN pt.is_organic = 1 THEN 'organic_detected'
         WHEN pt.below_detection = 1 THEN 'none'
-        WHEN pt.measured_ppb >= 500 THEN 'high'
-        WHEN pt.measured_ppb >= 100 THEN 'medium'
-        WHEN pt.measured_ppb > 0 THEN 'low'
+        WHEN pt.measured_ppb IS NULL OR pt.measured_ppb <= 0 THEN 'none'
+        WHEN td.min_tolerance_ppb IS NOT NULL AND td.min_tolerance_ppb > 0 THEN
+            CASE
+                WHEN pt.measured_ppb / td.min_tolerance_ppb >= 2.0 THEN 'high'
+                WHEN pt.measured_ppb / td.min_tolerance_ppb >= 1.0 THEN 'medium'
+                ELSE 'low'
+            END
         ELSE 'unknown'
     END AS risk_level
 FROM product_tests pt
+LEFT JOIN (
+    SELECT food_category, contaminant, MIN(tolerance_ppb) AS min_tolerance_ppb
+    FROM tolerance_limits WHERE tolerance_ppb > 0
+    GROUP BY food_category, contaminant
+) td ON pt.food_category = td.food_category AND pt.contaminant = td.contaminant
 ORDER BY pt.contaminant, pt.food_category, pt.product_name;
 
 -- ─────────────────────────────────────────────

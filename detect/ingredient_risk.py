@@ -259,7 +259,9 @@ class IngredientRiskQuery:
 
         d = dict(row)
         max_ppb = d.get("max_ppb")
-        risk_level = self._ppb_to_risk_level(max_ppb, contaminant, category)
+        # Look up consumption tier for this category
+        consumption_tier = self._get_consumption_tier(category)
+        risk_level = self._ppb_to_risk_level(max_ppb, contaminant, category, consumption_tier)
 
         return IngredientScore(
             ingredient=ingredient,
@@ -330,7 +332,8 @@ class IngredientRiskQuery:
 
         d = dict(row)
         max_ppb = d.get("max_ppb")
-        risk_level = self._ppb_to_risk_level(max_ppb, contaminant, category)
+        consumption_tier = self._get_consumption_tier(category)
+        risk_level = self._ppb_to_risk_level(max_ppb, contaminant, category, consumption_tier)
 
         return IngredientScore(
             ingredient=ingredient,
@@ -372,8 +375,9 @@ class IngredientRiskQuery:
             return None
 
         d = dict(row)
+        consumption_tier = self._get_consumption_tier(food_category)
         d["risk_level"] = self._ppb_to_risk_level(
-            d.get("max_ppb"), contaminant, food_category
+            d.get("max_ppb"), contaminant, food_category, consumption_tier
         )
         return d
 
@@ -503,42 +507,64 @@ class IngredientRiskQuery:
             return "heavy_metal"
         return "pesticide"  # Default assumption
 
+    def _get_consumption_tier(self, food_category: str) -> str | None:
+        """Look up consumption tier for a food category from commodities table."""
+        if not food_category:
+            return None
+        row = self._conn.execute(
+            "SELECT consumption_tier FROM commodities WHERE commodity_slug = ?",
+            (food_category,),
+        ).fetchone()
+        return row["consumption_tier"] if row else None
+
     # ── Risk level helpers ───────────────────────────────────────────────
 
-    # Heavy metals have "no safe level" per FDA — any detection is at least MEDIUM
+    # Heavy metals — FDA says "no safe level" for lead in baby food specifically.
+    # For general food, we note low confidence rather than auto-escalating.
     _HEAVY_METALS = frozenset({
         "lead", "inorganic_arsenic", "cadmium", "mercury", "arsenic",
     })
 
+    # Consumption tier multipliers — adjusts ppb by how much of this food
+    # a typical person eats. Daily staples get full weight, rare items get 0.1x.
+    _CONSUMPTION_MULTIPLIERS = {
+        "daily": 1.0,       # wheat, rice, oats, milk, eggs, corn, potato, tomato
+        "weekly": 0.6,      # apple, orange, strawberry, spinach, lettuce, broccoli
+        "occasional": 0.3,  # barley, herbs, specialty vegetables
+        "rare": 0.1,        # saffron, vanilla, specialty spices
+    }
+
     def _ppb_to_risk_level(
-        self, ppb: float, contaminant: str, food_category: str | None = None
+        self, ppb: float, contaminant: str, food_category: str | None = None,
+        consumption_tier: str | None = None,
     ) -> str:
         """Convert ppb measurement to risk level using regulatory data.
 
-        Priority:
-        1. Strictest MRL from international_mrls for this contaminant+category
-        2. Lowest tolerance from tolerance_limits (EPA, FDA)
-        3. Special handling for heavy metals (no safe level)
-        4. Fallback: generic thresholds (last resort)
+        Thresholds:
+        - ≥ 200% of MRL → HIGH (well above regulatory limit)
+        - ≥ 100% of MRL → MEDIUM (at or above limit)
+        - > 0%          → LOW (detected but below limit)
+        - No benchmark  → 'unknown' (honest, not fabricated)
+
+        If consumption_tier is provided, ppb is multiplied by the tier weight
+        before comparison. This means turmeric at 150ppb (occasional, 0.3x)
+        scores lower than wheat at 150ppb (daily, 1.0x).
         """
         if ppb is None or ppb <= 0:
             return "none"
 
-        contaminant_lower = contaminant.lower()
-
-        # Heavy metals: any detection is at least MEDIUM (no safe level per FDA)
-        is_heavy_metal = contaminant_lower in self._HEAVY_METALS
+        # Apply consumption multiplier if tier is known
+        multiplier = self._CONSUMPTION_MULTIPLIERS.get(consumption_tier, 1.0)
+        adjusted_ppb = ppb * multiplier
 
         # Try international_mrls first (strictest country limit)
         mrl = self._get_strictest_mrl(contaminant, food_category)
         if mrl and mrl > 0:
-            pct = ppb / mrl
-            if pct >= 1.0:
+            pct = adjusted_ppb / mrl
+            if pct >= 2.0:
                 return "high"
-            elif pct >= 0.5:
+            elif pct >= 1.0:
                 return "medium"
-            elif is_heavy_metal:
-                return "medium"  # Heavy metals: any detection = medium
             elif ppb > 0:
                 return "low"
             return "none"
@@ -546,34 +572,35 @@ class IngredientRiskQuery:
         # Try tolerance_limits
         tolerance = self._get_lowest_tolerance(contaminant, food_category)
         if tolerance and tolerance > 0:
-            pct = ppb / tolerance
-            if pct >= 1.0:
+            pct = adjusted_ppb / tolerance
+            if pct >= 2.0:
                 return "high"
-            elif pct >= 0.5:
-                return "medium"
-            elif is_heavy_metal:
+            elif pct >= 1.0:
                 return "medium"
             elif ppb > 0:
                 return "low"
             return "none"
 
-        # No regulatory data — use detection rate as proxy
-        if is_heavy_metal and ppb > 0:
-            return "medium"  # Heavy metals: any detection = medium
-        if ppb >= 500:
-            return "high"
-        elif ppb >= 100:
-            return "medium"
-        elif ppb > 0:
-            return "low"
-        return "none"
+        # No regulatory data — return 'unknown' honestly
+        # Don't fabricate a risk level with arbitrary thresholds
+        return "unknown"
 
     def _ppb_to_risk_detail(
-        self, ppb: float, contaminant: str, food_category: str | None = None
+        self, ppb: float, contaminant: str, food_category: str | None = None,
+        consumption_tier: str | None = None,
     ) -> tuple[str, str, float | None, str | None, float | None, str | None]:
-        """Return (risk_level, risk_reason, mrl_ppb, mrl_source, tolerance_ppb, tolerance_source)."""
+        """Return (risk_level, risk_reason, mrl_ppb, mrl_source, tolerance_ppb, tolerance_source).
+
+        Thresholds: ≥200% of limit = HIGH, ≥100% = MEDIUM, >0% = LOW.
+        No benchmark = 'unknown' (honest, not fabricated).
+        Heavy metals: low confidence note, not auto-escalation.
+        """
         if ppb is None or ppb <= 0:
             return "none", "Not detected", None, None, None, None
+
+        # Apply consumption multiplier
+        multiplier = self._CONSUMPTION_MULTIPLIERS.get(consumption_tier, 1.0)
+        adjusted_ppb = ppb * multiplier
 
         contaminant_lower = contaminant.lower()
         is_heavy_metal = contaminant_lower in self._HEAVY_METALS
@@ -581,39 +608,48 @@ class IngredientRiskQuery:
         # Try international_mrls
         mrl, mrl_source = self._get_strictest_mrl_with_source(contaminant, food_category)
         if mrl and mrl > 0:
-            pct = ppb / mrl * 100
-            if pct >= 100:
-                return "high", f"Exceeds {mrl_source} MRL ({pct:.0f}%)", mrl, mrl_source, None, None
-            elif pct >= 50:
-                return "medium", f"Approaching {mrl_source} MRL ({pct:.0f}%)", mrl, mrl_source, None, None
-            elif is_heavy_metal:
-                return "medium", f"Heavy metal detected ({pct:.0f}% of {mrl_source} MRL, no safe level)", mrl, mrl_source, None, None
+            pct = adjusted_ppb / mrl * 100
+            if pct >= 200:
+                reason = f"Exceeds {mrl_source} MRL ({pct:.0f}%)"
+                if is_heavy_metal:
+                    reason += " — heavy metal, no established safe level"
+                return "high", reason, mrl, mrl_source, None, None
+            elif pct >= 100:
+                reason = f"At {mrl_source} MRL ({pct:.0f}%)"
+                if is_heavy_metal:
+                    reason += " — heavy metal, no established safe level"
+                return "medium", reason, mrl, mrl_source, None, None
             else:
-                return "low", f"Below {mrl_source} MRL ({pct:.0f}%)", mrl, mrl_source, None, None
+                reason = f"Below {mrl_source} MRL ({pct:.0f}%)"
+                if is_heavy_metal:
+                    reason += " — low confidence, consult regulatory guidance"
+                return "low", reason, mrl, mrl_source, None, None
 
         # Try tolerance_limits
         tolerance, tol_source = self._get_lowest_tolerance_with_source(contaminant, food_category)
         if tolerance and tolerance > 0:
-            pct = ppb / tolerance * 100
-            if pct >= 100:
-                return "high", f"Exceeds {tol_source} limit ({pct:.0f}%)", None, None, tolerance, tol_source
-            elif pct >= 50:
-                return "medium", f"Approaching {tol_source} limit ({pct:.0f}%)", None, None, tolerance, tol_source
-            elif is_heavy_metal:
-                return "medium", f"Heavy metal detected ({pct:.0f}% of {tol_source} limit, no safe level)", None, None, tolerance, tol_source
+            pct = adjusted_ppb / tolerance * 100
+            if pct >= 200:
+                reason = f"Exceeds {tol_source} limit ({pct:.0f}%)"
+                if is_heavy_metal:
+                    reason += " — heavy metal, no established safe level"
+                return "high", reason, None, None, tolerance, tol_source
+            elif pct >= 100:
+                reason = f"At {tol_source} limit ({pct:.0f}%)"
+                if is_heavy_metal:
+                    reason += " — heavy metal, no established safe level"
+                return "medium", reason, None, None, tolerance, tol_source
             else:
-                return "low", f"Below {tol_source} limit ({pct:.0f}%)", None, None, tolerance, tol_source
+                reason = f"Below {tol_source} limit ({pct:.0f}%)"
+                if is_heavy_metal:
+                    reason += " — low confidence, consult regulatory guidance"
+                return "low", reason, None, None, tolerance, tol_source
 
-        # No regulatory data
+        # No regulatory data — return 'unknown' honestly
+        reason = "No regulatory benchmark available for comparison"
         if is_heavy_metal:
-            return "medium", "Heavy metal detected (no regulatory benchmark available)", None, None, None, None
-        if ppb >= 500:
-            return "high", f"High concentration ({ppb}ppb, no regulatory benchmark)", None, None, None, None
-        elif ppb >= 100:
-            return "medium", f"Moderate concentration ({ppb}ppb, no regulatory benchmark)", None, None, None, None
-        elif ppb > 0:
-            return "low", f"Low concentration ({ppb}ppb, no regulatory benchmark)", None, None, None, None
-        return "none", "Not detected", None, None, None, None
+            reason += " — heavy metal, no established safe level"
+        return "unknown", reason, None, None, None, None
 
     def _get_strictest_mrl(
         self, contaminant: str, food_category: str | None = None

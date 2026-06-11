@@ -37,11 +37,18 @@ logger = logging.getLogger("seed")
 # ═════════════════════════════════════════════
 
 COMMODITY_SEEDS = [
+    # Consumption tiers:
+    #   daily     — staple foods eaten every day (wheat, rice, milk, eggs, corn, oats)
+    #   weekly    — common foods eaten several times/week (fruits, vegetables, potatoes)
+    #   occasional — foods eaten a few times/month (berries, nuts, specific vegetables)
+    #   rare      — specialty items eaten infrequently (cherries, pears, barley)
+
     # Priority 1 — Dirty Dozen
     {
         "commodity_slug": "strawberry",
         "display_name": "Strawberry",
         "dirty_dozen": True,
+        "consumption_tier": "weekly",
         "ingredient_aliases": [
             "strawberries", "organic strawberries", "freeze-dried strawberries",
             "strawberry puree", "strawberry juice", "strawberry extract",
@@ -52,6 +59,7 @@ COMMODITY_SEEDS = [
         "commodity_slug": "spinach",
         "display_name": "Spinach",
         "dirty_dozen": True,
+        "consumption_tier": "weekly",
         "ingredient_aliases": [
             "spinach", "organic spinach", "baby spinach", "spinach powder",
             "spinach puree", "dehydrated spinach", "spinach extract",
@@ -61,6 +69,7 @@ COMMODITY_SEEDS = [
         "commodity_slug": "kale",
         "display_name": "Kale",
         "dirty_dozen": True,
+        "consumption_tier": "weekly",
         "ingredient_aliases": [
             "kale", "organic kale", "kale powder", "dehydrated kale",
             "kale extract", "collard greens", "mixed greens",
@@ -70,6 +79,7 @@ COMMODITY_SEEDS = [
         "commodity_slug": "peach",
         "display_name": "Peach",
         "dirty_dozen": True,
+        "consumption_tier": "weekly",
         "ingredient_aliases": [
             "peaches", "organic peaches", "peach puree", "peach juice",
             "peach concentrate", "dried peaches", "freeze-dried peaches",
@@ -79,6 +89,7 @@ COMMODITY_SEEDS = [
         "commodity_slug": "celery",
         "display_name": "Celery",
         "dirty_dozen": True,
+        "consumption_tier": "weekly",
         "ingredient_aliases": [
             "celery", "celery seed", "celery salt", "celery extract",
             "celery juice", "celery powder",
@@ -88,6 +99,7 @@ COMMODITY_SEEDS = [
         "commodity_slug": "carrot",
         "display_name": "Carrot",
         "dirty_dozen": True,
+        "consumption_tier": "daily",
         "ingredient_aliases": [
             "carrots", "organic carrots", "baby carrots", "carrot puree",
             "carrot juice", "dehydrated carrots", "carrot powder",
@@ -98,6 +110,7 @@ COMMODITY_SEEDS = [
         "commodity_slug": "lettuce",
         "display_name": "Lettuce",
         "dirty_dozen": True,
+        "consumption_tier": "daily",
         "ingredient_aliases": [
             "lettuce", "romaine lettuce", "iceberg lettuce",
             "mixed greens", "salad greens", "butter lettuce",
@@ -107,6 +120,7 @@ COMMODITY_SEEDS = [
         "commodity_slug": "cucumber",
         "display_name": "Cucumber",
         "dirty_dozen": True,
+        "consumption_tier": "weekly",
         "ingredient_aliases": [
             "cucumbers", "pickles", "pickle juice", "gherkin",
         ],
@@ -115,6 +129,7 @@ COMMODITY_SEEDS = [
         "commodity_slug": "orange",
         "display_name": "Orange",
         "dirty_dozen": True,
+        "consumption_tier": "weekly",
         "ingredient_aliases": [
             "oranges", "orange juice", "orange concentrate", "orange extract",
             "orange peel", "orange zest", "mandarin", "tangerine", "clementine",
@@ -125,6 +140,7 @@ COMMODITY_SEEDS = [
         "commodity_slug": "lemon",
         "display_name": "Lemon",
         "dirty_dozen": True,
+        "consumption_tier": "weekly",
         "ingredient_aliases": [
             "lemon", "lemon juice", "lemon extract", "lemon peel",
             "lemon zest", "lemon pulp", "lemon concentrate",
@@ -134,6 +150,7 @@ COMMODITY_SEEDS = [
         "commodity_slug": "milk",
         "display_name": "Milk",
         "dirty_dozen": True,
+        "consumption_tier": "daily",
         "ingredient_aliases": [
             "milk", "whole milk", "skim milk", "low-fat milk", "nonfat milk",
             "milk solids", "dried milk", "nonfat dry milk", "lactose",
@@ -144,6 +161,7 @@ COMMODITY_SEEDS = [
         "commodity_slug": "egg",
         "display_name": "Egg",
         "dirty_dozen": True,
+        "consumption_tier": "daily",
         "ingredient_aliases": [
             "eggs", "whole eggs", "egg whites", "egg yolks", "dried eggs",
             "egg powder", "egg solids", "egg albumen",
@@ -153,6 +171,7 @@ COMMODITY_SEEDS = [
     {
         "commodity_slug": "wheat",
         "display_name": "Wheat",
+        "consumption_tier": "daily",
         "ingredient_aliases": [
             "wheat", "wheat flour", "whole wheat", "wheat starch",
             "wheat gluten", "wheat bran", "wheat germ", "semolina",
@@ -162,6 +181,7 @@ COMMODITY_SEEDS = [
     {
         "commodity_slug": "corn",
         "display_name": "Corn",
+        "consumption_tier": "daily",
         "ingredient_aliases": [
             "corn", "corn meal", "corn starch", "corn syrup",
             "high fructose corn syrup", "corn flour", "corn oil",
@@ -171,6 +191,7 @@ COMMODITY_SEEDS = [
     {
         "commodity_slug": "soybean",
         "display_name": "Soybean",
+        "consumption_tier": "daily",
         "ingredient_aliases": [
             "soy", "soybean", "soybeans", "soy protein", "soy lecithin",
             "soy flour", "soy oil", "soybean oil", "tofu", "tempeh",
@@ -180,6 +201,7 @@ COMMODITY_SEEDS = [
     {
         "commodity_slug": "apple",
         "display_name": "Apple",
+        "consumption_tier": "weekly",
         "ingredient_aliases": [
             "apples", "apple juice", "apple puree", "apple concentrate",
             "apple cider", "dried apples", "apple sauce", "apple extract",
@@ -188,6 +210,7 @@ COMMODITY_SEEDS = [
     {
         "commodity_slug": "grape",
         "display_name": "Grape",
+        "consumption_tier": "weekly",
         "ingredient_aliases": [
             "grapes", "grape juice", "raisins", "grape concentrate",
             "grape seed oil", "grape extract", "wine", "grape must",
@@ -196,6 +219,7 @@ COMMODITY_SEEDS = [
     {
         "commodity_slug": "rice",
         "display_name": "Rice",
+        "consumption_tier": "daily",
         "ingredient_aliases": [
             "rice", "white rice", "brown rice", "rice flour",
             "rice starch", "rice syrup", "rice bran", "rice milk",
@@ -205,6 +229,7 @@ COMMODITY_SEEDS = [
     {
         "commodity_slug": "potato",
         "display_name": "Potato",
+        "consumption_tier": "daily",
         "ingredient_aliases": [
             "potatoes", "potato starch", "potato flour", "dehydrated potatoes",
             "potato flakes", "potato chips", "french fries",
@@ -213,6 +238,7 @@ COMMODITY_SEEDS = [
     {
         "commodity_slug": "tomato",
         "display_name": "Tomato",
+        "consumption_tier": "daily",
         "ingredient_aliases": [
             "tomatoes", "tomato paste", "tomato puree", "tomato sauce",
             "tomato juice", "sun-dried tomatoes", "tomato powder",
@@ -222,6 +248,7 @@ COMMODITY_SEEDS = [
     {
         "commodity_slug": "banana",
         "display_name": "Banana",
+        "consumption_tier": "daily",
         "ingredient_aliases": [
             "bananas", "banana puree", "banana powder", "dried bananas",
             "freeze-dried bananas", "plantain",
@@ -230,6 +257,7 @@ COMMODITY_SEEDS = [
     {
         "commodity_slug": "blueberry",
         "display_name": "Blueberry",
+        "consumption_tier": "weekly",
         "ingredient_aliases": [
             "blueberries", "organic blueberries", "freeze-dried blueberries",
             "blueberry puree", "blueberry juice", "blueberry concentrate",
@@ -239,6 +267,7 @@ COMMODITY_SEEDS = [
     {
         "commodity_slug": "oat",
         "display_name": "Oat",
+        "consumption_tier": "daily",
         "ingredient_aliases": [
             "oats", "oat flour", "oat bran", "oat fiber", "oat milk",
             "rolled oats", "steel-cut oats", "instant oats",
@@ -248,6 +277,7 @@ COMMODITY_SEEDS = [
     {
         "commodity_slug": "barley",
         "display_name": "Barley",
+        "consumption_tier": "occasional",
         "ingredient_aliases": [
             "barley", "barley malt", "barley flour", "pearl barley",
             "barley extract",
@@ -256,6 +286,7 @@ COMMODITY_SEEDS = [
     {
         "commodity_slug": "almond",
         "display_name": "Almond",
+        "consumption_tier": "weekly",
         "ingredient_aliases": [
             "almonds", "almond flour", "almond milk", "almond butter",
             "almond oil", "almond extract", "sliced almonds",
@@ -264,6 +295,7 @@ COMMODITY_SEEDS = [
     {
         "commodity_slug": "peanut",
         "display_name": "Peanut",
+        "consumption_tier": "weekly",
         "ingredient_aliases": [
             "peanuts", "peanut butter", "peanut oil", "peanut flour",
             "peanut protein", "groundnuts",
@@ -272,6 +304,7 @@ COMMODITY_SEEDS = [
     {
         "commodity_slug": "cherry",
         "display_name": "Cherry",
+        "consumption_tier": "occasional",
         "ingredient_aliases": [
             "cherries", "cherry juice", "dried cherries", "maraschino cherries",
             "cherry puree", "tart cherries",
@@ -280,6 +313,7 @@ COMMODITY_SEEDS = [
     {
         "commodity_slug": "pear",
         "display_name": "Pear",
+        "consumption_tier": "weekly",
         "ingredient_aliases": [
             "pears", "pear juice", "pear puree", "pear concentrate",
             "dried pears",
@@ -288,6 +322,7 @@ COMMODITY_SEEDS = [
     {
         "commodity_slug": "bean",
         "display_name": "Bean",
+        "consumption_tier": "daily",
         "ingredient_aliases": [
             "beans", "kidney beans", "black beans", "pinto beans",
             "navy beans", "lima beans", "green beans", "white beans",
@@ -297,6 +332,7 @@ COMMODITY_SEEDS = [
     {
         "commodity_slug": "broccoli",
         "display_name": "Broccoli",
+        "consumption_tier": "weekly",
         "ingredient_aliases": [
             "broccoli", "broccoli sprouts", "broccoli powder",
             "dehydrated broccoli",
@@ -341,12 +377,14 @@ def seed_commodities_table(dry_run=False):
             "display_name": commodity["display_name"],
             "ingredient_aliases": json.dumps(commodity.get("ingredient_aliases", [])),
             "dirty_dozen": 1 if commodity.get("dirty_dozen") else 0,
+            "consumption_tier": commodity.get("consumption_tier", "occasional"),
         })
     logger.info("Prepared %d commodity records", len(rows))
     if dry_run:
         for row in rows:
             aliases = json.loads(row["ingredient_aliases"])
-            logger.info("  [DRY RUN] %s — %d aliases", row["commodity_slug"], len(aliases))
+            logger.info("  [DRY RUN] %s — %d aliases, tier=%s",
+                        row["commodity_slug"], len(aliases), row["consumption_tier"])
         return
     result = insert_commodities(rows)
     logger.info("Commodities: inserted=%d, skipped=%d, failed=%d",

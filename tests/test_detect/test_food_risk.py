@@ -24,7 +24,8 @@ class TestFoodRiskQuery(unittest.TestCase):
         self.assertEqual(result.data_year, 2024)
         self.assertAlmostEqual(result.detection_rate, 0.8)
         self.assertEqual(result.max_ppb, 1200.0)
-        self.assertEqual(result.risk_level, "high")
+        # 1200ppb / 30000ppb tolerance = 4% → low
+        self.assertEqual(result.risk_level, "low")
         self.assertGreaterEqual(result.total_products_tested, 2)
 
     def test_food_risk_all_contaminants(self):

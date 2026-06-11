@@ -669,17 +669,18 @@ def _insert_commodity(conn, row: dict) -> int:
         "ingredient_aliases": None, "pdp_commodity_code": None,
         "pdp_year_latest": None, "residues": None,
         "dirty_dozen": 0, "last_pdp_update": None,
+        "consumption_tier": "occasional",
     }
     r = {**defaults, **row}
     conn.execute("""
         INSERT OR IGNORE INTO commodities (
             commodity_slug, display_name, ingredient_aliases,
             pdp_commodity_code, pdp_year_latest, residues,
-            dirty_dozen, last_pdp_update
+            dirty_dozen, last_pdp_update, consumption_tier
         ) VALUES (
             :commodity_slug, :display_name, :ingredient_aliases,
             :pdp_commodity_code, :pdp_year_latest, :residues,
-            :dirty_dozen, :last_pdp_update
+            :dirty_dozen, :last_pdp_update, :consumption_tier
         )
     """, r)
     return conn.execute("SELECT changes()").fetchone()[0]
