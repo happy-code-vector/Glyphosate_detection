@@ -451,6 +451,7 @@ class IngredientRiskQuery:
                 risk_level=risk_level,
                 risk_reason=risk_reason,
                 confidence="high" if mrl or tol else "medium",
+                detection_frequency=self._detection_rate_to_frequency(d["detection_rate"]),
             ))
 
         # Sort: high first, then medium, then low
@@ -519,6 +520,17 @@ class IngredientRiskQuery:
             (food_category,),
         ).fetchone()
         return row["consumption_tier"] if row else None
+
+    @staticmethod
+    def _detection_rate_to_frequency(detection_rate: float) -> str:
+        """Convert detection rate to a frequency label (not risk)."""
+        if detection_rate >= 0.66:
+            return "high"
+        elif detection_rate >= 0.31:
+            return "medium"
+        elif detection_rate > 0.0:
+            return "low"
+        return "none"
 
     # ── Risk level helpers ───────────────────────────────────────────────
 

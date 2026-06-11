@@ -14,7 +14,7 @@ from datetime import datetime
 
 # Add project root to path so we can import database module
 sys.path.insert(0, str(Path(__file__).parent))
-from db.database import DB_PATH, normalize_contaminant
+from db.database import DB_PATH, normalize_contaminant, log_data_version
 
 STATUS_KEYWORDS = {"no residue found", "residue detected", "none found", "pesticide screen"}
 
@@ -102,6 +102,12 @@ def main():
             (new_name, old_name),
         )
         renamed_count += cur.rowcount
+
+    # Log summary to data_versions (one entry per cleanup run)
+    if renamed_count > 0:
+        log_data_version("category_summaries", 0, "contaminant_batch",
+                         f"{len(renames)} names normalized", f"{renamed_count} rows updated",
+                         changed_by="cleanup_db")
 
     if renames:
         print(f"    Normalized {len(renames)} contaminant names ({renamed_count} rows updated)")

@@ -447,6 +447,7 @@ def normalize_contaminant(raw: str) -> str:
     - German umlauts (ä→ae, ö→oe, ü→ue, ß→ss)
     - Curated German → English aliases (e.g., Tebuconazol → tebuconazole)
     - Long German descriptive strings (e.g., "X, Summe aus ..., als X" → X)
+    - Semicolon-separated names (e.g., "bpmc; fenobucarb" → "bpmc")
     - Status strings rejected → returns empty string
     """
     if not raw:
@@ -465,7 +466,6 @@ def normalize_contaminant(raw: str) -> str:
     # Try extracting from "X, Summe/Gesamt/ausgedrückt als ..." patterns
     extracted = _GERMAN_DESCRIPTIVE_RE.sub("", cleaned).strip().rstrip(",")
     if extracted and extracted != cleaned and len(extracted) > 2:
-        # Check if extracted name is an alias
         if extracted in _CONTAMINANT_ALIASES:
             return _CONTAMINANT_ALIASES[extracted]
         return extracted
@@ -477,6 +477,41 @@ def normalize_contaminant(raw: str) -> str:
         if parent in _CONTAMINANT_ALIASES:
             return _CONTAMINANT_ALIASES[parent]
         return parent
+
+    # For semicolon-separated names: take the first part
+    # e.g., "bpmc; fenobucarb" → "bpmc"
+    # e.g., "chloridazon; pyrazon; 5-amino-..." → "chloridazon"
+    if ";" in cleaned:
+        first_part = cleaned.split(";")[0].strip()
+        if len(first_part) > 2:
+            if first_part in _CONTAMINANT_ALIASES:
+                return _CONTAMINANT_ALIASES[first_part]
+            return first_part
+
+    # For comma-separated names with parenthetical explanations:
+    # e.g., "benzyladenin, 6-benzylamino-purin, 6-bap" → "benzyladenin"
+    # e.g., "fosetyl-al (sum of fosetyl, phosphonic acid...)" → "fosetyl-al"
+    if "," in cleaned:
+        first_part = cleaned.split(",")[0].strip()
+        if len(first_part) > 2:
+            if first_part in _CONTAMINANT_ALIASES:
+                return _CONTAMINANT_ALIASES[first_part]
+            return first_part
+
+    # Strip parenthetical explanations only if the parenthetical part is long
+    # (short parenthetical parts are usually chemical identifiers, not descriptions)
+    # e.g., "fosetyl-al (sum of fosetyl...)" → "fosetyl-al" (long description)
+    # e.g., "thpi (cis-1,2,3,6-tetrahydrophthalimide)" → keep as-is (chemical name)
+    paren_match = re.match(r"^([^(]+)\s*\(([^)]{30,})", cleaned)
+    if paren_match:
+        base = paren_match.group(1).strip().rstrip(",")
+        if len(base) > 3:
+            if base in _CONTAMINANT_ALIASES:
+                return _CONTAMINANT_ALIASES[base]
+            return base
+
+    # Return cleaned name as-is (already lowercased + umlauts replaced)
+    return cleaned
 
     # Return cleaned name as-is (already lowercased + umlauts replaced)
     return cleaned
@@ -782,3 +817,43 @@ def log_ingest(source_name, status, inserted=0, skipped=0, failed=0,
                  error_message, source_file)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (source_name, status, inserted, skipped, failed, error_message, source_file))
+
+
+def log_data_version(table_name, row_id, field_name, old_value, new_value,
+                     changed_by="pipeline"):
+    """Record a field-level change in the data_versions audit table."""
+    dedup = build_dedup_key(table_name, row_id, field_name, str(new_value))
+    try:
+        with get_connection() as conn:
+            conn.execute("""
+                INSERT OR IGNORE INTO data_versions
+                    (table_name, row_id, field_name, old_value, new_value,
+                     changed_by, dedup_key)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (table_name, row_id, field_name, str(old_value), str(new_value),
+                  changed_by, dedup))
+    except sqlite3.Error as e:
+        logger.debug("data_versions insert skipped: %s", e)
+
+
+def get_data_versions(table_name=None, row_id=None, limit=100):
+    """Query the data_versions audit trail."""
+    conditions = []
+    params = []
+    if table_name:
+        conditions.append("table_name = ?")
+        params.append(table_name)
+    if row_id is not None:
+        conditions.append("row_id = ?")
+        params.append(row_id)
+    where = " WHERE " + " AND ".join(conditions) if conditions else ""
+    params.append(limit)
+    with get_connection() as conn:
+        rows = conn.execute(f"""
+            SELECT table_name, row_id, field_name, old_value, new_value,
+                   changed_at, changed_by
+            FROM data_versions{where}
+            ORDER BY changed_at DESC
+            LIMIT ?
+        """, params).fetchall()
+    return [dict(r) for r in rows]

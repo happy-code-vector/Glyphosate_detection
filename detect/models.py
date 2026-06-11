@@ -173,6 +173,8 @@ class ContaminantDetail:
     risk_level: str  # 'none', 'low', 'medium', 'high', 'unknown'
     risk_reason: str  # Human-readable explanation
     confidence: str  # 'high', 'medium', 'low'
+    # Detection frequency (shown when risk_level is 'unknown')
+    detection_frequency: str | None  # 'high', 'medium', 'low', 'none'
 
 
 @dataclass
