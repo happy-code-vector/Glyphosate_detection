@@ -37,32 +37,44 @@ SOURCE_NAME = "FDA_ToxicElements"
 # These URLs may change as FDA updates their data — check periodically
 FDA_SOURCES = [
     {
-        "name": "Closer to Zero - Baby Food Lead",
-        "url": "https://www.fda.gov/media/156498/download",
-        "filename": "fda_closer_to_zero_lead.xlsx",
+        "name": "FDA Toxic Elements - Baby Food (As, Pb, Cd, Hg)",
+        "url": "https://www.fda.gov/media/164682/download?attachment",
+        "filename": "fda_toxic_elements_baby_food.xlsx",
+        "contaminant": None,  # Multi-contaminant file — detected from sheet name
+        "format": "xlsx",
+        "data_year": 2024,
+        "published_date": "2024-01-01",
+        "header_row": 1,  # Row 0 is title, row 1 is headers
+    },
+    {
+        "name": "FDA Closer to Zero - Lead FY2023",
+        "url": "https://www.fda.gov/media/184798/download?attachment",
+        "filename": "fda_closer_to_zero_lead_fy2023.xlsx",
         "contaminant": "lead",
         "format": "xlsx",
+        "data_year": 2023,
+        "published_date": "2023-01-01",
+        "header_row": 1,
     },
     {
-        "name": "Closer to Zero - Baby Food Arsenic",
-        "url": "https://www.fda.gov/media/156502/download",
-        "filename": "fda_closer_to_zero_arsenic.xlsx",
-        "contaminant": "inorganic_arsenic",
+        "name": "FDA Cadmium and Lead in Infant Food",
+        "url": "https://www.fda.gov/media/100386/download",
+        "filename": "fda_infant_food_cadmium_lead.xlsx",
+        "contaminant": None,  # Multi-contaminant
         "format": "xlsx",
+        "data_year": 2021,
+        "published_date": "2021-01-01",
+        "header_row": 1,
     },
     {
-        "name": "Closer to Zero - Baby Food Cadmium",
-        "url": "https://www.fda.gov/media/156504/download",
-        "filename": "fda_closer_to_zero_cadmium.xlsx",
-        "contaminant": "cadmium",
+        "name": "FDA Arsenic, Cadmium, Lead in Carrageenan",
+        "url": "https://www.fda.gov/media/100391/download",
+        "filename": "fda_carrageenan_metals.xlsx",
+        "contaminant": None,  # Multi-contaminant
         "format": "xlsx",
-    },
-    {
-        "name": "Closer to Zero - Baby Food Mercury",
-        "url": "https://www.fda.gov/media/156506/download",
-        "filename": "fda_closer_to_zero_mercury.xlsx",
-        "contaminant": "mercury",
-        "format": "xlsx",
+        "data_year": 2021,
+        "published_date": "2021-01-01",
+        "header_row": 1,
     },
 ]
 
@@ -100,23 +112,50 @@ class FDAToxicElementsFetcher(BaseFetcher):
     SOURCE_NAME = SOURCE_NAME
 
     def fetch(self) -> list[Path]:
-        """Download FDA toxic elements data files."""
+        """Download FDA toxic elements data files.
+
+        Strategy:
+        1. Check for local files first (manual download — most reliable)
+        2. Try FDA download URLs
+        """
+        # Check for local files first
+        local_patterns = ["fda_closer_to_zero_*", "fda_toxic_*", "fda_tds_*"]
+        local_files = set()
+        for pattern in local_patterns:
+            for f in RAW_DATA_DIR.glob(pattern):
+                if f.suffix in ('.xlsx', '.xls', '.csv'):
+                    local_files.add(f.name)
+
         paths = []
         for source in FDA_SOURCES:
             dest = RAW_DATA_DIR / source["filename"]
+
+            # Check if file already exists (local or cached)
             if dest.exists():
                 logger.info("FDA ToxicElements cache hit: %s", dest.name)
                 paths.append(dest)
                 continue
 
+            # Check if a local file with this name exists
+            if source["filename"] in local_files:
+                logger.info("FDA ToxicElements: using local file %s", source["filename"])
+                paths.append(dest)
+                continue
+
+            # Try downloading
             try:
                 logger.info("FDA ToxicElements: fetching %s...", source["name"])
                 resp = SESSION.get(source["url"], timeout=120)
                 if resp.status_code == 200 and len(resp.content) > 1000:
-                    dest.write_bytes(resp.content)
-                    paths.append(dest)
-                    logger.info("FDA ToxicElements: downloaded %s (%d bytes)",
-                                dest.name, len(resp.content))
+                    # Verify it's an Excel file (PK zip signature) not HTML
+                    if resp.content[:2] == b'PK':
+                        dest.write_bytes(resp.content)
+                        paths.append(dest)
+                        logger.info("FDA ToxicElements: downloaded %s (%d bytes)",
+                                    dest.name, len(resp.content))
+                    else:
+                        logger.warning("FDA ToxicElements: %s returned non-Excel content (%d bytes)",
+                                       source["name"], len(resp.content))
                 else:
                     logger.warning("FDA ToxicElements: %s status %d (%d bytes)",
                                    source["name"], resp.status_code, len(resp.content))
@@ -138,49 +177,100 @@ class FDAToxicElementsFetcher(BaseFetcher):
 
     def parse(self, files: list[Path]) -> list[dict]:
         """Parse FDA toxic elements data files into product_tests rows."""
+        # Build lookup from filename to source config
+        source_by_file = {s["filename"]: s for s in FDA_SOURCES}
+
         all_rows = []
         for path in files:
-            rows = self._parse_file(path)
+            source_config = source_by_file.get(path.name, {})
+            rows = self._parse_file(path, source_config)
             all_rows.extend(rows)
         return all_rows
 
-    def _parse_file(self, path: Path) -> list[dict]:
-        """Parse a single FDA toxic elements data file."""
+    def _parse_file(self, path: Path, source_config: dict = None) -> list[dict]:
+        """Parse a single FDA toxic elements data file.
+
+        Handles:
+        - Multi-sheet Excel files (one sheet per contaminant)
+        - Header row offset (row 0 is title, row 1 is headers)
+        - '<LOD' and 'NDb' values (below detection → skip or mark)
+        """
         import pandas as pd
 
-        logger.info("FDA ToxicElements: parsing %s", path.name)
+        source_config = source_config or {}
+        header_row = source_config.get("header_row", 0)
+        file_contaminant = source_config.get("contaminant") or self._detect_contaminant(path.name)
 
-        # Determine contaminant from filename
-        contaminant = self._detect_contaminant(path.name)
+        logger.info("FDA ToxicElements: parsing %s (header_row=%d, contaminant=%s)",
+                    path.name, header_row, file_contaminant)
 
         try:
             if path.suffix in ('.xlsx', '.xls'):
-                df = pd.read_excel(path, engine='openpyxl')
+                xl = pd.ExcelFile(path, engine='openpyxl')
+                sheets = xl.sheet_names
             else:
-                df = pd.read_csv(path, encoding='latin-1')
+                sheets = ['Sheet1']
+                xl = None
         except Exception as e:
             logger.warning("FDA ToxicElements: failed to read %s: %s", path.name, e)
             return []
 
-        if df.empty:
-            return []
+        all_rows = []
+        for sheet in sheets:
+            try:
+                if xl:
+                    df = pd.read_excel(xl, sheet_name=sheet, header=header_row)
+                else:
+                    df = pd.read_csv(path, encoding='latin-1', header=header_row)
+            except Exception as e:
+                logger.warning("FDA ToxicElements: failed to read sheet '%s': %s", sheet, e)
+                continue
 
-        # Clean column names
-        df.columns = [str(c).strip() for c in df.columns]
-        logger.info("FDA ToxicElements: columns = %s", list(df.columns))
+            if df.empty:
+                continue
 
+            # Clean column names
+            df.columns = [str(c).strip() for c in df.columns]
+
+            # Detect contaminant from sheet name if multi-contaminant
+            sheet_contaminant = self._detect_contaminant(sheet)
+            contaminant = file_contaminant or sheet_contaminant or 'lead'
+
+            rows = self._parse_sheet(df, path, sheet, contaminant, source_config)
+            all_rows.extend(rows)
+
+        logger.info("FDA ToxicElements: parsed %d rows from %s", len(all_rows), path.name)
+        return all_rows
+
+    def _parse_sheet(self, df, path: Path, sheet_name: str, contaminant: str,
+                     source_config: dict) -> list[dict]:
+        """Parse a single sheet into product_tests rows."""
         # Find key columns
-        product_col = self._find_col(df, ['Product', 'Product Name', 'product_name',
-                                           'Food', 'Food Product', 'Sample Description'])
-        brand_col = self._find_col(df, ['Brand', 'Brand Name', 'brand', 'Manufacturer'])
-        value_col = self._find_col(df, ['Result', 'Concentration', 'Level', 'Value',
-                                         'Mean', 'Average', 'Lead', 'Arsenic', 'Cadmium', 'Mercury'])
-        unit_col = self._find_col(df, ['Unit', 'Units', 'unit', 'Units (ppb)', 'Units (ppm)'])
-        category_col = self._find_col(df, ['Category', 'Food Category', 'Food Type', 'Type'])
+        product_col = self._find_col(df, ['Baby Food Name', 'Product', 'Product Name',
+                                           'product_name', 'Food', 'Food Product',
+                                           'Sample Description', 'Food/Product Name'])
+        category_col = self._find_col(df, ['Baby Food Category', 'Category', 'Food Category',
+                                            'Food Type', 'Type', 'Food Category/Type'])
+        year_col = self._find_col(df, ['Fiscal Year', 'Year', 'FY', 'data_year'])
+        value_col = self._find_col(df, ['Concentration', 'Result', 'Level', 'Value',
+                                         'Mean', 'Average', 'As Concentration',
+                                         'Lead Concentration', 'Cd Concentration',
+                                         'Hg Concentration'])
 
         if not product_col:
-            logger.warning("FDA ToxicElements: no product column found in %s", path.name)
-            logger.warning("Available columns: %s", list(df.columns))
+            logger.warning("FDA ToxicElements: no product column in sheet '%s'. Columns: %s",
+                           sheet_name, list(df.columns)[:8])
+            return []
+
+        if not value_col:
+            # Try to find any column with 'ppb' or 'concentration' in the name
+            for col in df.columns:
+                if 'ppb' in col.lower() or 'concentration' in col.lower():
+                    value_col = col
+                    break
+        if not value_col:
+            logger.warning("FDA ToxicElements: no value column in sheet '%s'. Columns: %s",
+                           sheet_name, list(df.columns)[:8])
             return []
 
         rows = []
@@ -189,33 +279,23 @@ class FDAToxicElementsFetcher(BaseFetcher):
             if not product_name or product_name in ('nan', 'None', ''):
                 continue
 
-            # Get measurement value
-            measured_ppb = None
-            if value_col:
-                raw_value = row.get(value_col)
-                if raw_value is not None:
-                    try:
-                        value = float(raw_value)
-                        # Determine unit
-                        unit = 'ppb'  # default
-                        if unit_col:
-                            raw_unit = str(row.get(unit_col, '')).strip().lower()
-                            if raw_unit in UNIT_TO_PPB:
-                                unit = raw_unit
-                        # Convert to ppb
-                        measured_ppb = value * UNIT_TO_PPB.get(unit, 1.0)
-                    except (ValueError, TypeError):
-                        pass
-
-            if measured_ppb is None or measured_ppb <= 0:
+            # Get measurement value — handle '<LOD', 'NDb', numeric
+            raw_value = str(row.get(value_col, '')).strip()
+            if not raw_value or raw_value in ('nan', 'None', ''):
                 continue
 
-            # Get brand
-            brand = ''
-            if brand_col:
-                brand = str(row.get(brand_col, '')).strip()
-                if brand in ('nan', 'None'):
-                    brand = ''
+            below_detection = 0
+            if '<LOD' in raw_value or 'NDb' in raw_value.lower() or 'not detected' in raw_value.lower():
+                below_detection = 1
+                measured_ppb = 0.0
+            else:
+                try:
+                    measured_ppb = float(raw_value)
+                except ValueError:
+                    continue
+
+            if not below_detection and measured_ppb <= 0:
+                continue
 
             # Get food category
             food_category = None
@@ -223,50 +303,44 @@ class FDAToxicElementsFetcher(BaseFetcher):
                 raw_cat = str(row.get(category_col, '')).strip()
                 if raw_cat and raw_cat not in ('nan', 'None'):
                     food_category = normalize_category(raw_cat)
-
             if not food_category:
                 food_category = normalize_category(product_name)
-
             if not food_category:
-                food_category = 'unknown'
+                food_category = 'baby_food'
 
-            # Determine contaminant for this row
-            row_contaminant = contaminant
-            if not row_contaminant:
-                # Try to detect from value column name
-                if value_col:
-                    col_lower = value_col.lower()
-                    for key, val in CONTAMINANT_MAP.items():
-                        if key in col_lower:
-                            row_contaminant = val
-                            break
-                if not row_contaminant:
-                    row_contaminant = 'lead'  # default
+            # Get data year
+            data_year = source_config.get("data_year")
+            if year_col:
+                raw_year = row.get(year_col)
+                if raw_year is not None:
+                    try:
+                        data_year = int(float(str(raw_year)))
+                    except (ValueError, TypeError):
+                        pass
 
-            dedup = build_dedup_key(SOURCE_NAME, product_name, row_contaminant, food_category)
+            dedup = build_dedup_key(SOURCE_NAME, product_name, contaminant, food_category, data_year)
             rows.append({
                 "tier": 1,
                 "source_name": SOURCE_NAME,
-                "source_url": "https://www.fda.gov/food/metals-and-your-food",
-                "report_label": f"FDA Toxic Elements - {path.stem}",
-                "published_date": None,
-                "data_year": None,
+                "source_url": "https://www.fda.gov/food/environmental-contaminants-food",
+                "report_label": f"FDA Toxic Elements - {path.stem} - {sheet_name}",
+                "published_date": source_config.get("published_date"),
+                "data_year": data_year,
                 "food_category": food_category,
                 "raw_category": product_name,
-                "contaminant": row_contaminant,
+                "contaminant": contaminant,
                 "product_name": product_name,
                 "measured_ppb": round(measured_ppb, 2),
-                "below_detection": 0,
+                "below_detection": below_detection,
                 "original_unit": "ppb",
                 "unit_conversion": 1.0,
                 "is_organic": 0,
                 "is_grf_certified": 0,
-                "methodology_note": f"FDA Toxic Elements testing. Brand: {brand}" if brand else "FDA Toxic Elements testing.",
+                "methodology_note": f"FDA Toxic Elements testing ({sheet_name})",
                 "confidence": "high",
                 "dedup_key": dedup,
             })
 
-        logger.info("FDA ToxicElements: parsed %d rows from %s", len(rows), path.name)
         return rows
 
     def _detect_contaminant(self, filename: str) -> str | None:

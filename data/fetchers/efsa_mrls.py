@@ -130,47 +130,59 @@ class EFSAMrlFetcher(BaseFetcher):
     SOURCE_NAME = SOURCE_NAME
 
     def fetch(self) -> list[Path]:
-        """Download EFSA MRL Excel file."""
-        # EFSA publishes MRLs as part of their pesticide residues data
-        # The MRL reference file is typically at a stable URL
-        # If the URL changes, update here
-        url = "https://www.efsa.europa.eu/sites/default/files/2024-11/mrl_data.xlsx"
+        """Download EFSA MRL Excel file.
 
-        # Also try the consolidated regulation annex
-        alt_urls = [
-            "https://www.efsa.europa.eu/sites/default/files/2024-01/mrl-regulation-396-2005-annexes.xlsx",
-            "https://www.efsa.europa.eu/sites/default/files/2023-11/mrl_data.xlsx",
-        ]
-
+        Strategy:
+        1. Check for local file first (manual download)
+        2. Try EU Pesticides Database bulk export
+        3. Try EFSA direct links (may be outdated)
+        """
         dest = RAW_DATA_DIR / "efsa_mrls.xlsx"
         if dest.exists():
             logger.info("EFSA MRL cache hit: %s", dest.name)
             return [dest]
 
-        # Try primary URL first, then alternatives
-        for url in [url] + alt_urls:
+        # Try EU Pesticides Database (more stable than EFSA direct links)
+        urls = [
+            # EU Pesticides Database — MRL annexes
+            "https://ec.europa.eu/food/system/files/2024-01/pesticides_mrls_annexes.xlsx",
+            "https://ec.europa.eu/food/system/files/2023-11/pesticides_mrls_annexes.xlsx",
+            # EFSA direct links (may return 404)
+            "https://www.efsa.europa.eu/sites/default/files/2024-11/mrl_data.xlsx",
+            "https://www.efsa.europa.eu/sites/default/files/2024-01/mrl-regulation-396-2005-annexes.xlsx",
+        ]
+
+        for url in urls:
             try:
                 logger.info("EFSA MRL: fetching %s...", url)
                 resp = SESSION.get(url, timeout=120)
                 if resp.status_code == 200 and len(resp.content) > 1000:
-                    dest.write_bytes(resp.content)
-                    logger.info("EFSA MRL: downloaded %d bytes", len(resp.content))
-                    return [dest]
+                    # Verify it's actually an Excel file (starts with PK zip signature)
+                    if resp.content[:2] == b'PK':
+                        dest.write_bytes(resp.content)
+                        logger.info("EFSA MRL: downloaded %d bytes", len(resp.content))
+                        return [dest]
+                    else:
+                        logger.warning("EFSA MRL: not an Excel file (%d bytes, starts with %s)",
+                                       len(resp.content), resp.content[:4])
                 else:
                     logger.warning("EFSA MRL: status %d (%d bytes)",
                                    resp.status_code, len(resp.content))
             except Exception as e:
                 logger.warning("EFSA MRL fetch failed for %s: %s", url, e)
 
-        # If download fails, try to use any existing local file
-        local_patterns = ["efsa_mrl*", "mrl_data*", "mrl-regulation*"]
+        # Local file fallback — user can manually download and place in raw_data/
+        local_patterns = ["efsa_mrl*", "mrl_data*", "mrl-regulation*",
+                          "eu_pesticides_mrl*", "pesticides_mrls*"]
         for pattern in local_patterns:
             for f in RAW_DATA_DIR.glob(pattern):
                 if f.suffix in ('.xlsx', '.xls', '.csv'):
                     logger.info("EFSA MRL: using local file %s", f.name)
                     return [f]
 
-        logger.error("EFSA MRL: could not download or find MRL data file")
+        logger.error("EFSA MRL: could not download MRL data.")
+        logger.error("Manual download: Go to https://ec.europa.eu/food/plant/pesticides/eu-pesticides-database")
+        logger.error("Download the MRL annexes Excel file and place it in data/raw_data/efsa_mrls.xlsx")
         return []
 
     def parse(self, files: list[Path]) -> list[dict]:
@@ -185,29 +197,24 @@ class EFSAMrlFetcher(BaseFetcher):
 
         # Try reading the Excel file — EFSA files may have multiple sheets
         try:
-            # First, try to read all sheets to find the MRL data
             xl = pd.ExcelFile(path)
             logger.info("EFSA MRL: sheets = %s", xl.sheet_names)
 
             # Look for the sheet with MRL data
-            df = None
-            for sheet_name in xl.sheet_names:
-                sheet_lower = sheet_name.lower()
-                if any(kw in sheet_lower for kw in ['mrl', 'maximum', 'residue', 'limit', 'annex']):
-                    df = pd.read_excel(xl, sheet_name=sheet_name, nrows=5)
-                    logger.info("EFSA MRL: trying sheet '%s', columns = %s",
-                                sheet_name, list(df.columns))
+            matched_sheet = None
+            for sn in xl.sheet_names:
+                if any(kw in sn.lower() for kw in ['mrl', 'maximum', 'residue', 'limit', 'annex']):
+                    matched_sheet = sn
                     break
 
-            if df is None:
-                # Try first sheet
-                df = pd.read_excel(xl, sheet_name=0, nrows=5)
-                logger.info("EFSA MRL: using first sheet, columns = %s", list(df.columns))
-
-            # Now read the full sheet
-            sheet_to_use = sheet_name if df is not None else 0
-            df = pd.read_excel(xl, sheet_name=sheet_to_use)
-            logger.info("EFSA MRL: read %d rows from sheet '%s'", len(df), sheet_to_use)
+            if matched_sheet:
+                df = pd.read_excel(xl, sheet_name=matched_sheet)
+                logger.info("EFSA MRL: using sheet '%s' (%d rows), columns = %s",
+                            matched_sheet, len(df), list(df.columns)[:10])
+            else:
+                df = pd.read_excel(xl, sheet_name=0)
+                logger.info("EFSA MRL: using first sheet (%d rows), columns = %s",
+                            len(df), list(df.columns)[:10])
 
         except Exception as e:
             logger.error("EFSA MRL: failed to read Excel: %s", e)
