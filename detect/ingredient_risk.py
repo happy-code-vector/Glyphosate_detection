@@ -344,17 +344,15 @@ class IngredientRiskQuery:
         )
 
     def _check_category(self, food_category: str, contaminant: str) -> Optional[dict]:
-        """Check category_summaries for category-level data."""
+        """Check category_summaries for category-level data.
+
+        Uses ppb-vs-MRL for risk_level (consistent with Tier 1 and Tier 2).
+        Detection rate is returned as a data point but does not drive risk_level.
+        """
         row = self._conn.execute(
             """
             SELECT food_category, detection_rate, avg_ppb, max_ppb,
-                   source_name, data_year, confidence,
-                   CASE
-                       WHEN detection_rate >= 0.66 THEN 'high'
-                       WHEN detection_rate >= 0.31 THEN 'medium'
-                       WHEN detection_rate > 0.0 THEN 'low'
-                       ELSE 'none'
-                   END AS risk_level
+                   source_name, data_year, confidence
             FROM category_summaries
             WHERE food_category = ? AND contaminant = ?
             ORDER BY
@@ -370,7 +368,14 @@ class IngredientRiskQuery:
             (food_category, contaminant),
         ).fetchone()
 
-        return dict(row) if row else None
+        if not row:
+            return None
+
+        d = dict(row)
+        d["risk_level"] = self._ppb_to_risk_level(
+            d.get("max_ppb"), contaminant, food_category
+        )
+        return d
 
     # ── Multi-contaminant scan ───────────────────────────────────────────
 

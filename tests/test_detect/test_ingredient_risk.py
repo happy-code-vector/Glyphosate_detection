@@ -154,7 +154,8 @@ class TestIngredientRiskQuery(unittest.TestCase):
 
         self.assertEqual(result.tier_used, "category")
         self.assertEqual(result.category_fallback, "oats")
-        self.assertEqual(result.risk_level, "high")  # 80% detection rate
+        # max_ppb=1200, tolerance=30000 → 4% → low
+        self.assertEqual(result.risk_level, "low")
 
     def test_no_data_available(self):
         """Should return unknown when no data at any tier."""
