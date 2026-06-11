@@ -1,356 +1,216 @@
 """
 fetchers/efsa_mrls.py
 
-EFSA Pesticide Residues MRL Database — comprehensive EU Maximum Residue Limits
-for pesticides in food.
+EU MRLs from DG SANTE Pesticides Datalake API.
 
 Source:
-  European Food Safety Authority (EFSA)
-  Pesticide Residues in Food Data
-  https://www.efsa.europa.eu/en/data/pest-chem-occur-data
+  EU Pesticides Database — Bulk MRL Download
+  https://api.datalake.sante.service.ec.europa.eu/sante/pesticides/pesticide-residues-mrls-download
 
 Content:
-  EU MRLs (Regulation (EC) No 396/2005) for hundreds of pesticides across
-  hundreds of food categories. These are generally the strictest internationally.
+  All EU Maximum Residue Limits (Regulation (EC) No 396/2005) for pesticides
+  across all food commodities. These are generally the strictest internationally.
 
-Strategy:
-  1. Download the EFSA MRL Excel file (updated annually).
-  2. Parse pesticide/commodity/MRL columns.
-  3. Convert mg/kg (ppm) to ppb (× 1000).
-  4. Handle "*" entries (default 0.01 mg/kg = 10 ppb) — these are the strictest limits.
-  5. Insert into international_mrls table with country_region="EU", regulatory_body="EFSA".
+API Details (from PDF documentation):
+  - Bulk download: /sante/pesticides/pesticide-residues-mrls-download
+  - Parameters: language_code=EN, format=json, api-version=v3.0
+  - No authentication required (open access)
+  - Returns JSON array of MRL records
+  - Key fields: mrl_value_only, applicability, pesticide_residue_name, product_name
+
+Data Handling:
+  - Filter: applicability = 1 (current applicable MRLs only)
+  - Use mrl_value_only (clean numeric) not mrl_value (has LOD markers)
+  - mrl_lod = "*" means MRL at limit of detection (0.01 mg/kg = 10 ppb)
+  - Strip footnote codes from pesticide names: (F), (R), (A), (B)
+  - product_name is English, usable for category mapping
 """
 
+import json
 import logging
+import re
 from pathlib import Path
 
 from fetchers.base import BaseFetcher, RAW_DATA_DIR, SESSION
-from db.database import build_dedup_key, get_connection, normalize_category
+from db.database import build_dedup_key, normalize_category, get_connection, log_ingest
 
 logger = logging.getLogger(__name__)
 
 SOURCE_NAME = "EFSA_MRLs"
-SOURCE_URL = "https://www.efsa.europa.eu/en/data/pest-chem-occur-data"
+BASE_URL = "https://api.datalake.sante.service.ec.europa.eu/sante/pesticides"
+API_VERSION = "v3.0"
 
-# EFSA default MRL for unauthorized pesticides: 0.01 mg/kg = 10 ppb
-DEFAULT_MRL_PPM = 0.01
-DEFAULT_MRL_PPB = 10.0
-
-# Known EFSA food category → our canonical category mapping
-# These will be expanded during the alias audit step
-EFSA_CATEGORY_MAP = {
-    # Cereals
-    "wheat": "wheat",
-    "barley": "barley",
-    "oat": "oats",
-    "oats": "oats",
-    "rye": "rye",
-    "rice": "rice",
-    "corn": "corn",
-    "maize": "corn",
-    "sorghum": "sorghum",
-    "millet": "millet",
-    # Fruits
-    "apple": "apple",
-    "apples": "apple",
-    "pear": "pear",
-    "pears": "pear",
-    "grape": "grape",
-    "grapes": "grape",
-    "strawberry": "strawberry",
-    "strawberries": "strawberry",
-    "blueberry": "blueberry",
-    "blueberries": "blueberry",
-    "cherry": "cherry",
-    "cherries": "cherry",
-    "peach": "peach",
-    "peaches": "peach",
-    "orange": "orange",
-    "oranges": "orange",
-    "lemon": "lemon",
-    "lemons": "lemon",
-    "banana": "banana",
-    "bananas": "banana",
-    # Vegetables
-    "potato": "potato",
-    "potatoes": "potato",
-    "tomato": "tomato",
-    "tomatoes": "tomato",
-    "carrot": "carrot",
-    "carrots": "carrot",
-    "lettuce": "lettuce",
-    "spinach": "spinach",
-    "kale": "kale",
-    "cucumber": "cucumber",
-    "cucumbers": "cucumber",
-    "celery": "celery",
-    "broccoli": "broccoli",
-    "onion": "onion",
-    "garlic": "garlic",
-    "pepper": "pepper",
-    "peppers": "pepper",
-    "bean": "bean",
-    "beans": "bean",
-    "pea": "pea",
-    "peas": "pea",
-    # Oilseeds
-    "soybean": "soybean",
-    "soybeans": "soybean",
-    "soya": "soybean",
-    "rapeseed": "rapeseed",
-    "canola": "rapeseed",
-    "sunflower": "sunflower",
-    "peanut": "peanut",
-    "peanuts": "peanut",
-    "groundnut": "peanut",
-    "almond": "almond",
-    "almonds": "almond",
-    # Animal products
-    "milk": "milk",
-    "egg": "egg",
-    "eggs": "egg",
-    "meat": "meat",
-    "poultry": "poultry",
-    "fish": "fish",
-    # Nuts
-    "walnut": "walnut",
-    "walnuts": "walnut",
-    "hazelnut": "hazelnut",
-    "hazelnuts": "hazelnut",
-    "cashew": "cashew",
-    "cashews": "cashew",
-    "pistachio": "pistachio",
-    "pistachios": "pistachio",
-}
+# Footnote codes to strip from pesticide names
+_FOOTNOTE_RE = re.compile(r"\s*\([A-Z]\)\s*$")
 
 
 class EFSAMrlFetcher(BaseFetcher):
-    """Fetch EU MRLs from EFSA's pesticide residues database."""
+    """Fetch EU MRLs from DG SANTE Pesticides Datalake API."""
 
     SOURCE_NAME = SOURCE_NAME
 
-    def fetch(self) -> list[Path]:
-        """Download EFSA MRL Excel file.
+    def run(self) -> dict:
+        """Override run() to insert into international_mrls table directly."""
+        logger.info("=== Starting %s pipeline ===", self.SOURCE_NAME)
 
-        Strategy:
-        1. Check for local file first (manual download)
-        2. Try EU Pesticides Database bulk export
-        3. Try EFSA direct links (may be outdated)
-        """
-        dest = RAW_DATA_DIR / "efsa_mrls.xlsx"
+        try:
+            files = self.fetch()
+        except Exception as e:
+            log_ingest(self.SOURCE_NAME, "failed", error_message=str(e))
+            logger.error("%s fetch failed: %s", self.SOURCE_NAME, e)
+            raise
+
+        try:
+            rows = self.parse(files)
+        except Exception as e:
+            log_ingest(self.SOURCE_NAME, "failed", error_message=str(e))
+            logger.error("%s parse failed: %s", self.SOURCE_NAME, e)
+            raise
+
+        logger.info("%s parsed %d international MRL entries, inserting...", self.SOURCE_NAME, len(rows))
+
+        inserted = skipped = failed = 0
+        with get_connection() as conn:
+            for row in rows:
+                try:
+                    conn.execute(
+                        """
+                        INSERT OR IGNORE INTO international_mrls
+                            (food_category, raw_commodity, pesticide,
+                             country_region, mrl_ppm, mrl_ppb,
+                             regulatory_body, source_url, dedup_key)
+                        VALUES
+                            (:food_category, :raw_commodity, :pesticide,
+                             :country_region, :mrl_ppm, :mrl_ppb,
+                             :regulatory_body, :source_url, :dedup_key)
+                        """,
+                        row,
+                    )
+                    changes = conn.execute("SELECT changes()").fetchone()[0]
+                    if changes:
+                        inserted += 1
+                    else:
+                        skipped += 1
+                except Exception as e:
+                    logger.error("Insert failed for %s: %s", row.get("pesticide"), e)
+                    failed += 1
+
+        log_ingest(self.SOURCE_NAME, "success" if failed == 0 else "partial",
+                   inserted, skipped, failed)
+        logger.info("%s complete: inserted=%d skipped=%d failed=%d",
+                    self.SOURCE_NAME, inserted, skipped, failed)
+        return {"inserted": inserted, "skipped": skipped, "failed": failed}
+
+    def fetch(self) -> list[Path]:
+        """Download EU MRL data via bulk API."""
+        dest = RAW_DATA_DIR / "efsa_mrls.json"
+
+        # Check cache
         if dest.exists():
-            logger.info("EFSA MRL cache hit: %s", dest.name)
+            logger.info("EFSA MRL cache hit: %s (%d bytes)", dest.name, dest.stat().st_size)
             return [dest]
 
-        # Try EU Pesticides Database (more stable than EFSA direct links)
-        urls = [
-            # EU Pesticides Database — MRL annexes
-            "https://ec.europa.eu/food/system/files/2024-01/pesticides_mrls_annexes.xlsx",
-            "https://ec.europa.eu/food/system/files/2023-11/pesticides_mrls_annexes.xlsx",
-            # EFSA direct links (may return 404)
-            "https://www.efsa.europa.eu/sites/default/files/2024-11/mrl_data.xlsx",
-            "https://www.efsa.europa.eu/sites/default/files/2024-01/mrl-regulation-396-2005-annexes.xlsx",
-        ]
+        url = f"{BASE_URL}/pesticide-residues-mrls-download"
+        params = {"language_code": "EN", "format": "json", "api-version": API_VERSION}
 
-        for url in urls:
-            try:
-                logger.info("EFSA MRL: fetching %s...", url)
-                resp = SESSION.get(url, timeout=120)
-                if resp.status_code == 200 and len(resp.content) > 1000:
-                    # Verify it's actually an Excel file (starts with PK zip signature)
-                    if resp.content[:2] == b'PK':
-                        dest.write_bytes(resp.content)
-                        logger.info("EFSA MRL: downloaded %d bytes", len(resp.content))
-                        return [dest]
-                    else:
-                        logger.warning("EFSA MRL: not an Excel file (%d bytes, starts with %s)",
-                                       len(resp.content), resp.content[:4])
-                else:
-                    logger.warning("EFSA MRL: status %d (%d bytes)",
-                                   resp.status_code, len(resp.content))
-            except Exception as e:
-                logger.warning("EFSA MRL fetch failed for %s: %s", url, e)
+        try:
+            logger.info("EFSA MRL: fetching from DG SANTE API...")
+            logger.info("  URL: %s", url)
+            resp = SESSION.get(url, params=params, timeout=300)
+            resp.raise_for_status()
+            dest.write_bytes(resp.content)
+            logger.info("EFSA MRL: downloaded %d bytes", len(resp.content))
+            return [dest]
+        except Exception as e:
+            logger.error("EFSA MRL fetch failed: %s", e)
 
-        # Local file fallback — user can manually download and place in raw_data/
-        local_patterns = ["efsa_mrl*", "mrl_data*", "mrl-regulation*",
-                          "eu_pesticides_mrl*", "pesticides_mrls*"]
-        for pattern in local_patterns:
-            for f in RAW_DATA_DIR.glob(pattern):
-                if f.suffix in ('.xlsx', '.xls', '.csv'):
-                    logger.info("EFSA MRL: using local file %s", f.name)
-                    return [f]
+        # Fallback: check for local file
+        for f in RAW_DATA_DIR.glob("efsa_mrl*"):
+            if f.suffix in ('.json', '.xlsx', '.csv'):
+                logger.info("EFSA MRL: using local file %s", f.name)
+                return [f]
 
         logger.error("EFSA MRL: could not download MRL data.")
-        logger.error("Manual download: Go to https://ec.europa.eu/food/plant/pesticides/eu-pesticides-database")
-        logger.error("Download the MRL annexes Excel file and place it in data/raw_data/efsa_mrls.xlsx")
         return []
 
     def parse(self, files: list[Path]) -> list[dict]:
-        """Parse EFSA MRL Excel file into international_mrls rows."""
+        """Parse EU MRL JSON data into international_mrls rows."""
         if not files:
             return []
-
-        import pandas as pd
 
         path = files[0]
         logger.info("EFSA MRL: parsing %s", path.name)
 
-        # Try reading the Excel file — EFSA files may have multiple sheets
+        # Parse NDJSON (one JSON object per line) or JSON array
+        records = []
         try:
-            xl = pd.ExcelFile(path)
-            logger.info("EFSA MRL: sheets = %s", xl.sheet_names)
-
-            # Look for the sheet with MRL data
-            matched_sheet = None
-            for sn in xl.sheet_names:
-                if any(kw in sn.lower() for kw in ['mrl', 'maximum', 'residue', 'limit', 'annex']):
-                    matched_sheet = sn
-                    break
-
-            if matched_sheet:
-                df = pd.read_excel(xl, sheet_name=matched_sheet)
-                logger.info("EFSA MRL: using sheet '%s' (%d rows), columns = %s",
-                            matched_sheet, len(df), list(df.columns)[:10])
-            else:
-                df = pd.read_excel(xl, sheet_name=0)
-                logger.info("EFSA MRL: using first sheet (%d rows), columns = %s",
-                            len(df), list(df.columns)[:10])
-
+            with open(path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        rec = json.loads(line)
+                        if isinstance(rec, list):
+                            records.extend(rec)
+                        else:
+                            records.append(rec)
+                    except json.JSONDecodeError:
+                        continue
         except Exception as e:
-            logger.error("EFSA MRL: failed to read Excel: %s", e)
-            # Try CSV fallback
-            try:
-                df = pd.read_csv(path, encoding='latin-1')
-                logger.info("EFSA MRL: read %d rows from CSV", len(df))
-            except Exception as e2:
-                logger.error("EFSA MRL: failed to read CSV: %s", e2)
-                return []
-
-        # Identify columns — EFSA uses various column names
-        cols = [str(c).strip() for c in df.columns]
-        df.columns = cols
-
-        # Find the key columns
-        pest_col = self._find_col(df, ['Active substance', 'Pesticide', 'Analyte',
-                                        'Substance', 'pesticide', 'active_substance'])
-        comm_col = self._find_col(df, ['Commodity', 'Food category', 'Product',
-                                        'Food', 'commodity', 'food_category'])
-        mrl_col = self._find_col(df, ['MRL (mg/kg)', 'MRL', 'Maximum residue level',
-                                       'mrl_ppm', 'mrl', 'MRL mg/kg'])
-
-        if not pest_col or not comm_col or not mrl_col:
-            logger.error("EFSA MRL: could not identify columns. Found: pest=%s, comm=%s, mrl=%s",
-                         pest_col, comm_col, mrl_col)
-            logger.error("Available columns: %s", list(df.columns))
+            logger.error("EFSA MRL: failed to read file: %s", e)
             return []
 
-        logger.info("EFSA MRL: using columns: pesticide=%s, commodity=%s, mrl=%s",
-                    pest_col, comm_col, mrl_col)
+        logger.info("EFSA MRL: %d raw records", len(records))
 
-        # Parse rows
         rows = []
         skipped = 0
-        for _, row in df.iterrows():
-            pesticide = str(row[pest_col]).strip().lower()
-            commodity = str(row[comm_col]).strip()
-            mrl_raw = str(row[mrl_col]).strip()
 
-            # Skip empty/header rows
-            if not pesticide or pesticide in ('nan', 'none', ''):
-                skipped += 1
-                continue
-            if not commodity or commodity in ('nan', 'none', ''):
+        for rec in records:
+            # Only current applicable MRLs
+            applicability = rec.get("applicability")
+            if applicability is not None and int(applicability) != 1:
                 skipped += 1
                 continue
 
-            # Parse MRL value
-            mrl_ppm = self._parse_mrl(mrl_raw)
-            if mrl_ppm is None:
+            # Parse MRL — use mrl_value_only (clean numeric)
+            try:
+                mrl_ppm = float(rec.get("mrl_value_only", 0))
+            except (TypeError, ValueError):
+                skipped += 1
+                continue
+
+            if mrl_ppm <= 0:
                 skipped += 1
                 continue
 
             mrl_ppb = mrl_ppm * 1000.0
 
-            # Map commodity to canonical category
-            food_category = self._map_category(commodity.lower())
+            # Clean pesticide name
+            raw_pest = str(rec.get("pesticide_residue_name") or "").strip()
+            pesticide = _FOOTNOTE_RE.sub("", raw_pest).strip().lower()
+            if not pesticide:
+                skipped += 1
+                continue
+
+            # Map product to canonical food category
+            product_name = str(rec.get("product_name") or "").strip()
+            food_category = normalize_category(product_name.lower())
             if not food_category:
-                # Use the raw commodity lowercased as the category
-                food_category = commodity.lower().strip()
+                food_category = product_name.lower()
 
             dedup = build_dedup_key("EFSA", food_category, pesticide, "EU")
             rows.append({
                 "food_category": food_category,
-                "raw_commodity": commodity,
+                "raw_commodity": product_name,
                 "pesticide": pesticide,
                 "country_region": "EU",
                 "mrl_ppm": mrl_ppm,
                 "mrl_ppb": mrl_ppb,
                 "regulatory_body": "EFSA",
-                "source_url": SOURCE_URL,
+                "source_url": "https://food.ec.europa.eu/plants/pesticides/eu-pesticides-database_en",
                 "dedup_key": dedup,
             })
 
-        logger.info("EFSA MRL: parsed %d MRL entries, skipped %d", len(rows), skipped)
+        logger.info("EFSA MRL: parsed %d rows, skipped %d", len(rows), skipped)
         return rows
-
-    def _parse_mrl(self, raw: str) -> float | None:
-        """Parse an MRL value, handling '*' (default) and various formats."""
-        if not raw or raw in ('nan', 'None', ''):
-            return None
-
-        raw = raw.strip()
-
-        # "*" means default MRL: 0.01 mg/kg = 10 ppb
-        if raw == '*':
-            return DEFAULT_MRL_PPM
-
-        # Try direct float conversion
-        try:
-            return float(raw)
-        except ValueError:
-            pass
-
-        # Try removing common suffixes
-        for suffix in [' mg/kg', ' ppm', ' mg/L']:
-            if raw.endswith(suffix):
-                try:
-                    return float(raw[:-len(suffix)])
-                except ValueError:
-                    pass
-
-        return None
-
-    def _map_category(self, raw: str) -> str | None:
-        """Map EFSA commodity name to our canonical category."""
-        # Direct lookup
-        if raw in EFSA_CATEGORY_MAP:
-            return EFSA_CATEGORY_MAP[raw]
-
-        # Try normalize_category from database
-        canonical = normalize_category(raw)
-        if canonical:
-            return canonical
-
-        # Try substring matching against our map
-        for key, val in EFSA_CATEGORY_MAP.items():
-            if key in raw or raw in key:
-                return val
-
-        return None
-
-    @staticmethod
-    def _find_col(df, candidates: list[str]) -> str | None:
-        """Find a column by trying multiple candidate names."""
-        for c in candidates:
-            if c in df.columns:
-                return c
-            # Case-insensitive match
-            for col in df.columns:
-                if col.lower() == c.lower():
-                    return col
-        # Partial match
-        for c in candidates:
-            for col in df.columns:
-                if c.lower() in col.lower():
-                    return col
-        return None
