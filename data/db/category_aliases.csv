@@ -924,3 +924,54 @@ tomatenpüree,tomato
 kartoffeln,potato
 süsskartoffeln,potato
 suesskartoffeln,potato
+"milk, whole, fluid",milk
+"milk, skim, fluid",milk
+"cheese, cheddar",milk
+"cheese, mozzarella",milk
+"yogurt, vanilla",milk
+butter,butter
+"ice cream, vanilla",milk
+"beef, ground","cattle, meat"
+"chicken, breast","poultry, meat"
+"pork, chop","hog, meat"
+"fish, tilapia",fish
+egg,egg
+eggs,egg
+"bread, white",wheat
+"bread, whole wheat",wheat
+"rice, white",rice
+"rice, brown",rice
+oat cereal,oats
+"pasta, spaghetti",wheat
+"cereal, corn flakes",corn
+"tortilla, flour",wheat
+"tortilla, corn",corn
+"potato, peeled, boiled",potato
+"potato, french fries",potato
+"carrot, raw",carrot
+"tomato, raw",tomato
+"spinach, raw",spinach
+"broccoli, raw",broccoli
+"corn, canned",corn
+"green beans, canned",bean
+"lettuce, iceberg",lettuce
+"apple, raw, with skin",apple
+apple juice,apple
+banana,banana
+"orange, raw",orange
+orange juice,orange
+"grape, red",grape
+strawberry,strawberry
+raisins,grape
+"water, tap",drinking_water
+"coffee, brewed",coffee
+"tea, brewed",tea
+peanut butter,peanut
+"popcorn, microwave",corn
+"pizza, cheese",wheat
+"hamburger, on bun","cattle, meat"
+hot dog,"hog, meat"
+french fries,potato
+"chips, potato",potato
+"cookies, chocolate chip",wheat
+"cake, white",wheat
