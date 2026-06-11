@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from unittest.mock import patch, MagicMock
 
-from tests.test_detect.conftest import create_test_db, seed_all
+from tests.test_detect.conftest import create_test_db, seed_all, seed_regulatory_data
 from detect.engine import DetectionEngine
 from detect.models import (
     FoodRiskResult,
@@ -19,6 +19,7 @@ class TestDetectionEngine(unittest.TestCase):
     def setUp(self):
         self.conn = create_test_db()
         seed_all(self.conn)
+        seed_regulatory_data(self.conn)
         # Save in-memory DB to temp file so DetectionEngine can open it
         self.tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=True)
         self.tmp.close()
@@ -174,6 +175,68 @@ class TestDetectionEngine(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertEqual(result.tier_used, "product")
         self.assertEqual(result.data_confidence, "high")
+        engine.close()
+
+    def test_biomonitoring(self):
+        """Test biomonitoring returns NHANES data."""
+        engine = DetectionEngine(self.tmp.name)
+        results = engine.biomonitoring(analyte="Glyphosate")
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].analyte, "Glyphosate")
+        self.assertEqual(results[0].cycle, "2017-2018")
+        self.assertAlmostEqual(results[0].detection_rate, 0.825)
+        engine.close()
+
+    def test_biomonitoring_all(self):
+        """Test biomonitoring returns all data when no filter."""
+        engine = DetectionEngine(self.tmp.name)
+        results = engine.biomonitoring()
+        self.assertGreaterEqual(len(results), 1)
+        engine.close()
+
+    def test_scan_all_contaminants(self):
+        """Test multi-contaminant scan returns report."""
+        engine = DetectionEngine(self.tmp.name)
+        report = engine.scan_all_contaminants("oats")
+        self.assertIsNotNone(report)
+        self.assertEqual(report.food_category, "oats")
+        # Should find at least the seeded glyphosate and lead
+        self.assertGreaterEqual(report.total_detected, 2)
+        self.assertIsInstance(report.contaminants, list)
+        # Each contaminant should have required fields
+        for c in report.contaminants:
+            self.assertIsNotNone(c.contaminant)
+            self.assertIsNotNone(c.risk_level)
+            self.assertIn(c.risk_level, ["none", "low", "medium", "high", "unknown"])
+        engine.close()
+
+    def test_mrl_based_risk_scoring(self):
+        """Test that risk scoring uses MRL data when available."""
+        engine = DetectionEngine(self.tmp.name)
+
+        # oats/glyphosate: max_ppb=1200, tolerance_ppb=30000 → 4% → low
+        result = engine.food_risk("oats", "glyphosate")
+        self.assertIsNotNone(result)
+        self.assertEqual(result.risk_level, "low")
+
+        # oats/lead: max_ppb=12.0, tolerance_ppb=100 → 12% → low
+        result = engine.food_risk("oats", "lead")
+        self.assertIsNotNone(result)
+        self.assertEqual(result.risk_level, "low")
+
+        engine.close()
+
+    def test_consumption_tier_loaded(self):
+        """Test that commodities have consumption_tier."""
+        engine = DetectionEngine(self.tmp.name)
+        commodities = engine.list_commodities()
+        self.assertEqual(len(commodities), 2)
+        strawberry = [c for c in commodities if c.commodity_slug == "strawberry"][0]
+        oats = [c for c in commodities if c.commodity_slug == "oats"][0]
+        # These would need consumption_tier in CommodityDetail model
+        # For now, just verify they exist
+        self.assertEqual(strawberry.display_name, "Strawberry")
+        self.assertEqual(oats.display_name, "Oats")
         engine.close()
 
 

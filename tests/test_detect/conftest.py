@@ -134,6 +134,7 @@ def seed_water_data(conn: sqlite3.Connection):
 def seed_all(conn: sqlite3.Connection):
     seed_food_data(conn)
     seed_water_data(conn)
+    seed_biomonitoring_data(conn)
 
 
 def seed_regulatory_data(conn: sqlite3.Connection):
@@ -237,16 +238,47 @@ def seed_regulatory_data(conn: sqlite3.Connection):
         ),
     )
 
-    # Seed commodity
+    # Seed commodity with consumption_tier
     conn.execute(
         "INSERT INTO commodities "
-        "(commodity_slug, display_name, ingredient_aliases, dirty_dozen) "
-        "VALUES (?, ?, ?, ?)",
+        "(commodity_slug, display_name, ingredient_aliases, dirty_dozen, consumption_tier) "
+        "VALUES (?, ?, ?, ?, ?)",
         (
             "strawberry",
             "Strawberry",
             json.dumps(["strawberries", "strawberry puree", "freeze-dried strawberries"]),
             1,
+            "weekly",
+        ),
+    )
+    conn.execute(
+        "INSERT INTO commodities "
+        "(commodity_slug, display_name, ingredient_aliases, dirty_dozen, consumption_tier) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (
+            "oats",
+            "Oats",
+            json.dumps(["oats", "oat flour", "oat bran", "whole grain oats"]),
+            0,
+            "daily",
+        ),
+    )
+    conn.commit()
+
+
+def seed_biomonitoring_data(conn: sqlite3.Connection):
+    """Seed biomonitoring table with NHANES data."""
+    conn.execute(
+        "INSERT INTO biomonitoring "
+        "(source, cycle, analyte, population_group, sample_size, detected_count, "
+        "detection_rate, geometric_mean, percentile_50, percentile_75, "
+        "percentile_90, percentile_95, unit, lod) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            "NHANES", "2017-2018", "Glyphosate",
+            "US general population (age 6+)", 2329, 1924,
+            0.825, 0.3727, 0.3, 0.7,
+            1.6, 1.6, "ng/mL", 0.2,
         ),
     )
     conn.commit()

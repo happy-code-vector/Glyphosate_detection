@@ -163,13 +163,18 @@ class TestListCommodities(unittest.TestCase):
     def test_list_commodities_returns_all(self):
         """Should return all seeded commodities."""
         results = self.engine.list_commodities()
-        self.assertEqual(len(results), 1)
-        self.assertEqual(results[0].commodity_slug, "strawberry")
+        self.assertEqual(len(results), 2)
+        slugs = {r.commodity_slug for r in results}
+        self.assertIn("strawberry", slugs)
+        self.assertIn("oats", slugs)
 
     def test_list_commodities_dirty_dozen(self):
-        """Strawberry should be dirty dozen."""
+        """Strawberry should be dirty dozen, oats should not."""
         results = self.engine.list_commodities()
-        self.assertTrue(results[0].dirty_dozen)
+        strawberry = [r for r in results if r.commodity_slug == "strawberry"][0]
+        oats = [r for r in results if r.commodity_slug == "oats"][0]
+        self.assertTrue(strawberry.dirty_dozen)
+        self.assertFalse(oats.dirty_dozen)
 
 
 class TestExpandedContaminants(unittest.TestCase):
