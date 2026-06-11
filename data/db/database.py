@@ -478,6 +478,18 @@ def normalize_contaminant(raw: str) -> str:
             return _CONTAMINANT_ALIASES[parent]
         return parent
 
+    # Strip parenthetical explanations first (before comma/semicolon split)
+    # Only if the parenthetical part is long (30+ chars) — short ones are chemical IDs
+    # e.g., "fosetyl-al (sum of fosetyl, phosphonic acid...)" → "fosetyl-al"
+    # e.g., "thpi (cis-1,2,3,6-tetrahydrophthalimide)" → keep as-is (chemical name)
+    paren_match = re.match(r"^([^(]+)\s*\(([^)]{30,})", cleaned)
+    if paren_match:
+        base = paren_match.group(1).strip().rstrip(",")
+        if len(base) > 3:
+            if base in _CONTAMINANT_ALIASES:
+                return _CONTAMINANT_ALIASES[base]
+            return base
+
     # For semicolon-separated names: take the first part
     # e.g., "bpmc; fenobucarb" → "bpmc"
     # e.g., "chloridazon; pyrazon; 5-amino-..." → "chloridazon"
@@ -488,30 +500,14 @@ def normalize_contaminant(raw: str) -> str:
                 return _CONTAMINANT_ALIASES[first_part]
             return first_part
 
-    # For comma-separated names with parenthetical explanations:
+    # For comma-separated names: take the first part
     # e.g., "benzyladenin, 6-benzylamino-purin, 6-bap" → "benzyladenin"
-    # e.g., "fosetyl-al (sum of fosetyl, phosphonic acid...)" → "fosetyl-al"
     if "," in cleaned:
         first_part = cleaned.split(",")[0].strip()
         if len(first_part) > 2:
             if first_part in _CONTAMINANT_ALIASES:
                 return _CONTAMINANT_ALIASES[first_part]
             return first_part
-
-    # Strip parenthetical explanations only if the parenthetical part is long
-    # (short parenthetical parts are usually chemical identifiers, not descriptions)
-    # e.g., "fosetyl-al (sum of fosetyl...)" → "fosetyl-al" (long description)
-    # e.g., "thpi (cis-1,2,3,6-tetrahydrophthalimide)" → keep as-is (chemical name)
-    paren_match = re.match(r"^([^(]+)\s*\(([^)]{30,})", cleaned)
-    if paren_match:
-        base = paren_match.group(1).strip().rstrip(",")
-        if len(base) > 3:
-            if base in _CONTAMINANT_ALIASES:
-                return _CONTAMINANT_ALIASES[base]
-            return base
-
-    # Return cleaned name as-is (already lowercased + umlauts replaced)
-    return cleaned
 
     # Return cleaned name as-is (already lowercased + umlauts replaced)
     return cleaned
@@ -565,6 +561,7 @@ def _insert_product(conn, row: dict) -> int:
         "methodology_note": None, "raw_file_path": None,
     }
     r = {**defaults, **row}
+    original_contaminant = r["contaminant"]
     r["contaminant"] = normalize_contaminant(r["contaminant"])
     conn.execute("""
         INSERT OR IGNORE INTO product_tests (
@@ -581,7 +578,11 @@ def _insert_product(conn, row: dict) -> int:
             :methodology_note, :confidence, :dedup_key, :raw_file_path
         )
     """, r)
-    return conn.execute("SELECT changes()").fetchone()[0]
+    changes = conn.execute("SELECT changes()").fetchone()[0]
+    if changes and r["contaminant"] != original_contaminant:
+        log_data_version("product_tests", conn.execute("SELECT last_insert_rowid()").fetchone()[0],
+                         "contaminant", original_contaminant, r["contaminant"])
+    return changes
 
 
 def _insert_water(conn, row: dict) -> int:
@@ -597,6 +598,7 @@ def _insert_water(conn, row: dict) -> int:
         "methodology_note": None, "confidence": None,
     }
     r = {**defaults, **row}
+    original_contaminant = r["contaminant"]
     r["contaminant"] = normalize_contaminant(r["contaminant"])
     conn.execute("""
         INSERT OR IGNORE INTO water_tests (
@@ -617,7 +619,11 @@ def _insert_water(conn, row: dict) -> int:
             :methodology_note, :confidence, :dedup_key
         )
     """, r)
-    return conn.execute("SELECT changes()").fetchone()[0]
+    changes = conn.execute("SELECT changes()").fetchone()[0]
+    if changes and r["contaminant"] != original_contaminant:
+        log_data_version("water_tests", conn.execute("SELECT last_insert_rowid()").fetchone()[0],
+                         "contaminant", original_contaminant, r["contaminant"])
+    return changes
 
 
 def _insert_category(conn, row: dict) -> int:
@@ -631,6 +637,7 @@ def _insert_category(conn, row: dict) -> int:
         "is_organic": 0, "methodology_note": None, "raw_file_path": None,
     }
     r = {**defaults, **row}
+    original_contaminant = r["contaminant"]
     r["contaminant"] = normalize_contaminant(r["contaminant"])
     conn.execute("""
         INSERT OR IGNORE INTO category_summaries (
@@ -649,7 +656,11 @@ def _insert_category(conn, row: dict) -> int:
             :methodology_note, :confidence, :dedup_key, :raw_file_path
         )
     """, r)
-    return conn.execute("SELECT changes()").fetchone()[0]
+    changes = conn.execute("SELECT changes()").fetchone()[0]
+    if changes and r["contaminant"] != original_contaminant:
+        log_data_version("category_summaries", conn.execute("SELECT last_insert_rowid()").fetchone()[0],
+                         "contaminant", original_contaminant, r["contaminant"])
+    return changes
 
 
 def _insert_ingredient(conn, row: dict) -> int:
