@@ -229,3 +229,5 @@ class ProductScanResult:
     notes: list[str] = field(default_factory=list)
     # Multi-contaminant report
     contaminant_report: ContaminantReport | None = None
+    # Biomonitoring — human exposure data from CDC NHANES
+    biomonitoring: list[BiomonitoringResult] = field(default_factory=list)

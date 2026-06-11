@@ -324,6 +324,16 @@ class DetectionEngine:
             except Exception:
                 pass  # Non-critical — don't fail the scan
 
+        # Step 4b: Biomonitoring data for the contaminant
+        bio_results = []
+        try:
+            # Map contaminant name to NHANES analyte name
+            bio_analyte = self._contaminant_to_analyte(contaminant)
+            if bio_analyte:
+                bio_results = self.biomonitoring(analyte=bio_analyte)
+        except Exception:
+            pass  # Non-critical
+
         # Step 5: Data confidence from tier
         data_confidence = self._TIER_TO_CONFIDENCE.get(
             risk_result.tier_used if risk_result else "none", "low"
@@ -351,7 +361,22 @@ class DetectionEngine:
             ingredient_scores=risk_result.ingredient_scores if risk_result else [],
             notes=risk_result.notes if risk_result else [],
             contaminant_report=contaminant_report,
+            biomonitoring=bio_results,
         )
+
+    # Contaminant → NHANES analyte name mapping
+    _CONTAMINANT_TO_ANALYTE = {
+        "glyphosate": "Glyphosate",
+        "lead": "Lead",
+        "cadmium": "Cadmium",
+        "mercury": "Mercury",
+        "inorganic_arsenic": "Arsenic",
+        "arsenic": "Arsenic",
+    }
+
+    def _contaminant_to_analyte(self, contaminant: str) -> str | None:
+        """Map contaminant key to NHANES analyte name."""
+        return self._CONTAMINANT_TO_ANALYTE.get(contaminant.lower())
 
     # ═════════════════════════════════════════════
     # REGULATORY QUERY METHODS
