@@ -64,7 +64,7 @@ FDA_SOURCES = [
         "format": "xlsx",
         "data_year": 2021,
         "published_date": "2021-01-01",
-        "header_row": 1,
+        "header_row": 2,  # Row 0=title, Row 1=empty, Row 2=headers
     },
     {
         "name": "FDA Arsenic, Cadmium, Lead in Carrageenan",
@@ -74,7 +74,7 @@ FDA_SOURCES = [
         "format": "xlsx",
         "data_year": 2021,
         "published_date": "2021-01-01",
-        "header_row": 1,
+        "header_row": 2,  # Row 0=title, Row 1=empty, Row 2=headers
     },
 ]
 
@@ -244,31 +244,56 @@ class FDAToxicElementsFetcher(BaseFetcher):
 
     def _parse_sheet(self, df, path: Path, sheet_name: str, contaminant: str,
                      source_config: dict) -> list[dict]:
-        """Parse a single sheet into product_tests rows."""
+        """Parse a single sheet into product_tests rows.
+
+        Handles two formats:
+        1. Single value column (e.g., "As Concentration (ppb)")
+        2. Multi-column (e.g., "Cadmium (ppb)", "Lead (ppb)" as separate columns)
+        """
         # Find key columns
-        product_col = self._find_col(df, ['Baby Food Name', 'Product', 'Product Name',
-                                           'product_name', 'Food', 'Food Product',
-                                           'Sample Description', 'Food/Product Name'])
-        category_col = self._find_col(df, ['Baby Food Category', 'Category', 'Food Category',
-                                            'Food Type', 'Type', 'Food Category/Type'])
+        product_col = self._find_col(df, ['Sample Description', 'Baby Food Name', 'Product',
+                                           'Product Name', 'product_name', 'Food', 'Food Product'])
+        category_col = self._find_col(df, ['Product Category', 'Baby Food Category', 'Category',
+                                            'Food Category', 'Food Type', 'Type'])
         year_col = self._find_col(df, ['Fiscal Year', 'Year', 'FY', 'data_year'])
-        value_col = self._find_col(df, ['Concentration', 'Result', 'Level', 'Value',
-                                         'Mean', 'Average', 'As Concentration',
-                                         'Lead Concentration', 'Cd Concentration',
-                                         'Hg Concentration'])
 
         if not product_col:
             logger.warning("FDA ToxicElements: no product column in sheet '%s'. Columns: %s",
                            sheet_name, list(df.columns)[:8])
             return []
 
-        if not value_col:
-            # Try to find any column with 'ppb' or 'concentration' in the name
+        # Detect value columns — either single or multi-column format
+        value_col = self._find_col(df, ['Concentration', 'Result', 'Level', 'Value',
+                                         'Mean', 'Average', 'As Concentration',
+                                         'Lead Concentration', 'Cd Concentration',
+                                         'Hg Concentration'])
+
+        # Multi-column detection: find all columns that contain contaminant names + "(ppb)"
+        contaminant_cols = {}
+        for col in df.columns:
+            col_lower = col.lower()
+            if 'ppb' in col_lower:
+                # Try to detect which contaminant this column represents
+                detected = self._detect_contaminant(col)
+                if detected:
+                    contaminant_cols[col] = detected
+                elif 'total arsenic' in col_lower or ('arsenic' in col_lower and 'inorganic' not in col_lower):
+                    contaminant_cols[col] = 'inorganic_arsenic'
+                elif 'lead' in col_lower:
+                    contaminant_cols[col] = 'lead'
+                elif 'cadmium' in col_lower:
+                    contaminant_cols[col] = 'cadmium'
+                elif 'mercury' in col_lower:
+                    contaminant_cols[col] = 'mercury'
+
+        if not value_col and not contaminant_cols:
+            # Try any column with 'ppb' in the name
             for col in df.columns:
-                if 'ppb' in col.lower() or 'concentration' in col.lower():
+                if 'ppb' in col.lower():
                     value_col = col
                     break
-        if not value_col:
+
+        if not value_col and not contaminant_cols:
             logger.warning("FDA ToxicElements: no value column in sheet '%s'. Columns: %s",
                            sheet_name, list(df.columns)[:8])
             return []
@@ -277,24 +302,6 @@ class FDAToxicElementsFetcher(BaseFetcher):
         for _, row in df.iterrows():
             product_name = str(row.get(product_col, '')).strip()
             if not product_name or product_name in ('nan', 'None', ''):
-                continue
-
-            # Get measurement value — handle '<LOD', 'NDb', numeric
-            raw_value = str(row.get(value_col, '')).strip()
-            if not raw_value or raw_value in ('nan', 'None', ''):
-                continue
-
-            below_detection = 0
-            if '<LOD' in raw_value or 'NDb' in raw_value.lower() or 'not detected' in raw_value.lower():
-                below_detection = 1
-                measured_ppb = 0.0
-            else:
-                try:
-                    measured_ppb = float(raw_value)
-                except ValueError:
-                    continue
-
-            if not below_detection and measured_ppb <= 0:
                 continue
 
             # Get food category
@@ -318,30 +325,82 @@ class FDAToxicElementsFetcher(BaseFetcher):
                     except (ValueError, TypeError):
                         pass
 
-            dedup = build_dedup_key(SOURCE_NAME, product_name, contaminant, food_category, data_year)
-            rows.append({
-                "tier": 1,
-                "source_name": SOURCE_NAME,
-                "source_url": "https://www.fda.gov/food/environmental-contaminants-food",
-                "report_label": f"FDA Toxic Elements - {path.stem} - {sheet_name}",
-                "published_date": source_config.get("published_date"),
-                "data_year": data_year,
-                "food_category": food_category,
-                "raw_category": product_name,
-                "contaminant": contaminant,
-                "product_name": product_name,
-                "measured_ppb": round(measured_ppb, 2),
-                "below_detection": below_detection,
-                "original_unit": "ppb",
-                "unit_conversion": 1.0,
-                "is_organic": 0,
-                "is_grf_certified": 0,
-                "methodology_note": f"FDA Toxic Elements testing ({sheet_name})",
-                "confidence": "high",
-                "dedup_key": dedup,
-            })
+            # Parse values — multi-column or single column
+            if contaminant_cols:
+                # Multi-column format: one column per contaminant
+                for col, contam in contaminant_cols.items():
+                    raw_value = str(row.get(col, '')).strip()
+                    below_detection, measured_ppb = self._parse_value(raw_value)
+                    if below_detection or (measured_ppb and measured_ppb > 0):
+                        dedup = build_dedup_key(SOURCE_NAME, product_name, contam, food_category, data_year)
+                        rows.append(self._build_row(
+                            product_name, contam, measured_ppb, below_detection,
+                            food_category, data_year, source_config,
+                            f"FDA Toxic Elements - {path.stem} - {sheet_name}",
+                            dedup
+                        ))
+            elif value_col:
+                # Single column format
+                raw_value = str(row.get(value_col, '')).strip()
+                below_detection, measured_ppb = self._parse_value(raw_value)
+                if below_detection or (measured_ppb and measured_ppb > 0):
+                    dedup = build_dedup_key(SOURCE_NAME, product_name, contaminant, food_category, data_year)
+                    rows.append(self._build_row(
+                        product_name, contaminant, measured_ppb, below_detection,
+                        food_category, data_year, source_config,
+                        f"FDA Toxic Elements - {path.stem} - {sheet_name}",
+                        dedup
+                    ))
 
         return rows
+
+    def _parse_value(self, raw_value: str) -> tuple:
+        """Parse a measurement value, handling '<LOD', 'NDb', 'TR', numeric."""
+        if not raw_value or raw_value in ('nan', 'None', ''):
+            return False, None
+
+        below_detection = 0
+        if '<LOD' in raw_value or 'NDb' in raw_value.lower() or 'not detected' in raw_value.lower():
+            below_detection = 1
+            return below_detection, 0.0
+
+        # Handle 'TR (value)' — trace detected
+        if raw_value.startswith('TR'):
+            import re
+            m = re.search(r'[\d.]+', raw_value)
+            if m:
+                return 0, float(m.group())
+            return 1, 0.0
+
+        try:
+            return below_detection, float(raw_value)
+        except ValueError:
+            return False, None
+
+    def _build_row(self, product_name, contaminant, measured_ppb, below_detection,
+                   food_category, data_year, source_config, report_label, dedup) -> dict:
+        """Build a product_tests row dict."""
+        return {
+            "tier": 1,
+            "source_name": SOURCE_NAME,
+            "source_url": "https://www.fda.gov/food/environmental-contaminants-food",
+            "report_label": report_label,
+            "published_date": source_config.get("published_date"),
+            "data_year": data_year,
+            "food_category": food_category,
+            "raw_category": product_name,
+            "contaminant": contaminant,
+            "product_name": product_name,
+            "measured_ppb": round(measured_ppb, 2) if measured_ppb else 0.0,
+            "below_detection": below_detection,
+            "original_unit": "ppb",
+            "unit_conversion": 1.0,
+            "is_organic": 0,
+            "is_grf_certified": 0,
+            "methodology_note": f"FDA Toxic Elements testing",
+            "confidence": "high",
+            "dedup_key": dedup,
+        }
 
     def _detect_contaminant(self, filename: str) -> str | None:
         """Detect contaminant from filename."""
