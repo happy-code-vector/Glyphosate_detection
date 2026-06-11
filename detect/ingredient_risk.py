@@ -258,14 +258,15 @@ class IngredientRiskQuery:
             return None
 
         d = dict(row)
-        risk_level = self._detection_rate_to_risk_level(d["detection_rate"])
+        max_ppb = d.get("max_ppb")
+        risk_level = self._ppb_to_risk_level(max_ppb, contaminant, category)
 
         return IngredientScore(
             ingredient=ingredient,
             category=category,
             detection_rate=d["detection_rate"],
             avg_ppb=d.get("avg_ppb"),
-            max_ppb=d.get("max_ppb"),
+            max_ppb=max_ppb,
             risk_level=risk_level,
             source=d["source_name"],
             data_year=d.get("data_year"),
@@ -328,14 +329,15 @@ class IngredientRiskQuery:
             return None
 
         d = dict(row)
-        risk_level = self._detection_rate_to_risk_level(d["detection_rate"])
+        max_ppb = d.get("max_ppb")
+        risk_level = self._ppb_to_risk_level(max_ppb, contaminant, category)
 
         return IngredientScore(
             ingredient=ingredient,
             category=category,
             detection_rate=d["detection_rate"],
             avg_ppb=d.get("avg_ppb"),
-            max_ppb=d.get("max_ppb"),
+            max_ppb=max_ppb,
             risk_level=risk_level,
             source=d["source_name"],
             data_year=d.get("data_year"),
@@ -379,13 +381,21 @@ class IngredientRiskQuery:
         comparing measured levels against MRLs and tolerances from the DB.
         """
         # Get all contaminants with detections for this category
+        # Aggregate by contaminant to avoid duplicates from multiple sources/years
         rows = self._conn.execute(
             """
-            SELECT contaminant, detection_rate, avg_ppb, max_ppb,
-                   samples_total, samples_detected, source_name, data_year
+            SELECT contaminant,
+                   MAX(detection_rate) AS detection_rate,
+                   AVG(avg_ppb) AS avg_ppb,
+                   MAX(max_ppb) AS max_ppb,
+                   SUM(samples_total) AS samples_total,
+                   SUM(samples_detected) AS samples_detected,
+                   MAX(source_name) AS source_name,
+                   MAX(data_year) AS data_year
             FROM category_summaries
             WHERE food_category = ?
             AND detection_rate > 0
+            GROUP BY contaminant
             ORDER BY detection_rate DESC
             """,
             (food_category,),
@@ -603,46 +613,36 @@ class IngredientRiskQuery:
     def _get_strictest_mrl(
         self, contaminant: str, food_category: str | None = None
     ) -> float | None:
-        """Get the strictest (lowest) MRL from international_mrls."""
-        if food_category:
-            row = self._conn.execute(
-                "SELECT MIN(mrl_ppb) as min_mrl FROM international_mrls "
-                "WHERE LOWER(pesticide) = ? AND LOWER(food_category) = ? "
-                "AND mrl_ppb > 0",
-                (contaminant.lower(), food_category.lower()),
-            ).fetchone()
-            if row and row["min_mrl"]:
-                return row["min_mrl"]
+        """Get the strictest (lowest) MRL from international_mrls.
 
-        # Fallback: any category
+        Only returns category-specific MRLs. No cross-category fallback —
+        using an MRL from a different food is worse than having no MRL at all.
+        """
+        if not food_category:
+            return None
         row = self._conn.execute(
             "SELECT MIN(mrl_ppb) as min_mrl FROM international_mrls "
-            "WHERE LOWER(pesticide) = ? AND mrl_ppb > 0",
-            (contaminant.lower(),),
+            "WHERE LOWER(pesticide) = ? AND LOWER(food_category) = ? "
+            "AND mrl_ppb > 0",
+            (contaminant.lower(), food_category.lower()),
         ).fetchone()
         return row["min_mrl"] if row and row["min_mrl"] else None
 
     def _get_strictest_mrl_with_source(
         self, contaminant: str, food_category: str | None = None
     ) -> tuple[float | None, str | None]:
-        """Get the strictest MRL and which country set it."""
-        if food_category:
-            row = self._conn.execute(
-                "SELECT mrl_ppb, country_region FROM international_mrls "
-                "WHERE LOWER(pesticide) = ? AND LOWER(food_category) = ? "
-                "AND mrl_ppb > 0 "
-                "ORDER BY mrl_ppb ASC LIMIT 1",
-                (contaminant.lower(), food_category.lower()),
-            ).fetchone()
-            if row and row["mrl_ppb"]:
-                return row["mrl_ppb"], row["country_region"]
+        """Get the strictest MRL and which country set it.
 
-        # Fallback: any category
+        Only returns category-specific MRLs. No cross-category fallback.
+        """
+        if not food_category:
+            return None, None
         row = self._conn.execute(
             "SELECT mrl_ppb, country_region FROM international_mrls "
-            "WHERE LOWER(pesticide) = ? AND mrl_ppb > 0 "
+            "WHERE LOWER(pesticide) = ? AND LOWER(food_category) = ? "
+            "AND mrl_ppb > 0 "
             "ORDER BY mrl_ppb ASC LIMIT 1",
-            (contaminant.lower(),),
+            (contaminant.lower(), food_category.lower()),
         ).fetchone()
         if row and row["mrl_ppb"]:
             return row["mrl_ppb"], row["country_region"]
@@ -651,46 +651,35 @@ class IngredientRiskQuery:
     def _get_lowest_tolerance(
         self, contaminant: str, food_category: str | None = None
     ) -> float | None:
-        """Get the lowest tolerance from tolerance_limits."""
-        if food_category:
-            row = self._conn.execute(
-                "SELECT MIN(tolerance_ppb) as min_tol FROM tolerance_limits "
-                "WHERE LOWER(contaminant) = ? AND LOWER(food_category) = ? "
-                "AND tolerance_ppb > 0",
-                (contaminant.lower(), food_category.lower()),
-            ).fetchone()
-            if row and row["min_tol"]:
-                return row["min_tol"]
+        """Get the lowest tolerance from tolerance_limits.
 
-        # Fallback: any category
+        Only returns category-specific tolerances. No cross-category fallback.
+        """
+        if not food_category:
+            return None
         row = self._conn.execute(
             "SELECT MIN(tolerance_ppb) as min_tol FROM tolerance_limits "
-            "WHERE LOWER(contaminant) = ? AND tolerance_ppb > 0",
-            (contaminant.lower(),),
+            "WHERE LOWER(contaminant) = ? AND LOWER(food_category) = ? "
+            "AND tolerance_ppb > 0",
+            (contaminant.lower(), food_category.lower()),
         ).fetchone()
         return row["min_tol"] if row and row["min_tol"] else None
 
     def _get_lowest_tolerance_with_source(
         self, contaminant: str, food_category: str | None = None
     ) -> tuple[float | None, str | None]:
-        """Get the lowest tolerance and its source."""
-        if food_category:
-            row = self._conn.execute(
-                "SELECT tolerance_ppb, source FROM tolerance_limits "
-                "WHERE LOWER(contaminant) = ? AND LOWER(food_category) = ? "
-                "AND tolerance_ppb > 0 "
-                "ORDER BY tolerance_ppb ASC LIMIT 1",
-                (contaminant.lower(), food_category.lower()),
-            ).fetchone()
-            if row and row["tolerance_ppb"]:
-                return row["tolerance_ppb"], row["source"]
+        """Get the lowest tolerance and its source.
 
-        # Fallback: any category
+        Only returns category-specific tolerances. No cross-category fallback.
+        """
+        if not food_category:
+            return None, None
         row = self._conn.execute(
             "SELECT tolerance_ppb, source FROM tolerance_limits "
-            "WHERE LOWER(contaminant) = ? AND tolerance_ppb > 0 "
+            "WHERE LOWER(contaminant) = ? AND LOWER(food_category) = ? "
+            "AND tolerance_ppb > 0 "
             "ORDER BY tolerance_ppb ASC LIMIT 1",
-            (contaminant.lower(),),
+            (contaminant.lower(), food_category.lower()),
         ).fetchone()
         if row and row["tolerance_ppb"]:
             return row["tolerance_ppb"], row["source"]

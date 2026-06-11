@@ -32,7 +32,7 @@ class FoodRiskQuery:
     def _build_result(self, row: sqlite3.Row) -> FoodRiskResult:
         d = dict(row)
         reg_entries = self._get_regulatory_comparison(
-            d["food_category"], d["contaminant"]
+            d["food_category"], d["contaminant"], d.get("max_ppb")
         )
         return FoodRiskResult(
             food_category=d["food_category"],
@@ -125,7 +125,7 @@ class FoodRiskQuery:
         return name
 
     def _get_regulatory_comparison(
-        self, food_category: str, contaminant: str
+        self, food_category: str, contaminant: str, max_ppb: float | None = None
     ) -> list[RegulatoryEntry]:
         rows = self._conn.execute(
             "SELECT source, tolerance_ppb, regulation_reference "
@@ -133,12 +133,16 @@ class FoodRiskQuery:
             "WHERE food_category = ? AND contaminant = ?",
             (food_category, contaminant),
         ).fetchall()
-        return [
-            RegulatoryEntry(
+        entries = []
+        for r in rows:
+            tol = r["tolerance_ppb"]
+            pct = None
+            if max_ppb is not None and tol and tol > 0:
+                pct = round(max_ppb / tol * 100, 1)
+            entries.append(RegulatoryEntry(
                 source=r["source"],
-                tolerance_ppb=r["tolerance_ppb"],
+                tolerance_ppb=tol,
                 regulation_reference=r["regulation_reference"],
-                pct_of_tolerance=None,
-            )
-            for r in rows
-        ]
+                pct_of_tolerance=pct,
+            ))
+        return entries

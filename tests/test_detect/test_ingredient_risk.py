@@ -125,10 +125,10 @@ class TestIngredientRiskQuery(unittest.TestCase):
 
         self.assertEqual(result.tier_used, "ingredient")
         self.assertGreater(len(result.ingredient_scores), 0)
-        # Oats should be scored (80% detection rate)
+        # Oats should be scored (max_ppb=1200, tolerance=30000 → 4% → low)
         oat_scores = [s for s in result.ingredient_scores if s.category == "oats"]
         self.assertGreater(len(oat_scores), 0)
-        self.assertEqual(oat_scores[0].risk_level, "high")  # 80% >= 66%
+        self.assertEqual(oat_scores[0].risk_level, "low")  # 1200/30000 = 4%
 
     def test_tier2_mixed_ingredients(self):
         """Tier 2: Should handle mix of known and unknown ingredients."""

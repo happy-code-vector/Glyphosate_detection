@@ -591,17 +591,6 @@ class DetectionEngine:
             "alternatives": json.loads(row["alternatives"]) if row["alternatives"] else [],
         }
 
-    def _build_alternatives_result(self, row) -> dict:
-        """Build result dict from alternatives row."""
-        return {
-            "lookup_key": row["lookup_key"],
-            "flagged_product_name": row["flagged_product_name"],
-            "flagged_brand": row["flagged_brand"],
-            "risk_label": row["risk_label"],
-            "flag_summary": row["flag_summary"],
-            "alternatives": json.loads(row["alternatives"]) if row["alternatives"] else [],
-        }
-
     def list_ingredients(self) -> list[IngredientDetail]:
         """List all ingredients in the database."""
         rows = self._conn.execute("SELECT * FROM ingredients ORDER BY ingredient_id").fetchall()
