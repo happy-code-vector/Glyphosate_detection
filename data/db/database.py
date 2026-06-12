@@ -878,6 +878,11 @@ def _insert_product(conn, row: dict) -> int:
     r = {**defaults, **row}
     original_contaminant = r["contaminant"]
     r["contaminant"] = normalize_contaminant(r["contaminant"])
+    # Normalize food_category to canonical key
+    if r.get("food_category"):
+        normalized_cat = normalize_category(r["food_category"], conn=conn)
+        if normalized_cat:
+            r["food_category"] = normalized_cat
     conn.execute("""
         INSERT OR IGNORE INTO product_tests (
             source_name, source_url, report_label, published_date, data_year,
@@ -954,6 +959,11 @@ def _insert_category(conn, row: dict) -> int:
     r = {**defaults, **row}
     original_contaminant = r["contaminant"]
     r["contaminant"] = normalize_contaminant(r["contaminant"])
+    # Normalize food_category to canonical key for consistent MRL lookups
+    if r.get("food_category"):
+        normalized_cat = normalize_category(r["food_category"], conn=conn)
+        if normalized_cat:
+            r["food_category"] = normalized_cat
     conn.execute("""
         INSERT OR IGNORE INTO category_summaries (
             source_name, source_url, report_label, published_date, data_year,

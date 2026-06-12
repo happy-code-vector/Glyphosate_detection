@@ -1,1289 +1,296 @@
 alias,canonical_key
-oat,oats
-oats,oats
-rolled oats,oats
-oat cereal,oats
-oat-based,oats
-oat flour,oats
-oat bran,oats
-oat grain,oats
-oatmeal,oats
-oat-based products,oats
-oat based,oats
-oats (avena sativa),oats
-whole oats,oats
-quick oats,oats
-instant oats,oats
-breakfast cereal,oats
-granola,oats
-muesli,oats
-wheat,wheat
-wheat grain,wheat
-wheat flour,wheat
-whole wheat,wheat
-bread wheat,wheat
-wheat bran,wheat
-wheat germ,wheat
-durum wheat,wheat
-semolina,wheat
-pasta,wheat
-bread,wheat
-flour,wheat
-soft wheat,wheat
-hard wheat,wheat
-triticum aestivum,wheat
-cereals,wheat
-cereal,wheat
-bread and rolls,wheat
-crackers,wheat
-grain product,wheat
-grain products,wheat
-processed food,wheat
-soy,soybeans
-soya,soybeans
-soybean,soybeans
-soybeans,soybeans
-soy-based,soybeans
-soy products,soybeans
-soy flour,soybeans
-glycine max,soybeans
-edamame,soybeans
-protein bar,soybeans
-protein powder,soybeans
-pea protein,soybeans
-corn,corn
-maize,corn
-cornstarch,corn
-corn flour,corn
-corn grain,corn
-corn meal,corn
-zea mays,corn
-hominy,corn
-candy,corn
-confectionery,corn
-millet,corn
-sorghum,corn
-snacks,corn
-chips,corn
-corn product,corn
-corn products,corn
-chickpea,chickpeas
-chickpeas,chickpeas
-garbanzo,chickpeas
-garbanzo bean,chickpeas
-hummus,chickpeas
-chickpea products,chickpeas
-cicer arietinum,chickpeas
-lentil,lentils
-lentils,lentils
-dried lentils,lentils
-lens culinaris,lentils
-red lentils,lentils
-green lentils,lentils
-bean,beans
-beans,beans
-pinto bean,beans
-kidney bean,beans
-black bean,beans
-navy bean,beans
-dried beans,beans
-pulse products,beans
-bean - navy,beans
-bean - black,beans
-bean - kidney,beans
-bean - other,beans
-bean - white,beans
-bean - pinto,beans
-pea,peas
-peas,peas
-dried peas,peas
-split peas,peas
-pisum sativum,peas
-field peas,peas
+"algen und prokaryonten, getrocknet",algae
+almond,almonds
+almond flour,almond
+almond milk,almond
+almonds,almond
+ananas,pineapple
+ananasnektar,pineapple
+apple,apple
+apple juice,apple
+apple puree,apple
+apples,apple
+aprikose,apricot
+aprikosen,apricot
+"aprikosen, getrocknet",apricot
+"aprikosen,�getrocknet",apricot
+argan�l,argan oil
+artischocken,artichoke
+bacon,"hog, meat"
+banana,banana
+bananas,banana
 barley,barley
-barley grain,barley
 barley flour,barley
-malted barley,barley
-hordeum vulgare,barley
-canola,canola
-canola oil,canola
-rapeseed,canola
-rape,canola
-colza,canola
-brassica napus,canola
-oilseeds,canola
-oil,canola
-sugar beet,sugar_beets
-sugar beets,sugar_beets
-beet sugar,sugar_beets
-beta vulgaris,sugar_beets
-buckwheat,buckwheat
-buckwheat flour,buckwheat
-buckwheat grain,buckwheat
-fagopyrum esculentum,buckwheat
-quinoa,quinoa
-quinoa grain,quinoa
-chenopodium quinoa,quinoa
-rye,rye
-rye grain,rye
-rye flour,rye
-secale cereale,rye
-rice,rice
-white rice,rice
-brown rice,rice
-rice flour,rice
-oryza sativa,rice
-paddy rice,rice
-infant food,infant_cereal
-baby food,infant_cereal
-infant cereal,infant_cereal
-children cereal,infant_cereal
-infant formula,infant_cereal
-toddler food,infant_cereal
-fresh vegetables,fresh_vegetables
-vegetables,fresh_vegetables
-lettuce,fresh_vegetables
-spinach,fresh_vegetables
-root vegetables,fresh_vegetables
-leafy vegetables,fresh_vegetables
-strawberries,fresh_vegetables
-potatoes,fresh_vegetables
-carrots,fresh_vegetables
-onions,fresh_vegetables
-peppers,fresh_vegetables
-cucumbers,fresh_vegetables
-celery,fresh_vegetables
-broccoli,fresh_vegetables
-cabbage,fresh_vegetables
-mushrooms,fresh_vegetables
-tomatoes,fresh_vegetables
-carrot,fresh_vegetables
-tomato,fresh_vegetables
-potato,fresh_vegetables
-mushroom,fresh_vegetables
-onion,fresh_vegetables
-pepper,fresh_vegetables
-cucumber,fresh_vegetables
-herb - dill - fresh,fresh_vegetables
-herb,fresh_vegetables
-herbs,fresh_vegetables
-dill,fresh_vegetables
-misc vegetable,fresh_vegetables
-spice,fresh_vegetables
-fresh fruit,fresh_fruit
-fruit,fresh_fruit
-apples,fresh_fruit
-citrus,fresh_fruit
-stone fruit,fresh_fruit
-berries,fresh_fruit
-oranges,fresh_fruit
-pears,fresh_fruit
-peaches,fresh_fruit
-cherries,fresh_fruit
-cranberries,fresh_fruit
-raspberries,fresh_fruit
-apple,fresh_fruit
-saskatoon berry,fresh_fruit
-saskatoon,fresh_fruit
-misc fruit,fresh_fruit
-juice - orange,fresh_fruit
-juice - tomato,fresh_fruit
-juice - apple,fresh_fruit
-juice,fresh_fruit
-tea,fresh_fruit
-coffee,fresh_fruit
-honey,fresh_fruit
-vinegar,fresh_fruit
-nuts,fresh_fruit
-dried fruit,fresh_fruit
-grapes,fresh_fruit
-bananas,fresh_fruit
-sunflower,sunflower
-sunflower seed,sunflower
-sunflower oil,sunflower
-helianthus annuus,sunflower
-butter,butter
-dairy butter,butter
-blueberry,blueberries
-blueberries,blueberries
-cultivated blueberries,blueberries
-wild blueberries,blueberries
-canned beets,canned_beets
-beets canned,canned_beets
-getreide,wheat
-hafer,oats
-soja,soybeans
-mais,corn
-gerste,barley
-roggen,rye
-reis,rice
-hülsenfrüchte,beans
-legumes and pulses,beans
-snack foods,corn
-snack products,corn
-sugar,sugar_beets
-cane sugar,sugar_beets
-beet sugar,sugar_beets
-raw sugar,sugar_beets
-brown sugar,sugar_beets
-powdered sugar,sugar_beets
-confectioners sugar,sugar_beets
-turbinado sugar,sugar_beets
-demerara sugar,sugar_beets
-coconut sugar,fresh_fruit
-palm sugar,fresh_fruit
-maple syrup,fresh_fruit
-agave,fresh_fruit
-molasses,fresh_fruit
-honey,fresh_fruit
-cocoa,fresh_vegetables
-cocoa powder,fresh_vegetables
-cocoa butter,fresh_vegetables
-chocolate,fresh_vegetables
-cacao,fresh_vegetables
-fat reduced cocoa powder,fresh_vegetables
-glucose syrup,corn
-corn syrup,corn
-high fructose corn syrup,corn
-dextrose,corn
-maltodextrin,corn
-starch,corn
-corn starch,corn
-potato starch,fresh_vegetables
-tapioca starch,fresh_vegetables
-rice starch,rice
-salt,fresh_vegetables
-sea salt,fresh_vegetables
-table salt,fresh_vegetables
-sodium chloride,fresh_vegetables
-raising agent,fresh_vegetables
-baking powder,fresh_vegetables
-baking soda,fresh_vegetables
-yeast,fresh_vegetables
-emulsifier,fresh_vegetables
-soya lecithin,soybeans
-soy lecithin,soybeans
-sunflower lecithin,sunflower
-lecithin,soybeans
-flavouring,fresh_vegetables
-flavoring,fresh_vegetables
-natural flavoring,fresh_vegetables
-artificial flavoring,fresh_vegetables
-vanilla,fresh_vegetables
-vanilla extract,fresh_vegetables
-milk,milk
-skimmed milk powder,fresh_fruit
-skim milk powder,fresh_fruit
-whole milk powder,fresh_fruit
-milk powder,fresh_fruit
-whey,fresh_fruit
-whey powder,fresh_fruit
-whey protein,fresh_fruit
-whey permeate,fresh_fruit
-lactose,fresh_fruit
-cream,fresh_fruit
-butter,butter
-ghee,butter
-yogurt,fresh_fruit
-yoghurt,fresh_fruit
-cheese,fresh_fruit
-dairy,fresh_fruit
-egg,fresh_fruit
-egg white,fresh_fruit
-egg yolk,fresh_fruit
-albumin,fresh_fruit
-gelatin,fresh_fruit
-collagen,fresh_fruit
-palm oil,canola
-palm kernel oil,canola
-coconut oil,canola
-coconut fat,canola
-canola oil,canola
-rapeseed oil,canola
-sunflower oil,sunflower
-safflower oil,canola
-olive oil,canola
-avocado oil,canola
-vegetable oil,canola
-vegetable fat,canola
-shortening,canola
-margarine,canola
-water,fresh_vegetables
-carbonated water,fresh_vegetables
-sparkling water,fresh_vegetables
-mineral water,fresh_vegetables
-citric acid,fresh_fruit
-ascorbic acid,fresh_fruit
-vitamin c,fresh_fruit
-vitamin d,fresh_vegetables
-vitamin b12,fresh_vegetables
-iron,fresh_vegetables
-zinc,fresh_vegetables
-calcium,fresh_vegetables
-potassium,fresh_vegetables
-magnesium,fresh_vegetables
-fiber,fresh_vegetables
-cellulose,fresh_vegetables
-pectin,fresh_fruit
-carrageenan,fresh_vegetables
-agar,fresh_vegetables
-xanthan gum,fresh_vegetables
-guar gum,fresh_vegetables
-modified starch,corn
-wheat starch,wheat
-wheat gluten,wheat
-vital wheat gluten,wheat
-soy protein,soybeans
-soy protein isolate,soybeans
-soy protein concentrate,soybeans
-pea protein,peas
-rice protein,rice
-whey protein isolate,fresh_fruit
-casein,fresh_fruit
-baking soda,fresh_vegetables
-sodium bicarbonate,fresh_vegetables
-calcium carbonate,fresh_vegetables
-potassium chloride,fresh_vegetables
-sodium nitrite,fresh_vegetables
-sulfites,fresh_vegetables
-sulphites,fresh_vegetables
-preservative,fresh_vegetables
-antioxidant,fresh_vegetables
-color,fresh_vegetables
-colour,fresh_vegetables
-food coloring,fresh_vegetables
-caramel color,fresh_vegetables
-annatto,fresh_vegetables
-turmeric,fresh_vegetables
-paprika,fresh_vegetables
-spice,fresh_vegetables
-spices,fresh_vegetables
-cinnamon,fresh_vegetables
-nutmeg,fresh_vegetables
-ginger,fresh_vegetables
-garlic,fresh_vegetables
-onion,fresh_vegetables
-tomato,fresh_vegetables
-potato,fresh_vegetables
-carrot,fresh_vegetables
-celery,fresh_vegetables
-lettuce,fresh_vegetables
-spinach,fresh_vegetables
-broccoli,fresh_vegetables
-cabbage,fresh_vegetables
-pepper,fresh_vegetables
-cucumber,fresh_vegetables
-mushroom,fresh_vegetables
-pea,peas
-green peas,peas
-split peas,peas
-chickpea,chickpeas
-chickpeas,chickpeas
-garbanzo,chickpeas
-garbanzo bean,chickpeas
-lentil,lentils
-lentils,lentils
-red lentils,lentils
-green lentils,lentils
+barley malt,barley
 bean,beans
 beans,beans
-kidney beans,beans
+beef,cattle
+bier,barley
+birnen,pear
 black beans,beans
-pinto beans,beans
-navy beans,beans
-lima beans,beans
-mung beans,beans
-adzuki beans,beans
-fava beans,beans
-broad beans,beans
-quinoa,quinoa
-amaranth,quinoa
-millet,corn
-sorghum,corn
-teff,barley
-spelt,wheat
-kamut,wheat
-einkorn,wheat
-emmer,wheat
-farro,wheat
-bulgur,wheat
-couscous,wheat
-semolina,wheat
-cornmeal,corn
-polenta,corn
-tortilla,wheat
-wrap,wheat
-pita,wheat
-bagel,wheat
-muffin,wheat
-croissant,wheat
-waffle,wheat
-pancake,wheat
-crepe,wheat
-pretzel,wheat
-crouton,wheat
-breadcrumb,wheat
-stuffing,wheat
-noodle,wheat
-ramen,wheat
-udon,wheat
-soba,wheat
-spaghetti,wheat
-penne,wheat
-fusilli,wheat
-macaroni,wheat
-linguine,wheat
-fettuccine,wheat
-lasagna,wheat
-ravioli,wheat
-tortellini,wheat
-gnocchi,wheat
-pizza,wheat
-dough,wheat
-batter,wheat
-pie,wheat
-cake,wheat
-cookie,wheat
-biscuit,wheat
-wafer,wheat
-cracker,wheat
-pretzel,wheat
-popcorn,corn
-corn chip,corn
-tortilla chip,corn
-nacho,corn
-puff,corn
-extruded snack,corn
-granola bar,oats
-energy bar,oats
-protein bar,soybeans
-cereal bar,oats
-trail mix,oats
-dried fruit,fresh_fruit
-raisin,fresh_fruit
-cranberry,fresh_fruit
-blueberry,fresh_fruit
-strawberry,fresh_fruit
-raspberry,fresh_fruit
-blackberry,fresh_fruit
-cherry,fresh_fruit
-apricot,fresh_fruit
-peach,fresh_fruit
-pear,fresh_fruit
-apple,fresh_fruit
-orange,fresh_fruit
-lemon,fresh_fruit
-lime,fresh_fruit
-grapefruit,fresh_fruit
-tangerine,fresh_fruit
-mandarin,fresh_fruit
-pineapple,fresh_fruit
-mango,fresh_fruit
-papaya,fresh_fruit
-guava,fresh_fruit
-passion fruit,fresh_fruit
-kiwi,fresh_fruit
-melon,fresh_fruit
-watermelon,fresh_fruit
-cantaloupe,fresh_fruit
-honeydew,fresh_fruit
-grape,fresh_fruit
-plum,fresh_fruit
-fig,fresh_fruit
-date,fresh_fruit
-prune,fresh_fruit
-coconut,fresh_fruit
-avocado,fresh_fruit
-tomato,fresh_vegetables
-bell pepper,fresh_vegetables
-jalapeno,fresh_vegetables
-habanero,fresh_vegetables
-chili pepper,fresh_vegetables
-cayenne,fresh_vegetables
-paprika,fresh_vegetables
-zucchini,fresh_vegetables
-squash,fresh_vegetables
-pumpkin,fresh_vegetables
-eggplant,fresh_vegetables
-okra,fresh_vegetables
-artichoke,fresh_vegetables
-asparagus,fresh_vegetables
-beet,fresh_vegetables
-beetroot,fresh_vegetables
-radish,fresh_vegetables
-turnip,fresh_vegetables
-parsnip,fresh_vegetables
-rutabaga,fresh_vegetables
-sweet potato,fresh_vegetables
-yam,fresh_vegetables
-taro,fresh_vegetables
-cassava,fresh_vegetables
-plantain,fresh_vegetables
-jicama,fresh_vegetables
-kohlrabi,fresh_vegetables
-fennel,fresh_vegetables
-leek,fresh_vegetables
-shallot,fresh_vegetables
-chive,fresh_vegetables
-parsley,fresh_vegetables
-cilantro,fresh_vegetables
-dill,fresh_vegetables
-basil,fresh_vegetables
-oregano,fresh_vegetables
-thyme,fresh_vegetables
-rosemary,fresh_vegetables
-sage,fresh_vegetables
-mint,fresh_vegetables
-bay leaf,fresh_vegetables
-tarragon,fresh_vegetables
-marjoram,fresh_vegetables
-savory,fresh_vegetables
-chamomile,fresh_vegetables
-lavender,fresh_vegetables
-rose,fresh_vegetables
-hibiscus,fresh_vegetables
-elderberry,fresh_fruit
-goji berry,fresh_fruit
-acai,fresh_fruit
-pomegranate,fresh_fruit
-persimmon,fresh_fruit
-lychee,fresh_fruit
-dragon fruit,fresh_fruit
-star fruit,fresh_fruit
-durian,fresh_fruit
-rambutan,fresh_fruit
-longan,fresh_fruit
-jackfruit,fresh_fruit
-breadfruit,fresh_fruit
-soursop,fresh_fruit
-custard apple,fresh_fruit
-cherimoya,fresh_fruit
-sapodilla,fresh_fruit
-tamarind,fresh_fruit
-mangosteen,fresh_fruit
-kiwano,fresh_fruit
-kumquat,fresh_fruit
-clementine,fresh_fruit
-satsuma,fresh_fruit
-ugli fruit,fresh_fruit
-pomelo,fresh_fruit
-yuzu,fresh_fruit
-calamansi,fresh_fruit
-bergamot,fresh_fruit
-citron,fresh_fruit
-buddhas hand,fresh_fruit
-finger lime,fresh_fruit
-limequat,fresh_fruit
-sudachi,fresh_fruit
-kabosu,fresh_fruit
-e503,fresh_vegetables
-e500,fresh_vegetables
-e322,fresh_vegetables
-e322i,fresh_vegetables
-e440,fresh_vegetables
-e415,fresh_vegetables
-e412,fresh_vegetables
-e407,fresh_vegetables
-e330,fresh_vegetables
-e300,fresh_vegetables
-e270,fresh_vegetables
-e262,fresh_vegetables
-e250,fresh_vegetables
-e251,fresh_vegetables
-e252,fresh_vegetables
-e200,fresh_vegetables
-e202,fresh_vegetables
-e210,fresh_vegetables
-e211,fresh_vegetables
-e212,fresh_vegetables
-e220,fresh_vegetables
-e223,fresh_vegetables
-e235,fresh_vegetables
-e249,fresh_vegetables
-e250,fresh_vegetables
-e297,fresh_vegetables
-e310,fresh_vegetables
-e319,fresh_vegetables
-e320,fresh_vegetables
-e321,fresh_vegetables
-e338,fresh_vegetables
-e339,fresh_vegetables
-e340,fresh_vegetables
-e341,fresh_vegetables
-e343,fresh_vegetables
-e400,fresh_vegetables
-e401,fresh_vegetables
-e402,fresh_vegetables
-e406,fresh_vegetables
-e410,fresh_vegetables
-e413,fresh_vegetables
-e414,fresh_vegetables
-e416,fresh_vegetables
-e417,fresh_vegetables
-e418,fresh_vegetables
-e420,fresh_vegetables
-e421,fresh_vegetables
-e422,fresh_vegetables
-e433,fresh_vegetables
-e435,fresh_vegetables
-e436,fresh_vegetables
-e442,fresh_vegetables
-e450,fresh_vegetables
-e451,fresh_vegetables
-e452,fresh_vegetables
-e460,fresh_vegetables
-e461,fresh_vegetables
-e463,fresh_vegetables
-e464,fresh_vegetables
-e465,fresh_vegetables
-e466,fresh_vegetables
-e470,fresh_vegetables
-e471,fresh_vegetables
-e472,fresh_vegetables
-e472b,fresh_vegetables
-e473,fresh_vegetables
-e475,fresh_vegetables
-e476,fresh_vegetables
-e477,fresh_vegetables
-e481,fresh_vegetables
-e482,fresh_vegetables
-e483,fresh_vegetables
-e491,fresh_vegetables
-e492,fresh_vegetables
-e493,fresh_vegetables
-e494,fresh_vegetables
-e495,fresh_vegetables
-e500i,fresh_vegetables
-e501,fresh_vegetables
-e503i,fresh_vegetables
-e504,fresh_vegetables
-e507,fresh_vegetables
-e508,fresh_vegetables
-e509,fresh_vegetables
-e511,fresh_vegetables
-e512,fresh_vegetables
-e513,fresh_vegetables
-e516,fresh_vegetables
-e517,fresh_vegetables
-e524,fresh_vegetables
-e525,fresh_vegetables
-e526,fresh_vegetables
-e527,fresh_vegetables
-e528,fresh_vegetables
-e529,fresh_vegetables
-e530,fresh_vegetables
-e535,fresh_vegetables
-e536,fresh_vegetables
-e540,fresh_vegetables
-e541,fresh_vegetables
-e542,fresh_vegetables
-e543,fresh_vegetables
-e544,fresh_vegetables
-e545,fresh_vegetables
-e550,fresh_vegetables
-e551,fresh_vegetables
-e552,fresh_vegetables
-e553,fresh_vegetables
-e554,fresh_vegetables
-e555,fresh_vegetables
-e556,fresh_vegetables
-e558,fresh_vegetables
-e559,fresh_vegetables
-e570,fresh_vegetables
-e572,fresh_vegetables
-e574,fresh_vegetables
-e575,fresh_vegetables
-e576,fresh_vegetables
-e577,fresh_vegetables
-e578,fresh_vegetables
-e579,fresh_vegetables
-e620,fresh_vegetables
-e621,fresh_vegetables
-e622,fresh_vegetables
-e623,fresh_vegetables
-e624,fresh_vegetables
-e625,fresh_vegetables
-e626,fresh_vegetables
-e627,fresh_vegetables
-e628,fresh_vegetables
-e629,fresh_vegetables
-e630,fresh_vegetables
-e631,fresh_vegetables
-e632,fresh_vegetables
-e633,fresh_vegetables
-e634,fresh_vegetables
-e635,fresh_vegetables
-e640,fresh_vegetables
-e641,fresh_vegetables
-e900,fresh_vegetables
-e901,fresh_vegetables
-e902,fresh_vegetables
-e903,fresh_vegetables
-e904,fresh_vegetables
-e905,fresh_vegetables
-e907,fresh_vegetables
-e920,fresh_vegetables
-e924,fresh_vegetables
-e925,fresh_vegetables
-e927,fresh_vegetables
-e928,fresh_vegetables
-e938,fresh_vegetables
-e939,fresh_vegetables
-e941,fresh_vegetables
-e942,fresh_vegetables
-e943,fresh_vegetables
-e944,fresh_vegetables
-e948,fresh_vegetables
-e950,fresh_vegetables
-e951,fresh_vegetables
-e952,fresh_vegetables
-e953,fresh_vegetables
-e954,fresh_vegetables
-e955,fresh_vegetables
-e957,fresh_vegetables
-e960,fresh_vegetables
-e965,fresh_vegetables
-e967,fresh_vegetables
-e968,fresh_vegetables
-e969,fresh_vegetables
-e999,fresh_vegetables
-e100,fresh_vegetables
-e101,fresh_vegetables
-e102,fresh_vegetables
-e104,fresh_vegetables
-e110,fresh_vegetables
-e120,fresh_vegetables
-e122,fresh_vegetables
-e123,fresh_vegetables
-e124,fresh_vegetables
-e127,fresh_vegetables
-e128,fresh_vegetables
-e129,fresh_vegetables
-e131,fresh_vegetables
-e132,fresh_vegetables
-e133,fresh_vegetables
-e140,fresh_vegetables
-e141,fresh_vegetables
-e142,fresh_vegetables
-e150,fresh_vegetables
-e150a,fresh_vegetables
-e150b,fresh_vegetables
-e150c,fresh_vegetables
-e150d,fresh_vegetables
-e151,fresh_vegetables
-e152,fresh_vegetables
-e153,fresh_vegetables
-e154,fresh_vegetables
-e155,fresh_vegetables
-e160,fresh_vegetables
-e160a,fresh_vegetables
-e160b,fresh_vegetables
-e160c,fresh_vegetables
-e160d,fresh_vegetables
-e161,fresh_vegetables
-e161b,fresh_vegetables
-e161c,fresh_vegetables
-e161g,fresh_vegetables
-e162,fresh_vegetables
-e163,fresh_vegetables
-e170,fresh_vegetables
-e171,fresh_vegetables
-e172,fresh_vegetables
-e173,fresh_vegetables
-e174,fresh_vegetables
-e175,fresh_vegetables
-e180,fresh_vegetables
-aprikosen,fresh_fruit
-"aprikosen, getrocknet",fresh_fruit
-ananas,fresh_fruit
-quitten,fresh_fruit
-feigen,fresh_fruit
-kirschen,fresh_fruit
-pfirsiche,fresh_fruit
-pflaumen,fresh_fruit
-birnen,fresh_fruit
-erdbeeren,fresh_fruit
-heidelbeeren,fresh_fruit
-himbeeren,fresh_fruit
-blaubeeren,fresh_fruit
-mango,fresh_fruit
-papaya,fresh_fruit
-kiwi,fresh_fruit
-zitrone,fresh_fruit
-limette,fresh_fruit
-grapefruit,fresh_fruit
-mandarine,fresh_fruit
-granatapfel,fresh_fruit
-spinat,fresh_vegetables
-porree,fresh_vegetables
-knollensellerie,celeriac
-stangensellerie,fresh_vegetables
-grünkohl,fresh_vegetables
-gruenkohl,fresh_vegetables
-kopfkohl,fresh_vegetables
-kopfkohle,fresh_vegetables
-chinakohl,fresh_vegetables
-chinakohle,fresh_vegetables
-rotkohl,fresh_vegetables
-blumenkohl,cauliflower
-blumenkohle,cauliflower
-petersilie,fresh_vegetables
-rettich,fresh_vegetables
-rettiche,fresh_vegetables
-radieschen,fresh_vegetables
-fenchel,fresh_vegetables
-knoblauch,fresh_vegetables
-ingwer,fresh_vegetables
-ingwerwurzeln,fresh_vegetables
-kürbis,fresh_vegetables
-kurbis,fresh_vegetables
-kürbisse,fresh_vegetables
-zucchini,fresh_vegetables
-aubergine,fresh_vegetables
-rote rüben,fresh_vegetables
-rote ruben,fresh_vegetables
-pastinaken,fresh_vegetables
-schalotten,fresh_vegetables
-schnittlauch,fresh_vegetables
-korianderblätter,fresh_vegetables
-korianderblaetter,fresh_vegetables
-pfefferminze,fresh_vegetables
-chilis,fresh_vegetables
-peperonis,fresh_vegetables
-chilis/peperonis,fresh_vegetables
-kreuzkümmelsamen,fresh_vegetables
-kreuzkuemmelsamen,fresh_vegetables
-radieschenblätter,fresh_vegetables
-radieschenblaetter,fresh_vegetables
-physalis,fresh_vegetables
-chicoree,fresh_vegetables
-zuchtpilz,fresh_vegetables
-kulturpilz,fresh_vegetables
-milch,milk
-milch und milchprodukte,milk
-milch und milchprodukte rinder,milk
-joghurt,milk
-käse,milk
-kaese,milk
-rahm,milk
-sahne,milk
-butter,butter
-hühnereier,egg
-huehnereier,egg
-eier,egg
-rind muskel,"cattle, meat"
-rind leber,"cattle, liver"
-rind fleisch,"cattle, meat"
-schweinefleisch,"hog, meat"
-hähnchen,"poultry, meat"
-haehnchen,"poultry, meat"
-huhn,"poultry, meat"
-lamm,"sheep, meat"
-sesamsamen,"sesame, seed"
-sonnenblumenkerne,sunflower
-leinsamen,flaxseed (linseed)
-walnuss,walnut
-walnüsse,walnut
+blaubeeren,blueberry
+bleached flour,wheat
+blueberries,blueberry
+blueberry,blueberries
+broccoli,broccoli
+brown rice,rice
+brunnenkresse,watercress
+butter,dairy
+b�rlauch/wilder�knoblauch/waldknoblauch,garlic
+canola,canola
+carrot,carrot
+carrots,carrot
+cashewnuesse,cashews
+cashewnuss,cashew
+cattle,cattle
+"cattle, fat",cattle
+"cattle, liver",cattle
+"cattle, meat",cattle
+celery,celery
+cheese,dairy
+cherries,cherry
+cherry,cherry
+chicken,chicken
+chickpea,chickpeas
+chickpeas,chickpeas
+chicoree,chicory
+chicor�e,chicory
+chilis,chili pepper
+chocolate,cocoa
+cocoa,cocoa
+cocoa powder,cocoa
+cod,fish
+coffee,coffee
+corn,corn
+corn flour,corn
+corn meal,corn
+corn starch,corn
+corn syrup,corn
+cream,dairy
+cucumber,cucumber
+cucumbers,cucumber
+datteln,dates
+"datteln, getrocknet",dates
+"datteln,�getrocknet",dates
+egg,egg
+egg white,egg
+egg yolk,egg
+eggs,egg
+enriched flour,wheat
+erdbeeren,strawberry
+erdmandeln/tigern�sse,tiger_nuts
+erdnuesse,peanuts
+erdnuss,peanut
+essig,vinegar
+estragon,tarragon
+feigen,fig
+fenchel,fennel
+fish,fish
+folgenahrungen f�r s�uglinge,baby_food
+folgenahrungen�f�r�s�uglinge,baby_food
+garlic,garlic
+"gefl�gel, strau�e, tauben fleisch",chicken
+"gefl�gel, strau�e, tauben leber",chicken
+"gefl�gel, strau�e, tauben muskel",chicken
+gefl�gel:�ei,egg
+gefl�gel:�muskel,chicken
+gerste,barley
+ghee,dairy
+granatapfel,pomegranate
+granola,oats
+grape,grape
+grape juice,grape
+grapes,grape
+gruenkohl,kale
+gruenkohle,kale
+gr�nkohle,kale
+guave,guava
+guaven,guava
+hafer,oats
+haferflocken,oats
+ham,"hog, meat"
+haselnuesse,hazelnuts
 haselnuss,hazelnut
-haselnüsse,hazelnut
-cashewnuss,cashews
-cashewnüsse,cashews
-pistazie,pistachio
-pistazien,pistachio
+heidelbeeren,blueberry
+himbeeren,raspberry
+honey,honey
+honig,honey
+hop,hops
+hopfen,hops
+hopfen (getrocknet),hops
+hopfen�(getrocknet),hops
+hops,hops
+huehnchen,chicken
+iceberg lettuce,lettuce
+ingwer,ginger
+instant oats,oats
+joghurt,dairy
+"johannisbeernektar (schwarz, rot und weiss)",currants
+"johannisbeernektar�(schwarz,�rot�und�wei�)",currants
+kaese,dairy
+kaffee,coffee
+kakao,cocoa
+kale,kale
+kefir,dairy
+ketchup,tomato
+kidney beans,beans
+kirschen,cherry
+knoblauch,garlic
+kohlrabi,kohlrabi
+kohlr�ben,kohlrabi
+"komplettmahlzeiten, beikost u. sonst. f. s�uglinge/kleinkinder",baby_food
+"komplettmahlzeiten, beikost u. sonstige f. saeuglinge/kleinkinder",baby_food
+"komplettmahlzeiten,�beikost�u.�sonst.�f.�s�uglinge/kleinkinder",baby_food
+korianderblaetter,cilantro
+kressen und andere sprossen und keime,watercress
+kressen�und�andere�sprossen�und�keime,watercress
+kreuzkuemmelsamen,cumin
+kurkuma,turmeric
+k�mmel,caraway
+k�rbiskern�l,pumpkin
+lactose,dairy
+leinsamen,flaxseed
+lemon,lemon
+lemon juice,lemon
+lemons,lemon
+lentil,lentils
+lentils,lentils
+lettuce,lettuce
+limette,lime
+mais,corn
+mandarin,orange
 mandel,almond
 mandeln,almonds
-erdnuss,peanut
-erdnüsse,peanut
-hafer,oats
-gerste,barley
-roggen,rye
-mais,corn
-hirse,millet
-buchweizen,buckwheat
-quinoa,quinoa
-olivenöl,olive
-oliveoel,olive
-sonnenblumenöl,sunflower
-rapsöl,canola
-rapsoel,canola
-sojaöl,soybeans
-sojaoel,soybeans
-hopfen,hops
-hopfen (getrocknet),"hop, dried cones"
-honig,honey
-kaffee,coffee
-tee,tea
-kakao,cocoa
-schokolade,cocoa
-wein,grape
-bier,barley
-essig,vinegar
-senf,mustard
-tomatenmark,tomato
-tomatenpüree,tomato
-kartoffeln,potato
-süsskartoffeln,potato
-suesskartoffeln,potato
-"milk, whole, fluid",milk
-"milk, skim, fluid",milk
-"cheese, cheddar",milk
-"cheese, mozzarella",milk
-"yogurt, vanilla",milk
-butter,butter
-"ice cream, vanilla",milk
-"beef, ground","cattle, meat"
-"chicken, breast","poultry, meat"
-"pork, chop","hog, meat"
-"fish, tilapia",fish
-egg,egg
-eggs,egg
-"bread, white",wheat
-"bread, whole wheat",wheat
-"rice, white",rice
-"rice, brown",rice
+maronen (esskastanien),chestnuts
+milch,dairy
+milk,dairy
+milk powder,dairy
+muesli,oats
+oat,oats
+oat bran,oats
 oat cereal,oats
-"pasta, spaghetti",wheat
-"cereal, corn flakes",corn
-"tortilla, flour",wheat
-"tortilla, corn",corn
-"potato, peeled, boiled",potato
-"potato, french fries",potato
-"carrot, raw",carrot
-"tomato, raw",tomato
-"spinach, raw",spinach
-"broccoli, raw",broccoli
-"corn, canned",corn
-"green beans, canned",bean
-"lettuce, iceberg",lettuce
-"apple, raw, with skin",apple
-apple juice,apple
-banana,banana
-"orange, raw",orange
-orange juice,orange
-"grape, red",grape
-strawberry,strawberry
-raisins,grape
-"water, tap",drinking_water
-"coffee, brewed",coffee
-"tea, brewed",tea
-peanut butter,peanut
-"popcorn, microwave",corn
-"pizza, cheese",wheat
-"hamburger, on bun","cattle, meat"
-hot dog,"hog, meat"
-french fries,potato
-"chips, potato",potato
-"cookies, chocolate chip",wheat
-"cake, white",wheat
-erdbeeren,strawberry
-erdbeere,strawberry
-heidelbeeren,blueberry
-blaubeeren,blueberry
-kirschen,cherry
-kirsche,cherry
-pfirsiche,peach
-pfirsich,peach
-birnen,pear
-birne,pear
-aprikosen,pear
-aprikose,pear
-trauben,grape
-traube,grape
-bananen,banana
-banane,banana
-äpfel,apple
-apfel,apple
-orangen,orange
-orange,orange
-zitronen,lemon
-zitrone,lemon
-spinat,spinach
-grünkohl,kale
-gruenkohl,kale
-kopfsalat,lettuce
-salat,lettuce
-gurken,cucumber
-gurke,cucumber
-sellerie,celery
-brokkoli,broccoli
-karotten,carrot
-karotte,carrot
-möhren,carrot
-möhre,carrot
-tomaten,tomato
-tomate,tomato
-kartoffeln,potato
-kartoffel,potato
-weizen,wheat
-hafer,oat
-haferflocken,oat
-gerste,barley
-reis,rice
-mais,corn
-bohnen,bean
-bohne,bean
-eier,egg
-ei,egg
-milch,milk
-mandeln,almond
-mandel,almond
-erdnüsse,peanut
-erdnuss,peanut
-kirschen,cherry
-orange,fresh_fruit
-oranges,fresh_fruit
-apple,fresh_fruit
-apples,fresh_fruit
-banana,fresh_fruit
-bananas,fresh_fruit
-grape,fresh_fruit
-grapes,fresh_fruit
-strawberry,fresh_fruit
-strawberries,fresh_fruit
-lemon,fresh_fruit
-lemons,fresh_fruit
-pear,fresh_fruit
-pears,fresh_fruit
-peach,fresh_fruit
-peaches,fresh_fruit
-cherry,fresh_fruit
-cherries,fresh_fruit
-plum,fresh_fruit
-plums,fresh_fruit
-watermelon,fresh_fruit
-melon,fresh_fruit
-kiwi,fresh_fruit
-mango,fresh_fruit
-pineapple,fresh_fruit
-spinach,fresh_vegetables
-lettuce,fresh_vegetables
-tomato,fresh_vegetables
-tomatoes,fresh_vegetables
-potato,fresh_vegetables
-potatoes,fresh_vegetables
-carrot,fresh_vegetables
-carrots,fresh_vegetables
-broccoli,fresh_vegetables
-cucumber,fresh_vegetables
-cucumbers,fresh_vegetables
-celery,fresh_vegetables
-onion,fresh_vegetables
-onions,fresh_vegetables
-garlic,fresh_vegetables
-pepper,fresh_vegetables
-peppers,fresh_vegetables
-zucchini,fresh_vegetables
-eggplant,fresh_vegetables
-corn,corn
-asparagus,fresh_vegetables
-artichoke,fresh_vegetables
-cauliflower,fresh_vegetables
-kale,fresh_vegetables
-cabbage,fresh_vegetables
-milk,cattle
-butter,cattle
-cheese,cattle
-yogurt,cattle
-cream,cattle
-beef,cattle
-pork,swine
-chicken,chicken
-turkey,poultry
-lamb,sheep
-veal,cattle
-fish,fish
-salmon,fish
-tuna,fish
-shrimp,fish
-peanut,peanuts
-walnut,walnuts
-cashew,cashews
-pistachio,pistachios
-honey,honey
-coffee,coffee
-tea,tea
-cocoa,cocoa
-chocolate,cocoa
-wine,grape
-beer,barley
-"chicken breast, fried with skin, fast-food",poultry
-"chicken nuggets, fast-food",poultry
-"chicken breast, oven-roasted, skin removed",poultry
-"chicken leg, fried with skin, fast-food",poultry
-"chicken thigh, oven-roasted, skin removed",poultry
-"broth, chicken, cartoned",poultry
-"turkey breast, oven-roasted",poultry
-"turkey, ground, pan-cooked",poultry
-"bf, turkey and broth/gravy",poultry
-"luncheon meat, turkey",poultry
-"pork bacon, oven-cooked","hog, meat"
-"ham, cured (not canned), baked","hog, meat"
-"bf, beef and broth/gravy","cattle, meat"
-"salami, dry/hard","hog, meat"
-"luncheon meat, bologna","hog, meat"
-"luncheon meat, ham","hog, meat"
-"tilapia, baked",fish
-"cod, baked",fish
-"shrimp, pre-cooked, shells removed, no tails",fish
-"fish sticks or patty, frozen, oven-cooked",fish
-"kale, fresh, pan-cooked",fresh_vegetables
-"kale, raw, pan-cooked",fresh_vegetables
-"olives, black, pitted",fresh_vegetables
-"tofu, firm, plain, drained",soybeans
-"tofu, firm, plain, drained solids",soybeans
-brownie,wheat
-breakfast tart/toaster pastry,wheat
-mayonnaise,egg
-"mustard, yellow, plain",mustard
-"sauce, barbecue",tomato
-"salad dressing, italian, regular",fresh_vegetables
-"salad dressing, ranch, regular",fresh_vegetables
-"salad dressing, ranch, low-calorie",fresh_vegetables
-"brown gravy, canned or bottled","cattle, meat"
-"soup, clam chowder, new england, canned, ready to serve",fish
-"soup, vegetable, canned, ready to serve",fresh_vegetables
-"soup, vegetable beef, canned, ready to serve","cattle, meat"
-"wine, red",grape
-"wine, white",grape
-beer,barley
-"alcohol, distilled, vodka",wheat
-"alcohol, distilled, whiskey/scotch",wheat
-"carbonated beverage, cola, regular",corn
-"carbonated beverage, cola, diet",corn
-"beverage, energy",corn
-"beverage, sports",corn
-"almonds, shelled",almond
-"powder, protein",soybeans
-almond,almonds
+oat flour,oats
+oat milk,oats
+oatmeal,oats
+oats,oats
 olive,table olives
+olive oil,table olives
+olives,table olives
+orange,orange
+orange juice,orange
+oranges,orange
+paranuesse,brazil nuts
+paran�sse,brazil nuts
+pastinaken,parsnip
+pea,peas
+peach,peach
+peaches,peach
+peanut,peanuts
+peanut butter,peanut
+peanuts,peanut
+pear,pear
+pears,pear
+peas,peas
+peperonis,chili pepper
+petersilie,parsley
+"pfeffer, schwarz und weiss",pepper
+"pfeffer, schwarz und wei�",pepper
+pfefferminze,mint
+"pfeffer�(schwarz,�gr�n�und�wei�)",pepper
+pfirsiche,peach
+physalis,physalis
+pistazie,pistachio
+pistazien,pistachios
+pork,"hog, meat"
+porree,leek
+portulak,purslane
+portulak (sauerampfer),purslane
+potato,potato
+potato starch,potato
+potatoes,potato
 poultry,chicken
-mustard,mustard seeds
-"rettich, radieschen",fresh_vegetables
-rettiche/radieschen,fresh_vegetables
-gruenkohle,fresh_vegetables
-"pfeffer, schwarz und weiss",fresh_vegetables
-artischocken,fresh_vegetables
-chicoree,fresh_vegetables
-petersilienwurzel,fresh_vegetables
-kohlrabi,fresh_vegetables
-"zuchtpilz, kulturpilz (getrocknet)",fresh_vegetables
-schwarzwurzeln,fresh_vegetables
-"brunnenkresse, wasserspinat, mukunuwenna",fresh_vegetables
-kurkuma,fresh_vegetables
-zimt,fresh_vegetables
-hopfen (getrocknet),hops
-guave,fresh_fruit
-guaven,fresh_fruit
-coffee,coffee
-tea,tea
-sonstige erzeugnisse von landtieren,cattle
-sonstige nutztiere muskel,cattle
-"gefluegel, strausse, tauben muskel",chicken
-infant_cereal,fresh_fruit
-"komplettmahlzeiten, beikost u. sonstige fuer saeuglinge/kleinkinder",fresh_fruit
-chicken,chicken
-cattle,cattle
-egg,egg
-peanuts,peanuts
-coffee,coffee
-tea,tea
-mustard seeds,mustard seeds
-table olives,olive
-olive,olive
-gruenkohle,fresh_vegetables
-"pfeffer, schwarz und weiss",spices
-kohlrabi,fresh_vegetables
-chicoree,fresh_vegetables
-petersilienwurzeln,fresh_vegetables
-kuemmel,spices
-kardamom,spices
-thymian,spices
-rosmarin,spices
-kerbel,spices
-portulak,fresh_vegetables
-chiasamen,seeds
-paranuesse,nuts
-datteln,dates
-"feigen, getrocknet",dried_fruit
-"aprikosen, getrocknet",dried_fruit
-ananassaft,fruit_juice
-kirschsaft,fruit_juice
-johannisbeernektar,fruit_juice
-nektarinen,stone_fruit
-mispel,fresh_fruit
-mispeln,fresh_fruit
-kuerbiskernoel,oils
-romanesco,fresh_vegetables
-rote rueben,root_vegetables
-indischer wassernabel,fresh_vegetables
-"komplettmahlzeiten, beikost u. sonstige f. saeuglinge/kleinkinder",baby_food
-saeuglingsanfangsnahrungen,baby_food
-milch und milchprodukte schafe,dairy
-milch und milchprodukte ziegen,dairy
-schaf muskel,sheep
-gefluegel: muskel,poultry
+quick oats,oats
+quitten,quince
+radieschen,radish
+raisins,grape
+rapeseed,canola
+reis,rice
+rettich,radish
+rettiche,radish
+rice,rice
+rice flour,rice
+rice starch,rice
 rinder: sahne,dairy
+rinder:�sahne,dairy
+rindfleisch,cattle
+roggen,rye
+rolled oats,oats
+romaine lettuce,lettuce
+romanesco,romanesco
+rote ruben,beet
+rote r�ben,beet
+rye,rye
+rye flour,rye
+saeuglingsanfangsnahrungen,baby_food
+salmon,fish
+schalotten,shallot
+schnittlauch,chives
+schokolade,cocoa
+schwarzwurzeln,salsify
+schweinefleisch,"hog, meat"
+semolina,wheat
+senf,mustard seeds
+sesamsamen,sesame seeds
+shrimp,fish
+skim milk,dairy
+sonnenblumenkerne,sunflower seeds
 sonstige erzeugnisse von landtieren,other_meat
 sonstige nutztiere: muskel,other_meat
-algae and prokaryotes organisms,algae
-wine,wine
-beer,beer
-brownie,wheat
-salad dressing,oils
-"soup, vegetable",fresh_vegetables
-"soup, clam chowder",fish
-"soup, vegetable beef",cattle
-mayonnaise,eggs
-"mustard, yellow",mustard seeds
-"sauce, barbecue",tomato
+sonstige�erzeugnisse�von�landtieren,other_meat
+sonstige�nutztiere:�muskel,other_meat
+soy,soybeans
+soy lecithin,soybeans
+soy protein,soybeans
+soybean,soybeans
+soybeans,soybeans
+spinach,spinach
+stangensellerie,celery
+steel-cut oats,oats
+strawberries,strawberry
+strawberry,strawberry
+strawberry puree,strawberry
+sunflower,sunflower
+sunflower seeds,sunflower
+s�uglingsanfangsnahrungen,baby_food
+table olives,olive
+tangerine,orange
+tea,tea
+tilapia,fish
 tofu,soybeans
-"powder, protein",soybeans
-"carbonated beverage, cola",corn
-"beverage, energy",corn
-"beverage, sports",corn
-"alcohol, distilled",grain
-breakfast tart/toaster pastry,wheat
-fish sticks or patty,fish
-fruit_juice,juice
-dried_fruit,fresh_fruit
-stone_fruit,fresh_fruit
-dates,fresh_fruit
-spices,fresh_vegetables
-dairy,milk
-seeds,fresh_vegetables
-nuts,fresh_vegetables
-oils,canola
-other_meat,cattle
-algae,fresh_vegetables
+tomato,tomato
+tomato paste,tomato
+tomato puree,tomato
+tomato sauce,tomato
+tomatoes,tomato
+tuna,fish
+turkey,chicken
+walnuesse,walnuts
+walnuss,walnut
+wein,grape
+weizen,wheat
+wheat,wheat
+wheat flour,wheat
+wheat starch,wheat
+whey,dairy
+whey protein,dairy
+white rice,rice
+whole grain oats,oats
+whole milk,dairy
+whole wheat,wheat
+whole wheat flour,wheat
 wine,grape
-beer,barley
-grain,wheat
-"milk, whole",milk
-"milk, skim",milk
-"milk, 2%",milk
-"milk, 1%",milk
-"milk, fat-free",milk
-buttermilk,milk
-cream,milk
-sour cream,milk
-whipped cream,milk
-half and half,milk
-evaporated milk,milk
-condensed milk,milk
-dry milk,milk
-powdered milk,milk
-"cheese, cheddar",milk
-"cheese, mozzarella",milk
-"cheese, swiss",milk
-"cheese, american",milk
-"cheese, cottage",milk
-"cheese, cream",milk
-"yogurt, plain",milk
-"yogurt, vanilla",milk
-"yogurt, fruit",milk
-ice cream,milk
-butter,milk
-ghee,milk
-kefir,milk
-whey,milk
-lactose,milk
+wirsing,savoy cabbage
+yoghurt,dairy
+yogurt,dairy
+zimt,cinnamon
+zitrone,lemon
