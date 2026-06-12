@@ -1,11 +1,21 @@
 alias,canonical_key
+algae,algae
 "algen und prokaryonten, getrocknet",algae
+algen und prokaryonten,algae
+"algen und prokaryonten, geröstet",algae
+"algen und prokaryonten, getrocknet",algae
 almond,almonds
 almond flour,almond
 almond milk,almond
 almonds,almond
 ananas,pineapple
+"ananas, getrocknet",pineapple
+"ananas, getrocknet",pineapple
+"ananas, konserve",pineapple
+"ananas, saft",pineapple
 ananasnektar,pineapple
+anis/anissamen,anise
+anise,anise
 apple,apple
 apple juice,apple
 apple puree,apple
@@ -13,8 +23,14 @@ apples,apple
 aprikose,apricot
 aprikosen,apricot
 "aprikosen, getrocknet",apricot
+"aprikosen, getrocknet",dried_apricot
+"aprikosen, nektar",apricot
 "aprikosen,�getrocknet",apricot
+aprikosennektar,apricot
+arganöl,argan oil
 argan�l,argan oil
+aronianektar,chokeberry
+aroniasaft,chokeberry
 artischocken,artichoke
 bacon,"hog, meat"
 banana,banana
@@ -30,18 +46,24 @@ birnen,pear
 black beans,beans
 blaubeeren,blueberry
 bleached flour,wheat
+bleichsellerie vor- und zubereitet,celery
 blueberries,blueberry
 blueberry,blueberries
 broccoli,broccoli
 brown rice,rice
 brunnenkresse,watercress
+"brunnenkresse, wasserspinat",watercress
+"brunnenkresse, wasserspinat",watercress
 butter,dairy
+bärlauch/wilder knoblauch/waldknoblauch,garlic
 b�rlauch/wilder�knoblauch/waldknoblauch,garlic
+canned_beets,beet
 canola,canola
 carrot,carrot
 carrots,carrot
 cashewnuesse,cashews
 cashewnuss,cashew
+cassava,cassava
 cattle,cattle
 "cattle, fat",cattle
 "cattle, liver",cattle
@@ -50,10 +72,12 @@ celery,celery
 cheese,dairy
 cherries,cherry
 cherry,cherry
+chestnuts,chestnuts
 chicken,chicken
 chickpea,chickpeas
 chickpeas,chickpeas
 chicoree,chicory
+chicorée,chicory
 chicor�e,chicory
 chilis,chili pepper
 chocolate,cocoa
@@ -69,26 +93,48 @@ corn syrup,corn
 cream,dairy
 cucumber,cucumber
 cucumbers,cucumber
+dates,dates
 datteln,dates
 "datteln, getrocknet",dates
+"datteln, getrocknet",dates
 "datteln,�getrocknet",dates
 egg,egg
 egg white,egg
 egg yolk,egg
 eggs,egg
+einhufer: muskel,horse
+elderberry_juice,elderberry_juice
 enriched flour,wheat
+ente: muskel,duck
+erdartischocke (topinambur),jerusalem_artichoke
+erdartischocken/topinambur,jerusalem_artichoke
 erdbeeren,strawberry
+erdmandeln/tigernüsse,tiger_nuts
 erdmandeln/tigern�sse,tiger_nuts
 erdnuesse,peanuts
 erdnuss,peanut
 essig,vinegar
 estragon,tarragon
 feigen,fig
+"feigen, konserve",fig
+"feigen, getrocknet",fig
 fenchel,fennel
+fenchelsamen,fennel
 fish,fish
+flaxseed,flaxseed
+folgenahrungen für säuglinge,baby_food
 folgenahrungen f�r s�uglinge,baby_food
+folgenahrungen für säuglinge,baby_food
 folgenahrungen�f�r�s�uglinge,baby_food
 garlic,garlic
+garten-schwarzwurzeln/scorzonera,salsify
+"geflügel, strauße, tauben fleisch",poultry
+"geflügel, strauße, tauben leber",poultry
+"geflügel, strauße, tauben muskel",poultry
+geflügel: ei,poultry
+geflügel: leber,poultry
+geflügel: muskel,poultry
+geflügel:  genießbare schlachtnebenerzeugnisse (außer leber und nieren),chicken
 "gefl�gel, strau�e, tauben fleisch",chicken
 "gefl�gel, strau�e, tauben leber",chicken
 "gefl�gel, strau�e, tauben muskel",chicken
@@ -103,49 +149,82 @@ grape juice,grape
 grapes,grape
 gruenkohl,kale
 gruenkohle,kale
+grünkohle,kale
+"grünkohle, konserve",kale
+grünkohl vor- und zubereitet,kale
 gr�nkohle,kale
 guave,guava
 guaven,guava
+guavennektar,guava
 hafer,oats
 haferflocken,oats
+hagebuttenpulver,rosehip
 ham,"hog, meat"
+hanfsaat,hemp_seeds
 haselnuesse,hazelnuts
 haselnuss,hazelnut
 heidelbeeren,blueberry
+heidelbeernektar,blueberry
+hemp_seeds,hemp_seeds
 himbeeren,raspberry
+holunderbeernektar,elderberry
 honey,honey
 honig,honey
 hop,hops
 hopfen,hops
 hopfen (getrocknet),hops
+hopfen (getrocknet),hops
 hopfen�(getrocknet),hops
 hops,hops
+horseradish,horseradish
 huehnchen,chicken
+huhn: leber,chicken
+huhn: muskel,chicken
 iceberg lettuce,lettuce
 ingwer,ginger
 instant oats,oats
+italienische strohblume/currykraut,curry_plant
 joghurt,dairy
 "johannisbeernektar (schwarz, rot und weiss)",currants
+"johannisbeernektar (schwarz, rot und weiß)",currants
 "johannisbeernektar�(schwarz,�rot�und�wei�)",currants
+"johannisbeersaft (schwarz, rot und weiß)",currant_juice
+"johannisbeersaft (schwarz, rot und weiß)",currant_juice
 kaese,dairy
 kaffee,coffee
 kakao,cocoa
 kale,kale
+kaschunüsse,cashew
+"kassawas/kassaven/manioks, stärke",cassava
 kefir,dairy
 ketchup,tomato
 kidney beans,beans
 kirschen,cherry
 knoblauch,garlic
+"knoblauch, getrocknet",garlic
+"knoblauch, getrocknet",garlic
+"knollensellerie, getrocknet",celery
 kohlrabi,kohlrabi
+kohlrüben,kohlrabi
 kohlr�ben,kohlrabi
+kokosnüsse,coconut
+"komplettmahlzeiten, beikost u. sonst. f. säuglinge/kleinkinder",baby_food
 "komplettmahlzeiten, beikost u. sonst. f. s�uglinge/kleinkinder",baby_food
 "komplettmahlzeiten, beikost u. sonstige f. saeuglinge/kleinkinder",baby_food
+"komplettmahlzeiten, beikost u. sonst. f. säuglinge/kleinkinder",baby_food
 "komplettmahlzeiten,�beikost�u.�sonst.�f.�s�uglinge/kleinkinder",baby_food
+"kopfkohle, konserve",cabbage
+koriander,cilantro
 korianderblaetter,cilantro
 kressen und andere sprossen und keime,watercress
+kressen und andere sprossen und keime,watercress
 kressen�und�andere�sprossen�und�keime,watercress
 kreuzkuemmelsamen,cumin
+kreuzkümmel,cumin
 kurkuma,turmeric
+kümmel,caraway
+kürbiskerne,pumpkin
+kürbiskernöl,pumpkin
 k�mmel,caraway
 k�rbiskern�l,pumpkin
 lactose,dairy
@@ -156,16 +235,36 @@ lemons,lemon
 lentil,lentils
 lentils,lentils
 lettuce,lettuce
+liebstöckel,lovage
 limette,lime
+litschinektar,lychee
+lupinenmehl,lupin
+löwenzahn,dandelion
+macadamianüsse,macadamia
 mais,corn
 mandarin,orange
 mandel,almond
 mandeln,almonds
+maniokmehl,cassava
+marjoram,marjoram
 maronen (esskastanien),chestnuts
+maronen/esskastanien,chestnuts
+meerrettich/kren,radish
 milch,dairy
+milch und milchprodukte pferde,dairy
+milch und milchprodukte schafe/ziegen,dairy
+milch und milchprodukte sonstige,dairy
 milk,dairy
 milk powder,dairy
+mirabelle_plum,mirabelle_plum
+"mirabellen, konserve",mirabelle_plum
+mohrrübe vor- und zubereitet,beet
 muesli,oats
+muskatblüte/macis,mace
+nelkenpfeffer,allspice
+nelkenpfeffer (piment),allspice
+nelkenpfeffer/piment,allspice
+nutmeg,nutmeg
 oat,oats
 oat bran,oats
 oat cereal,oats
@@ -175,11 +274,15 @@ oatmeal,oats
 oats,oats
 olive,table olives
 olive oil,table olives
+"oliven für die gewinnung von Öl, Öl",olive
 olives,table olives
 orange,orange
 orange juice,orange
 oranges,orange
+pak-choi/chinesischer senfkohl,cabbage
+palmöl,palm_oil
 paranuesse,brazil nuts
+paranüsse,brazil_nuts
 paran�sse,brazil nuts
 pastinaken,parsnip
 pea,peas
@@ -191,36 +294,60 @@ peanuts,peanut
 pear,pear
 pears,pear
 peas,peas
+pekannüsse,pecan
 peperonis,chili pepper
 petersilie,parsley
 "pfeffer, schwarz und weiss",pepper
+"pfeffer, schwarz und weiß",pepper
 "pfeffer, schwarz und wei�",pepper
 pfefferminze,mint
+"pfeffer (schwarz, grün und weiß)",pepper
 "pfeffer�(schwarz,�gr�n�und�wei�)",pepper
+"pferde, esel, maultiere oder maulesel muskel",horse
 pfirsiche,peach
 physalis,physalis
+pine_nuts,pine_nuts
+pineapple,pineapple
 pistazie,pistachio
 pistazien,pistachios
+"pistazien, geröstet",pistachio
 pork,"hog, meat"
 porree,leek
+"porree, getrocknet",leek
 portulak,purslane
 portulak (sauerampfer),purslane
 potato,potato
 potato starch,potato
 potatoes,potato
 poultry,chicken
+purslane,purslane
+quail_egg,quail_egg
 quick oats,oats
 quitten,quince
+quittennektar,quince
+quittensaft,quince
 radieschen,radish
 raisins,grape
 rapeseed,canola
 reis,rice
 rettich,radish
+rettichblätter,radish
 rettiche,radish
 rice,rice
 rice flour,rice
 rice starch,rice
+rind genießbare schlachtnebenerzeugnisse,cattle
+rind: fett,cattle
+rind: leber,cattle
+rind: muskel,cattle
 rinder: sahne,dairy
+rinder: joghurt,dairy
+rinder: käse,dairy
+rinder: leber,cattle
+rinder: milch,dairy
+rinder: muskel,cattle
+rinder: sahne,dairy
+rinder: sonstige milchprodukte,dairy
 rinder:�sahne,dairy
 rindfleisch,cattle
 roggen,rye
@@ -229,23 +356,54 @@ romaine lettuce,lettuce
 romanesco,romanesco
 rote ruben,beet
 rote r�ben,beet
+rote betesaft,beet
+rote bete vor- und zubereitet,beet
+rote rüben,beet
+rotkohl vor- und zubereitet,red_cabbage
 rye,rye
 rye flour,rye
 saeuglingsanfangsnahrungen,baby_food
+sage,sage
 salmon,fish
+sanddornnektar,sea_buckthorn
+sanddornsaft,sea_buckthorn
+sauerampfer,sorrel
+sauerkirschnektar,cherry
+savoy_cabbage,savoy_cabbage
+schaf fleisch,cattle
+schaf genießbare schlachtnebenerzeugnisse,cattle
+schaf leber,cattle
+schaf: leber,cattle
+schaf: muskel,cattle
+schaf: nieren,cattle
+schafe/ziegen: käse,dairy
+schafe: käse,dairy
+schafe: leber,cattle
+schafe: milch,dairy
+schafe: muskel,cattle
 schalotten,shallot
+schnecken,snails
 schnittlauch,chives
 schokolade,cocoa
+schwarzkümmel,nigella
 schwarzwurzeln,salsify
 schweinefleisch,"hog, meat"
+sellerieblätter,celery
 semolina,wheat
 senf,mustard seeds
 sesamsamen,sesame seeds
+sesamöl,sesame
 shrimp,fish
 skim milk,dairy
 sonnenblumenkerne,sunflower seeds
 sonstige erzeugnisse von landtieren,other_meat
+sonstige nutztiere fett,other_meat
+sonstige nutztiere fleisch,other_meat
+sonstige nutztiere leber,other_meat
 sonstige nutztiere: muskel,other_meat
+sonstige erzeugnisse von landtieren,other_meat
+"sonstige geflügel, strauße, tauben: muskel",poultry
+sonstige nutztiere: muskel,other_meat
 sonstige�erzeugnisse�von�landtieren,other_meat
 sonstige�nutztiere:�muskel,other_meat
 soy,soybeans
@@ -254,16 +412,30 @@ soy protein,soybeans
 soybean,soybeans
 soybeans,soybeans
 spinach,spinach
+"spinat, getrocknet",spinach
+spinat konserve,spinach
+stachelbeersaft,gooseberry
+stachelfeige (kaktusfeige),prickly_pear
+stachelfeigen/kaktusfeigen,prickly_pear
 stangensellerie,celery
 steel-cut oats,oats
+sternanis,star_anise
 strawberries,strawberry
 strawberry,strawberry
 strawberry puree,strawberry
 sunflower,sunflower
 sunflower seeds,sunflower
+sweeties/oroblancos,grapefruit
+säuglingsanfangs- und folgenahrungen,baby_food
+säuglingsanfangsnahrungen,baby_food
 s�uglingsanfangsnahrungen,baby_food
 table olives,olive
+tafeloliven,olive
+"tafeloliven, vor- und zubereitet",olive
+"tafeloliven, vor- und zubereitet",olive
 tangerine,orange
+tapioka,cassava
+tarragon,tarragon
 tea,tea
 tilapia,fish
 tofu,soybeans
@@ -276,8 +448,13 @@ tuna,fish
 turkey,chicken
 walnuesse,walnuts
 walnuss,walnut
+watercress,watercress
 wein,grape
 weizen,wheat
+weiße rüben,beet
+weiße rüben,beet
+weißkohl,cabbage
+weißkohl vor- und zubereitet,cabbage
 wheat,wheat
 wheat flour,wheat
 wheat starch,wheat
@@ -289,8 +466,53 @@ whole milk,dairy
 whole wheat,wheat
 whole wheat flour,wheat
 wine,grape
+wirbellose landtiere,invertebrates
 wirsing,savoy cabbage
+xanthan,xanthan
 yoghurt,dairy
 yogurt,dairy
+ziege muskel,goat
+ziege: muskel,goat
+ziegen: käse,dairy
+ziegen: milch,dairy
 zimt,cinnamon
 zitrone,lemon
+"algen und prokaryonten, geröstet",algae
+arganoel,argan oil
+bockshornkleesamen,fenugreek
+chinakohl,chinese cabbage
+holunderbeersaft,elderberry_juice
+kakaopulver,cocoa
+majoran,marjoram
+muskatnuss,nutmeg
+pinienkerne,pine_nuts
+wachteleier,quail_egg
+"ananas, konserve",pineapple
+"pfeffer(schwarz, gruen und weiss)",pepper
+"pistazien, geröstet",pistachio
+sauglingsanfangsnahrungen,baby_food
+sauglingsanfangs- und folgenahrungen,baby_food
+folgenahrungen fuer saeuglinge,baby_food
+rind fett,cattle
+rind geniebare schlachtnebenerzeugnisse,cattle
+rind nieren,cattle
+rind: leber,cattle
+rind: muskel,cattle
+rinder: kaese,dairy
+rinder: joghurt,dairy
+rinder: milch,dairy
+rinder: leber,cattle
+rinder: muskel,cattle
+schaf: leber,cattle
+schaf: muskel,cattle
+schafe: kaese,dairy
+ziegen: kaese,dairy
+gefluegel: ei,egg
+gefluegel: leber,chicken
+gefluegel: muskel,poultry
+huhn: leber,chicken
+huhn: muskel,chicken
+ente: muskel,duck
+weisskohl,cabbage
+weisse rueben,beet
+oliven fuer die gewinnung von oel,olive
