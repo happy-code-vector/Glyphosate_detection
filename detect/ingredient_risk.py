@@ -665,6 +665,63 @@ class IngredientRiskQuery:
             reason += " — heavy metal, no established safe level"
         return "unknown", reason, None, None, None, None
 
+    def _resolve_benchmark_category(
+        self, food_category: str, table: str
+    ) -> str:
+        """Resolve a canonical key to the actual food_category in a benchmark table.
+
+        Tries: exact match, plural/singular, underscore/space variants,
+        and reverse alias lookup (aliases that map TO this canonical key).
+        Returns the matched food_category or the original if no match.
+        """
+        fc = food_category.strip()
+        candidates = [fc]
+
+        # Plural/singular variations
+        if fc.endswith("s"):
+            candidates.append(fc[:-1])  # "kales" -> "kale"
+        else:
+            candidates.append(fc + "s")  # "kale" -> "kales"
+        if fc.endswith("ies"):
+            candidates.append(fc[:-3] + "y")  # "cherries" -> "cherry"
+        elif fc.endswith("es"):
+            candidates.append(fc[:-2])  # "oranges" -> "orange"
+
+        # Underscore/space variations
+        if "_" in fc:
+            candidates.append(fc.replace("_", " "))
+        if " " in fc:
+            candidates.append(fc.replace(" ", "_"))
+
+        # Reverse alias lookup: find aliases that map TO this canonical key
+        # and try them as benchmark food_category values
+        alias_rows = self._conn.execute(
+            "SELECT alias FROM category_aliases WHERE canonical_key = ?",
+            (fc,),
+        ).fetchall()
+        for r in alias_rows:
+            candidates.append(r["alias"])
+
+        # Check which candidates exist in the benchmark table
+        # Use LOWER() for case-insensitive matching
+        lower_set = set()
+        final_candidates = []
+        for c in candidates:
+            cl = c.lower()
+            if cl not in lower_set:
+                lower_set.add(cl)
+                final_candidates.append(c)
+
+        placeholders = ",".join("?" * len(final_candidates))
+        row = self._conn.execute(
+            f"SELECT DISTINCT food_category FROM {table} "
+            f"WHERE LOWER(food_category) IN ({placeholders}) "
+            f"LIMIT 1",
+            [c.lower() for c in final_candidates],
+        ).fetchone()
+
+        return row["food_category"] if row else fc
+
     def _get_strictest_mrl(
         self, contaminant: str, food_category: str | None = None
     ) -> float | None:
@@ -675,11 +732,14 @@ class IngredientRiskQuery:
         """
         if not food_category:
             return None
+        resolved = self._resolve_benchmark_category(
+            food_category, "international_mrls"
+        )
         row = self._conn.execute(
             "SELECT MIN(mrl_ppb) as min_mrl FROM international_mrls "
             "WHERE LOWER(pesticide) = ? AND LOWER(food_category) = ? "
             "AND mrl_ppb > 0",
-            (contaminant.lower(), food_category.lower()),
+            (contaminant.lower(), resolved.lower()),
         ).fetchone()
         return row["min_mrl"] if row and row["min_mrl"] else None
 
@@ -692,12 +752,15 @@ class IngredientRiskQuery:
         """
         if not food_category:
             return None, None
+        resolved = self._resolve_benchmark_category(
+            food_category, "international_mrls"
+        )
         row = self._conn.execute(
             "SELECT mrl_ppb, country_region FROM international_mrls "
             "WHERE LOWER(pesticide) = ? AND LOWER(food_category) = ? "
             "AND mrl_ppb > 0 "
             "ORDER BY mrl_ppb ASC LIMIT 1",
-            (contaminant.lower(), food_category.lower()),
+            (contaminant.lower(), resolved.lower()),
         ).fetchone()
         if row and row["mrl_ppb"]:
             return row["mrl_ppb"], row["country_region"]
@@ -712,11 +775,14 @@ class IngredientRiskQuery:
         """
         if not food_category:
             return None
+        resolved = self._resolve_benchmark_category(
+            food_category, "tolerance_limits"
+        )
         row = self._conn.execute(
             "SELECT MIN(tolerance_ppb) as min_tol FROM tolerance_limits "
             "WHERE LOWER(contaminant) = ? AND LOWER(food_category) = ? "
             "AND tolerance_ppb > 0",
-            (contaminant.lower(), food_category.lower()),
+            (contaminant.lower(), resolved.lower()),
         ).fetchone()
         return row["min_tol"] if row and row["min_tol"] else None
 
@@ -729,12 +795,15 @@ class IngredientRiskQuery:
         """
         if not food_category:
             return None, None
+        resolved = self._resolve_benchmark_category(
+            food_category, "tolerance_limits"
+        )
         row = self._conn.execute(
             "SELECT tolerance_ppb, source FROM tolerance_limits "
             "WHERE LOWER(contaminant) = ? AND LOWER(food_category) = ? "
             "AND tolerance_ppb > 0 "
             "ORDER BY tolerance_ppb ASC LIMIT 1",
-            (contaminant.lower(), food_category.lower()),
+            (contaminant.lower(), resolved.lower()),
         ).fetchone()
         if row and row["tolerance_ppb"]:
             return row["tolerance_ppb"], row["source"]

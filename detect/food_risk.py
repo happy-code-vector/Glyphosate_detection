@@ -124,14 +124,54 @@ class FoodRiskQuery:
         # 5. Give up — return original
         return name
 
+    def _resolve_benchmark_category(self, food_category: str) -> str:
+        """Resolve canonical key to actual food_category in tolerance_limits."""
+        fc = food_category.strip()
+        candidates = [fc]
+        if fc.endswith("s"):
+            candidates.append(fc[:-1])
+        else:
+            candidates.append(fc + "s")
+        if fc.endswith("ies"):
+            candidates.append(fc[:-3] + "y")
+        elif fc.endswith("es"):
+            candidates.append(fc[:-2])
+        if "_" in fc:
+            candidates.append(fc.replace("_", " "))
+        if " " in fc:
+            candidates.append(fc.replace(" ", "_"))
+        # Reverse alias lookup
+        alias_rows = self._conn.execute(
+            "SELECT alias FROM category_aliases WHERE canonical_key = ?",
+            (fc,),
+        ).fetchall()
+        for r in alias_rows:
+            candidates.append(r["alias"])
+        # Deduplicate
+        lower_set = set()
+        final = []
+        for c in candidates:
+            cl = c.lower()
+            if cl not in lower_set:
+                lower_set.add(cl)
+                final.append(c)
+        placeholders = ",".join("?" * len(final))
+        row = self._conn.execute(
+            "SELECT DISTINCT food_category FROM tolerance_limits "
+            f"WHERE LOWER(food_category) IN ({placeholders}) LIMIT 1",
+            [c.lower() for c in final],
+        ).fetchone()
+        return row["food_category"] if row else fc
+
     def _get_regulatory_comparison(
         self, food_category: str, contaminant: str, max_ppb: float | None = None
     ) -> list[RegulatoryEntry]:
+        resolved = self._resolve_benchmark_category(food_category)
         rows = self._conn.execute(
             "SELECT source, tolerance_ppb, regulation_reference "
             "FROM tolerance_limits "
             "WHERE food_category = ? AND contaminant = ?",
-            (food_category, contaminant),
+            (resolved, contaminant),
         ).fetchall()
         entries = []
         for r in rows:
