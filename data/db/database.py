@@ -266,23 +266,47 @@ def invalidate_alias_cache():
 def normalize_category(raw: str, conn=None) -> Optional[str]:
     """
     Map any raw category string to a canonical key.
-    Uses cached aliases for fast matching. Falls back to substring matching.
+    Uses cached aliases for fast matching. Falls back to word-boundary substring matching.
     Returns None if no match found — caller must handle this.
     """
     if not raw:
         return None
     cleaned = raw.lower().strip()
+    # Normalize punctuation to spaces for matching (commas, semicolons, etc.)
+    normalized = re.sub(r'[,;/\t]+', ' ', cleaned)
+    normalized = re.sub(r'\s+', ' ', normalized).strip()
 
     _load_alias_cache(conn)
 
-    # 1. Exact match (O(1) dict lookup)
+    # 1. Exact match (O(1) dict lookup) — try both raw and normalized
     if cleaned in _alias_cache:
         return _alias_cache[cleaned]
+    if normalized != cleaned and normalized in _alias_cache:
+        return _alias_cache[normalized]
 
-    # 2. Substring: find longest alias that appears inside the raw string
+    # 2. Word-boundary substring: find best alias that appears as a whole word
+    #    inside the normalized string. Prevents "pea" matching inside "peanut butter".
+    #    When multiple aliases match, prefer longer alias. On tie, prefer the
+    #    match whose captured text covers more of the input (beats generic words
+    #    like "butter" winning over "peanut" in "peanut, butter").
+    best_alias_len = 0
+    best_span = 0
+    best_key = None
     for alias, key in _alias_substring:
-        if alias in cleaned:
-            return key
+        if len(alias) < 2:
+            continue
+        if len(alias) < best_alias_len:
+            break  # sorted desc, no better alias possible
+        pattern = r'\b' + re.escape(alias) + r'\b'
+        m = re.search(pattern, normalized)
+        if m:
+            span = m.end() - m.start()
+            if len(alias) > best_alias_len or (len(alias) == best_alias_len and span > best_span):
+                best_alias_len = len(alias)
+                best_span = span
+                best_key = key
+    if best_key:
+        return best_key
 
     return None
 

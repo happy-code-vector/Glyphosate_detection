@@ -143,13 +143,14 @@ COMMODITY_SEEDS = [
         ],
     },
     {
-        "commodity_slug": "milk",
-        "display_name": "Milk",
+        "commodity_slug": "dairy",
+        "display_name": "Dairy",
         "consumption_tier": "daily",
         "ingredient_aliases": [
             "milk", "whole milk", "skim milk", "low-fat milk", "nonfat milk",
             "milk solids", "dried milk", "nonfat dry milk", "lactose",
-            "whey", "whey protein", "buttermilk", "cream",
+            "whey", "whey protein", "buttermilk", "cream", "cheese",
+            "yogurt", "joghurt", "butter", "ghee", "kefir",
         ],
     },
     {

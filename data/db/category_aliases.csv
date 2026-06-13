@@ -4,7 +4,7 @@ algae,algae
 algen und prokaryonten,algae
 "algen und prokaryonten, geröstet",algae
 "algen und prokaryonten, getrocknet",algae
-almond,almonds
+almond,almond
 almond flour,almond
 almond milk,almond
 almonds,almond
@@ -25,10 +25,10 @@ aprikosen,apricot
 "aprikosen, getrocknet",apricot
 "aprikosen, getrocknet",dried_apricot
 "aprikosen, nektar",apricot
-"aprikosen,�getrocknet",apricot
+"aprikosen, getrocknet",apricot
 aprikosennektar,apricot
 arganöl,argan oil
-argan�l,argan oil
+arganöl,argan oil
 aronianektar,chokeberry
 aroniasaft,chokeberry
 artischocken,artichoke
@@ -48,7 +48,7 @@ blaubeeren,blueberry
 bleached flour,wheat
 bleichsellerie vor- und zubereitet,celery
 blueberries,blueberry
-blueberry,blueberries
+blueberry,blueberry
 broccoli,broccoli
 brown rice,rice
 brunnenkresse,watercress
@@ -56,7 +56,7 @@ brunnenkresse,watercress
 "brunnenkresse, wasserspinat",watercress
 butter,dairy
 bärlauch/wilder knoblauch/waldknoblauch,garlic
-b�rlauch/wilder�knoblauch/waldknoblauch,garlic
+bärlauch/wilder knoblauch/waldknoblauch,garlic
 canned_beets,beet
 canola,canola
 carrot,carrot
@@ -78,7 +78,7 @@ chickpea,chickpeas
 chickpeas,chickpeas
 chicoree,chicory
 chicorée,chicory
-chicor�e,chicory
+chicorée,chicory
 chilis,chili pepper
 chocolate,cocoa
 cocoa,cocoa
@@ -97,7 +97,7 @@ dates,dates
 datteln,dates
 "datteln, getrocknet",dates
 "datteln, getrocknet",dates
-"datteln,�getrocknet",dates
+"datteln, getrocknet",dates
 egg,egg
 egg white,egg
 egg yolk,egg
@@ -110,7 +110,7 @@ erdartischocke (topinambur),jerusalem_artichoke
 erdartischocken/topinambur,jerusalem_artichoke
 erdbeeren,strawberry
 erdmandeln/tigernüsse,tiger_nuts
-erdmandeln/tigern�sse,tiger_nuts
+erdmandeln/tigernüsse,tiger_nuts
 erdnuesse,peanuts
 erdnuss,peanut
 essig,vinegar
@@ -123,9 +123,9 @@ fenchelsamen,fennel
 fish,fish
 flaxseed,flaxseed
 folgenahrungen für säuglinge,baby_food
-folgenahrungen f�r s�uglinge,baby_food
+folgenahrungen für säuglinge,baby_food
 folgenahrungen für säuglinge,baby_food
-folgenahrungen�f�r�s�uglinge,baby_food
+folgenahrungen für säuglinge,baby_food
 garlic,garlic
 garten-schwarzwurzeln/scorzonera,salsify
 "geflügel, strauße, tauben fleisch",poultry
@@ -135,11 +135,11 @@ geflügel: ei,poultry
 geflügel: leber,poultry
 geflügel: muskel,poultry
 geflügel:  genießbare schlachtnebenerzeugnisse (außer leber und nieren),chicken
-"gefl�gel, strau�e, tauben fleisch",chicken
-"gefl�gel, strau�e, tauben leber",chicken
-"gefl�gel, strau�e, tauben muskel",chicken
-gefl�gel:�ei,egg
-gefl�gel:�muskel,chicken
+"geflügel, strauße, tauben fleisch",chicken
+"geflügel, strauße, tauben leber",chicken
+"geflügel, strauße, tauben muskel",chicken
+geflügel: ei,egg
+geflügel: muskel,chicken
 gerste,barley
 ghee,dairy
 granatapfel,pomegranate
@@ -152,7 +152,7 @@ gruenkohle,kale
 grünkohle,kale
 "grünkohle, konserve",kale
 grünkohl vor- und zubereitet,kale
-gr�nkohle,kale
+grünkohle,kale
 guave,guava
 guaven,guava
 guavennektar,guava
@@ -174,7 +174,7 @@ hop,hops
 hopfen,hops
 hopfen (getrocknet),hops
 hopfen (getrocknet),hops
-hopfen�(getrocknet),hops
+hopfen (getrocknet),hops
 hops,hops
 horseradish,horseradish
 huehnchen,chicken
@@ -187,7 +187,7 @@ italienische strohblume/currykraut,curry_plant
 joghurt,dairy
 "johannisbeernektar (schwarz, rot und weiss)",currants
 "johannisbeernektar (schwarz, rot und weiß)",currants
-"johannisbeernektar�(schwarz,�rot�und�wei�)",currants
+"johannisbeernektar (schwarz, rot und weiß)",currants
 "johannisbeersaft (schwarz, rot und weiß)",currant_juice
 "johannisbeersaft (schwarz, rot und weiß)",currant_juice
 kaese,dairy
@@ -206,27 +206,27 @@ knoblauch,garlic
 "knollensellerie, getrocknet",celery
 kohlrabi,kohlrabi
 kohlrüben,kohlrabi
-kohlr�ben,kohlrabi
+kohlrüben,kohlrabi
 kokosnüsse,coconut
 "komplettmahlzeiten, beikost u. sonst. f. säuglinge/kleinkinder",baby_food
-"komplettmahlzeiten, beikost u. sonst. f. s�uglinge/kleinkinder",baby_food
+"komplettmahlzeiten, beikost u. sonst. f. säuglinge/kleinkinder",baby_food
 "komplettmahlzeiten, beikost u. sonstige f. saeuglinge/kleinkinder",baby_food
 "komplettmahlzeiten, beikost u. sonst. f. säuglinge/kleinkinder",baby_food
-"komplettmahlzeiten,�beikost�u.�sonst.�f.�s�uglinge/kleinkinder",baby_food
+"komplettmahlzeiten, beikost u. sonst. f. säuglinge/kleinkinder",baby_food
 "kopfkohle, konserve",cabbage
 koriander,cilantro
 korianderblaetter,cilantro
 kressen und andere sprossen und keime,watercress
 kressen und andere sprossen und keime,watercress
-kressen�und�andere�sprossen�und�keime,watercress
+kressen und andere sprossen und keime,watercress
 kreuzkuemmelsamen,cumin
 kreuzkümmel,cumin
 kurkuma,turmeric
 kümmel,caraway
 kürbiskerne,pumpkin
 kürbiskernöl,pumpkin
-k�mmel,caraway
-k�rbiskern�l,pumpkin
+kümmel,caraway
+kürbiskernöl,pumpkin
 lactose,dairy
 leinsamen,flaxseed
 lemon,lemon
@@ -244,7 +244,7 @@ macadamianüsse,macadamia
 mais,corn
 mandarin,orange
 mandel,almond
-mandeln,almonds
+mandeln,almond
 maniokmehl,cassava
 marjoram,marjoram
 maronen (esskastanien),chestnuts
@@ -283,12 +283,12 @@ pak-choi/chinesischer senfkohl,cabbage
 palmöl,palm_oil
 paranuesse,brazil nuts
 paranüsse,brazil_nuts
-paran�sse,brazil nuts
+paranüsse,brazil nuts
 pastinaken,parsnip
 pea,peas
 peach,peach
 peaches,peach
-peanut,peanuts
+peanut,peanut
 peanut butter,peanut
 peanuts,peanut
 pear,pear
@@ -299,10 +299,10 @@ peperonis,chili pepper
 petersilie,parsley
 "pfeffer, schwarz und weiss",pepper
 "pfeffer, schwarz und weiß",pepper
-"pfeffer, schwarz und wei�",pepper
+"pfeffer, schwarz und weiß",pepper
 pfefferminze,mint
 "pfeffer (schwarz, grün und weiß)",pepper
-"pfeffer�(schwarz,�gr�n�und�wei�)",pepper
+"pfeffer (schwarz, grün und weiß)",pepper
 "pferde, esel, maultiere oder maulesel muskel",horse
 pfirsiche,peach
 physalis,physalis
@@ -348,14 +348,14 @@ rinder: milch,dairy
 rinder: muskel,cattle
 rinder: sahne,dairy
 rinder: sonstige milchprodukte,dairy
-rinder:�sahne,dairy
+rinder: sahne,dairy
 rindfleisch,cattle
 roggen,rye
 rolled oats,oats
 romaine lettuce,lettuce
 romanesco,romanesco
 rote ruben,beet
-rote r�ben,beet
+rote rüben,beet
 rote betesaft,beet
 rote bete vor- und zubereitet,beet
 rote rüben,beet
@@ -404,8 +404,8 @@ sonstige nutztiere: muskel,other_meat
 sonstige erzeugnisse von landtieren,other_meat
 "sonstige geflügel, strauße, tauben: muskel",poultry
 sonstige nutztiere: muskel,other_meat
-sonstige�erzeugnisse�von�landtieren,other_meat
-sonstige�nutztiere:�muskel,other_meat
+sonstige erzeugnisse von landtieren,other_meat
+sonstige nutztiere: muskel,other_meat
 soy,soybeans
 soy lecithin,soybeans
 soy protein,soybeans
@@ -428,7 +428,7 @@ sunflower seeds,sunflower
 sweeties/oroblancos,grapefruit
 säuglingsanfangs- und folgenahrungen,baby_food
 säuglingsanfangsnahrungen,baby_food
-s�uglingsanfangsnahrungen,baby_food
+säuglingsanfangsnahrungen,baby_food
 table olives,olive
 tafeloliven,olive
 "tafeloliven, vor- und zubereitet",olive
@@ -518,7 +518,7 @@ weisse rueben,beet
 oliven fuer die gewinnung von oel,olive
 kales,kale
 currant,currants
-chestnut,chestnuts
+chestnut,chestnut
 purslanes,purslane
 "flax, seed",flaxseed
 hemp seeds,hemp_seeds
@@ -537,3 +537,161 @@ sugar_beets,beet
 baby_food_baby_food,baby_food
 (f) poultry,poultry
 algae and prokaryotes organisms,algae
+onion,onion
+onions,onion
+zwiebel,onion
+zwiebeln,onion
+cantaloupe,cantaloupe
+cantaloupes,cantaloupe
+mango,mango
+mangos,mango
+kiwi,kiwi
+kiwis,kiwi
+melon,melon
+melons,melon
+plum,plum
+plums,pflaume
+pflaume,plum
+pflaumen,plum
+asparagus,asparagus
+spargel,asparagus
+eggplant,eggplant
+eggplants,eggplant
+aubergine,eggplant
+auberginen,eggplant
+mushroom,mushroom
+mushrooms,mushroom
+pilze,mushroom
+kulturpilze,mushroom
+herbs,herbs
+kräuter,herbs
+blattgewürze,herbs
+walnut,walnut
+walnuts,walnut
+blueberries,blueberry
+soybean,soybeans
+oat,oats
+bean,beans
+kartoffeln,potato
+kartoffel,potato
+tomaten,tomato
+tomate,tomato
+tomatensaft,tomato
+apfel,apple
+äpfel,apple
+apfelsaft,apple
+birne,pear
+erdbeere,strawberry
+trauben,grape
+traube,grape
+bananen,banana
+banane,banana
+zitronen,lemon
+limetten,lime
+limette,lime
+pfirsich,peach
+pflaumen,plum
+pflaume,plum
+kirsche,cherry
+mangos,mango
+kiwis,kiwi
+melonen,melon
+melone,melon
+möhren,carrot
+möhre,carrot
+karotten,carrot
+karotte,carrot
+gurke,cucumber
+gurken,cucumber
+paprika,pepper
+zwiebeln,onion
+zwiebel,onion
+spargel,asparagus
+auberginen,eggplant
+aubergine,eggplant
+pilze,mushroom
+kulturpilze,mushroom
+blattgewürze,herbs
+erdnüsse,peanut
+erdnuss,peanut
+haselnüsse,hazelnut
+haselnuss,hazelnut
+walnuss,walnut
+mandarinen,orange
+mandarine,orange
+spinat,spinach
+watermelon,watermelon
+watermelons,watermelon
+acai,acai
+artichoke (leaf  and  stem vegetable),artichoke
+cabbage,cabbage
+grapefruit,grapefruit
+avocado,avocado
+avocados,avocado
+pepper,pepper
+peanut butter,peanut
+almond butter,almond
+bell peppers,pepper
+bell pepper,pepper
+zucchini,zucchini
+squash,squash
+butternut squash,squash
+acai,acai
+grünkohl,kale
+gruenkohl,kale
+kopfkohl,cabbage
+kopfkohle,cabbage
+kreuzkümmelsamen,cumin
+korianderblätter,cilantro
+raspberry,raspberry
+raspberries,raspberry
+acerola,acerola
+amla,amla
+ajwain,ajwain
+infant food - puree,baby_food
+infant food - cereal,infant_cereal
+chinakohl,chinese cabbage
+chinakohle,chinese cabbage
+blumenkohl,cauliflower
+blumenkohle,cauliflower
+tafeltrauben,grape
+ingwerwurzeln,ginger
+zuchtpilz,mushroom
+kulturpilz,mushroom
+zuchtpilz, kulturpilz (getrocknet),mushroom
+nektarinen,nectarine
+kirschsaft,cherry
+petersilienwurzel,parsley
+kardamom,cardamom
+ananassaft,pineapple
+mispel,medlar
+mispeln,medlar
+rosmarin,rosemary
+kerbel,chervil
+thymian,thyme
+radish,radish
+beet,beet
+apricot,apricot
+apricots,apricot
+chili peppers,chili pepper
+parsnip,parsnip
+rutabaga,rutabaga
+okra,okra
+cranberry,cranberry
+cranberries,cranberry
+leek,leek
+pumpkin,pumpkin
+blackberry,blackberry
+blackberries,blackberry
+grapefruits,grapefruit
+papayas,papaya
+papaya,papaya
+nectarine,nectarine
+spinaches,spinach
+parsley,parsley
+peppers,pepper
+orangen,orange
+bf mixed vegetables,baby_food
+bf applesauce,baby_food
+bf prunes,baby_food
+bf water baby bottled,baby_food

@@ -22,42 +22,42 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 logger = logging.getLogger("enrich")
 
 # Commodity slug → PDP food_category mapping
-# Most map 1:1, but some share broad categories
+# Now maps 1:1 since PDP fetcher uses specific canonical keys (not broad groups).
 COMMODITY_TO_PDP = {
-    "strawberry": "strawberries",
-    "spinach": "fresh_vegetables",
-    "kale": "fresh_vegetables",
-    "peach": "fresh_fruit",
-    "celery": "fresh_vegetables",
-    "carrot": "fresh_vegetables",
-    "lettuce": "fresh_vegetables",
-    "cucumber": "fresh_vegetables",
-    "orange": "fresh_fruit",
-    "lemon": "fresh_fruit",
+    "strawberry": "strawberry",
+    "spinach": "spinach",
+    "kale": "kale",
+    "peach": "peach",
+    "celery": "celery",
+    "carrot": "carrot",
+    "lettuce": "lettuce",
+    "cucumber": "cucumber",
+    "orange": "orange",
+    "lemon": "lemon",
     "milk": None,  # No PDP data for dairy
     "egg": None,   # No PDP data for eggs
     "wheat": "wheat",
     "corn": "corn",
     "soybean": "soybeans",
-    "apple": "fresh_fruit",
-    "grape": "fresh_fruit",
+    "apple": "apple",
+    "grape": "grape",
     "rice": "rice",
-    "potato": "fresh_vegetables",
-    "tomato": "fresh_vegetables",
-    "banana": "fresh_fruit",
-    "blueberry": "blueberries",
+    "potato": "potato",
+    "tomato": "tomato",
+    "banana": "banana",
+    "blueberry": "blueberry",
     "oat": "oats",
     "barley": "barley",
     "almond": None,  # No PDP data
     "peanut": None,  # No PDP data
-    "cherry": "fresh_fruit",
-    "pear": "fresh_fruit",
+    "cherry": "cherry",
+    "pear": "pear",
     "bean": "beans",
-    "broccoli": "fresh_vegetables",
+    "broccoli": "broccoli",
 }
 
-# PDP commodity codes for specific commodities (not broad categories)
-# Used to filter PDP data for commodities that share a broad category
+# PDP commodity codes — no longer needed for filtering since categories are now specific,
+# but kept for reference and pdp_commodity_code field population.
 COMMODITY_PDP_CODES = {
     "strawberry": ["ST"],
     "wheat": ["WH"],

@@ -49,68 +49,72 @@ USDA_PDP_REPORTS = [
 ]
 
 # PDP commodity name → canonical food category mapping.
+# Maps to SPECIFIC canonical keys (not broad groups like fresh_fruit).
+# Canonical keys are singular nouns matching the category_aliases table.
 COMMODITY_MAP = {
     # PDP 2-letter commodity codes
     "SY": "soybeans",       # Soybean Grain
     "CO": "corn",           # Corn Grain
     "BT": "canned_beets",   # Beets, Canned
-    "BB": "blueberries",    # Blueberries, Cultivated
-    "BZ": "blueberries",    # Blueberries, Frozen
-    "BU": "butter",         # Butter
+    "BB": "blueberry",      # Blueberries, Cultivated
+    "BZ": "blueberry",      # Blueberries, Frozen
+    "BU": "dairy",           # Butter
     "WH": "wheat",          # Wheat Flour
     "OA": "oats",           # Oats
     "RC": "rice",           # Rice
     "BA": "barley",         # Barley
     "BN": "beans",          # Beans
-    "GP": "grapes",         # Grapes
-    "ST": "strawberries",   # Strawberries
-    "AP": "fresh_fruit",    # Apples
-    "BJ": "fresh_fruit",    # Apple Juice
-    "PB": "fresh_fruit",    # Peaches
-    "PR": "fresh_fruit",    # Pears
-    "CT": "fresh_fruit",    # Cantaloupe
-    "SP": "fresh_vegetables",  # Spinach
-    "PT": "fresh_vegetables",  # Potatoes
-    "TM": "fresh_vegetables",  # Tomatoes
-    "TP": "fresh_vegetables",  # Tomato Paste
-    "TK": "fresh_vegetables",  # Tomato Ketchup/Catsup
-    "CJ": "fresh_vegetables",  # Celery
-    "PK": "fresh_vegetables",  # Kale
-    "LT": "fresh_vegetables",  # Lettuce
-    "CU": "fresh_vegetables",  # Cucumber
-    "CA": "fresh_vegetables",  # Carrots
-    "OP": "infant_cereal",    # Oat Products, Infant
-    "IF": "infant_cereal",    # Infant Formula
+    "GP": "grape",          # Grapes
+    "ST": "strawberry",     # Strawberries
+    "AP": "apple",          # Apples
+    "BJ": "apple",          # Apple Juice
+    "PB": "peach",          # Peaches
+    "PR": "pear",           # Pears
+    "CT": "cantaloupe",     # Cantaloupe
+    "SP": "spinach",        # Spinach
+    "PT": "potato",         # Potatoes
+    "TM": "tomato",         # Tomatoes
+    "TP": "tomato",         # Tomato Paste
+    "TK": "tomato",         # Tomato Ketchup/Catsup
+    "CJ": "celery",         # Celery
+    "PK": "kale",           # Kale
+    "LT": "lettuce",        # Lettuce
+    "CU": "cucumber",       # Cucumber
+    "CA": "carrot",         # Carrots
+    "ON": "onion",          # Onions
+    "PB2": "pepper",        # Peppers, Bell
+    "OP": "infant_cereal",  # Oat Products, Infant
+    "IF": "infant_cereal",  # Infant Formula
     # Full commodity names (for fallback)
     "SOYBEANS": "soybeans", "SOYBEAN": "soybeans", "SOYBEAN GRAIN": "soybeans",
     "CORN GRAIN": "corn", "CORN, SWEET, FROZEN": "corn", "CORN, SWEET, CANNED": "corn",
     "CORN, SWEET": "corn", "SWEET CORN": "corn", "CORN": "corn",
     "BEETS, CANNED": "canned_beets", "CANNED BEETS": "canned_beets",
-    "BLUEBERRIES": "blueberries", "BLUEBERRY": "blueberries",
-    "BLUEBERRIES, FROZEN": "blueberries", "BLUEBERRIES, WILD": "blueberries",
-    "BUTTER": "butter",
+    "BLUEBERRIES": "blueberry", "BLUEBERRY": "blueberry",
+    "BLUEBERRIES, FROZEN": "blueberry", "BLUEBERRIES, WILD": "blueberry",
+    "BUTTER": "dairy",
     "WHEAT FLOUR": "wheat", "WHEAT, FLOUR": "wheat", "WHEAT": "wheat",
     "OATS": "oats", "OAT PRODUCTS": "oats", "OAT, ROLLED": "oats",
     "RICE": "rice", "RICE, BROWN": "rice", "RICE, WHITE": "rice",
     "BARLEY": "barley", "BARLEY, PEARLED": "barley",
     "BEANS": "beans", "BEANS, DRY": "beans", "BEANS, GREEN, CANNED": "beans",
-    "BEANS, SNAP": "fresh_vegetables", "BEANS, LIMA, FROZEN": "beans",
-    "GRAPES": "fresh_fruit", "GRAPE JUICE": "fresh_fruit",
-    "STRAWBERRIES": "fresh_fruit",
-    "APPLES": "fresh_fruit", "APPLE JUICE": "fresh_fruit",
-    "PEACHES": "fresh_fruit", "PEARS": "fresh_fruit",
-    "CANTALOUPE": "fresh_fruit",
-    "SPINACH": "fresh_vegetables", "SPINACH, FROZEN": "fresh_vegetables",
-    "POTATOES": "fresh_vegetables", "POTATOES, SWEET": "fresh_vegetables",
-    "TOMATOES": "fresh_vegetables", "TOMATO PASTE": "fresh_vegetables",
-    "TOMATOES, CANNED": "fresh_vegetables",
-    "CELERY": "fresh_vegetables",
-    "KALE": "fresh_vegetables",
-    "LETTUCE": "fresh_vegetables", "LETTUCE, HEAD": "fresh_vegetables",
-    "CUCUMBER": "fresh_vegetables",
-    "CARROTS": "fresh_vegetables",
-    "PEPPERS, BELL": "fresh_vegetables",
-    "ONIONS": "fresh_vegetables",
+    "BEANS, SNAP": "beans", "BEANS, LIMA, FROZEN": "beans",
+    "GRAPES": "grape", "GRAPE JUICE": "grape",
+    "STRAWBERRIES": "strawberry",
+    "APPLES": "apple", "APPLE JUICE": "apple",
+    "PEACHES": "peach", "PEARS": "pear",
+    "CANTALOUPE": "cantaloupe",
+    "SPINACH": "spinach", "SPINACH, FROZEN": "spinach",
+    "POTATOES": "potato", "POTATOES, SWEET": "potato",
+    "TOMATOES": "tomato", "TOMATO PASTE": "tomato",
+    "TOMATOES, CANNED": "tomato",
+    "CELERY": "celery",
+    "KALE": "kale",
+    "LETTUCE": "lettuce", "LETTUCE, HEAD": "lettuce",
+    "CUCUMBER": "cucumber",
+    "CARROTS": "carrot",
+    "PEPPERS, BELL": "pepper",
+    "ONIONS": "onion",
     "INFANT FORMULA": "infant_cereal",
     "OAT PRODUCTS, INFANT/TODDLER": "infant_cereal",
     "OAT PRODUCTS,INFANT/TODDLER": "infant_cereal",
@@ -344,13 +348,17 @@ class USDA_PDPFetcher(BaseFetcher):
 
     def _map_commodity(self, raw_commodity: str) -> str | None:
         """Map a PDP commodity name to a canonical food category key."""
+        import re
         canonical = COMMODITY_MAP.get(raw_commodity.upper().strip())
         if canonical:
             return canonical
 
         upper = raw_commodity.upper().strip()
-        for pdp_name, canonical_key in COMMODITY_MAP.items():
-            if pdp_name in upper or upper in pdp_name:
+        # Sort by key length descending so more specific matches win
+        for pdp_name, canonical_key in sorted(COMMODITY_MAP.items(), key=lambda x: len(x[0]), reverse=True):
+            # Word-boundary match to prevent "CORN" matching "POPCORN"
+            pattern = r'\b' + re.escape(pdp_name) + r'\b'
+            if re.search(pattern, upper):
                 return canonical_key
 
         return None

@@ -741,47 +741,47 @@ class GermanyBVLFetcher(BaseFetcher):
             " amarant": "corn",
             "amarant": "corn",
             "quinoa": "quinoa",
-            # Fruits
-            "äpfel": "fresh_fruit",
-            "apfel": "fresh_fruit",
-            "apfelsaft": "fresh_fruit",
-            "birnen": "fresh_fruit",
-            "birne": "fresh_fruit",
-            "erdbeeren": "fresh_fruit",
-            "erdbeere": "fresh_fruit",
-            "trauben": "fresh_fruit",
-            "traube": "fresh_fruit",
-            "bananen": "fresh_fruit",
-            "banane": "fresh_fruit",
-            "orangen": "fresh_fruit",
-            "orange": "fresh_fruit",
-            "zitronen": "fresh_fruit",
-            "zitrone": "fresh_fruit",
-            "limetten": "fresh_fruit",
-            "limette": "fresh_fruit",
-            "mandarinen": "fresh_fruit",
-            "mandarine": "fresh_fruit",
-            "pfirsiche": "fresh_fruit",
-            "pfirsich": "fresh_fruit",
-            "pflaumen": "fresh_fruit",
-            "pflaume": "fresh_fruit",
-            "kirschen": "fresh_fruit",
-            "kirsche": "fresh_fruit",
-            "mangos": "fresh_fruit",
-            "mango": "fresh_fruit",
-            "kiwis": "fresh_fruit",
-            "kiwi": "fresh_fruit",
-            "melonen": "fresh_fruit",
-            "melone": "fresh_fruit",
-            "rosinen": "fresh_fruit",
-            "wein": "fresh_fruit",
-            "heidelbeeren": "blueberries",
-            "himbeeren": "fresh_fruit",
-            "himbeere": "fresh_fruit",
-            "erdnüsse": "peanuts",
-            "erdnuss": "peanuts",
-            "walnüsse": "walnuts",
-            "walnuss": "walnuts",
+            # Fruits — specific canonical keys
+            "äpfel": "apple",
+            "apfel": "apple",
+            "apfelsaft": "apple",
+            "birnen": "pear",
+            "birne": "pear",
+            "erdbeeren": "strawberry",
+            "erdbeere": "strawberry",
+            "trauben": "grape",
+            "traube": "grape",
+            "bananen": "banana",
+            "banane": "banana",
+            "orangen": "orange",
+            "orange": "orange",
+            "zitronen": "lemon",
+            "zitrone": "lemon",
+            "limetten": "lime",
+            "limette": "lime",
+            "mandarinen": "orange",
+            "mandarine": "orange",
+            "pfirsiche": "peach",
+            "pfirsich": "peach",
+            "pflaumen": "plum",
+            "pflaume": "plum",
+            "kirschen": "cherry",
+            "kirsche": "cherry",
+            "mangos": "mango",
+            "mango": "mango",
+            "kiwis": "kiwi",
+            "kiwi": "kiwi",
+            "melonen": "melon",
+            "melone": "melon",
+            "rosinen": "grape",
+            "wein": "grape",
+            "heidelbeeren": "blueberry",
+            "himbeeren": "raspberry",
+            "himbeere": "raspberry",
+            "erdnüsse": "peanut",
+            "erdnuss": "peanut",
+            "walnüsse": "walnut",
+            "walnuss": "walnut",
             "mohnsamen": "poppy seeds",
             "koriandersamen": "coriander seed",
             "avocadofrüchte": "fresh_fruit",
@@ -790,32 +790,32 @@ class GermanyBVLFetcher(BaseFetcher):
             "persimonen/kakis": "fresh_fruit",
             "rhabarber": "fresh_vegetables",
             "johannisbeeren": "fresh_fruit",
-            # Vegetables
-            "kartoffeln": "fresh_vegetables",
-            "kartoffel": "fresh_vegetables",
-            "möhren": "fresh_vegetables",
-            "möhre": "fresh_vegetables",
-            "karotten": "fresh_vegetables",
-            "karotte": "fresh_vegetables",
-            "tomaten": "fresh_vegetables",
-            "tomate": "fresh_vegetables",
-            "tomatensaft": "fresh_vegetables",
-            "salat": "fresh_vegetables",
-            "kopfsalat": "fresh_vegetables",
-            "eisbergsalat": "fresh_vegetables",
-            "gurke": "fresh_vegetables",
-            "gurken": "fresh_vegetables",
-            "paprika": "fresh_vegetables",
-            "zwiebeln": "fresh_vegetables",
-            "zwiebel": "fresh_vegetables",
-            "spargel": "fresh_vegetables",
-            "auberginen": "fresh_vegetables",
-            "aubergine": "fresh_vegetables",
-            "kulturpilze": "fresh_vegetables",
-            "pilze": "fresh_vegetables",
-            "blattgewürze": "fresh_vegetables",
-            "frische kräuter": "fresh_vegetables",
-            "senfkörner": "fresh_vegetables",
+            # Vegetables — specific canonical keys
+            "kartoffeln": "potato",
+            "kartoffel": "potato",
+            "möhren": "carrot",
+            "möhre": "carrot",
+            "karotten": "carrot",
+            "karotte": "carrot",
+            "tomaten": "tomato",
+            "tomate": "tomato",
+            "tomatensaft": "tomato",
+            "salat": "lettuce",
+            "kopfsalat": "lettuce",
+            "eisbergsalat": "lettuce",
+            "gurke": "cucumber",
+            "gurken": "cucumber",
+            "paprika": "pepper",
+            "zwiebeln": "onion",
+            "zwiebel": "onion",
+            "spargel": "asparagus",
+            "auberginen": "eggplant",
+            "aubergine": "eggplant",
+            "kulturpilze": "mushroom",
+            "pilze": "mushroom",
+            "blattgewürze": "herbs",
+            "frische kräuter": "herbs",
+            "senfkörner": "mustard seeds",
             # Processed / other
             "brot": "wheat",
             "toastbrot": "wheat",
@@ -881,7 +881,7 @@ class GermanyBVLFetcher(BaseFetcher):
             "fenchel": "fennel",
             "erdartischocke": "jerusalem_artichoke",
             "knoblauch": "garlic",
-            "zwiebeln": "fresh_vegetables",
+            "zwiebeln": "onion",
             "porree": "leek",
             # Fruits
             "aprikosen, getrocknet": "dried_apricot",
@@ -927,17 +927,22 @@ class GermanyBVLFetcher(BaseFetcher):
         if lower in mappings:
             return mappings[lower]
 
-        # Try partial match — check if any German keyword is contained
+        # Try word-boundary match — check if any German keyword appears as a whole word
         # Sort by length descending so longer (more specific) matches win
+        import re
         for german_name in sorted(mappings.keys(), key=len, reverse=True):
-            if german_name in lower:
+            if len(german_name) < 2:
+                continue
+            pattern = r'\b' + re.escape(german_name) + r'\b'
+            if re.search(pattern, lower):
                 return mappings[german_name]
 
-        # Fallback: classify unmapped names into broad categories
-        # German fruit suffixes
+        # Fallback: classify unmapped names using suffix heuristics.
+        # These are last-resort guesses for unmapped BVL commodities.
+        # German fruit suffixes → broad fruit group
         if any(s in lower for s in ["früchte", "frucht", "beeren", "beere", "melone"]):
             return "fresh_fruit"
-        # German vegetable suffixes
+        # German vegetable suffixes → broad vegetable group
         if any(s in lower for s in ["gemüse", "gewürz", "kräuter", "salat", "pilze"]):
             return "fresh_vegetables"
         # Frozen variants
