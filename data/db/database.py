@@ -922,6 +922,8 @@ def _batch_insert_products(conn, rows: list[dict], source_name: str) -> int:
         r["contaminant"] = normalize_contaminant(r["contaminant"])
         prepared.append(r)
 
+    # Count rows before insert to calculate actual insertions
+    before = conn.execute("SELECT COUNT(*) FROM product_tests").fetchone()[0]
     conn.executemany("""
         INSERT OR IGNORE INTO product_tests (
             source_name, source_url, report_label, published_date, data_year,
@@ -937,7 +939,8 @@ def _batch_insert_products(conn, rows: list[dict], source_name: str) -> int:
             :methodology_note, :confidence, :dedup_key, :raw_file_path
         )
     """, prepared)
-    return conn.execute("SELECT changes()").fetchone()[0]
+    after = conn.execute("SELECT COUNT(*) FROM product_tests").fetchone()[0]
+    return after - before
 
 
 def _batch_insert_categories(conn, rows: list[dict], source_name: str) -> int:
@@ -956,6 +959,7 @@ def _batch_insert_categories(conn, rows: list[dict], source_name: str) -> int:
         r["contaminant"] = normalize_contaminant(r["contaminant"])
         prepared.append(r)
 
+    before = conn.execute("SELECT COUNT(*) FROM category_summaries").fetchone()[0]
     conn.executemany("""
         INSERT OR IGNORE INTO category_summaries (
             source_name, source_url, report_label, published_date, data_year,
@@ -973,7 +977,8 @@ def _batch_insert_categories(conn, rows: list[dict], source_name: str) -> int:
             :methodology_note, :confidence, :dedup_key, :raw_file_path
         )
     """, prepared)
-    return conn.execute("SELECT changes()").fetchone()[0]
+    after = conn.execute("SELECT COUNT(*) FROM category_summaries").fetchone()[0]
+    return after - before
 
 
 def _batch_insert_water(conn, rows: list[dict], source_name: str) -> int:
@@ -994,6 +999,7 @@ def _batch_insert_water(conn, rows: list[dict], source_name: str) -> int:
         r["contaminant"] = normalize_contaminant(r["contaminant"])
         prepared.append(r)
 
+    before = conn.execute("SELECT COUNT(*) FROM water_tests").fetchone()[0]
     conn.executemany("""
         INSERT OR IGNORE INTO water_tests (
             source_name, source_url, report_label, data_year,
@@ -1013,7 +1019,8 @@ def _batch_insert_water(conn, rows: list[dict], source_name: str) -> int:
             :methodology_note, :confidence, :dedup_key
         )
     """, prepared)
-    return conn.execute("SELECT changes()").fetchone()[0]
+    after = conn.execute("SELECT COUNT(*) FROM water_tests").fetchone()[0]
+    return after - before
 
 
 def _insert_product(conn, row: dict) -> int:
