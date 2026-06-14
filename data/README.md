@@ -13,7 +13,7 @@ product results where they actually exist.
 |---|---|
 | `db/schema.sql` | Full SQLite schema: 12 tables, 11+ views |
 | `db/database.py` | Core DB operations, migrations, inserts |
-| `db/category_aliases.csv` | ~206 ingredient strings → canonical categories |
+| `db/category_aliases.csv` | 647 ingredient strings → canonical categories |
 | `contaminants.py` | Contaminant registry (glyphosate, lead, atrazine, + more) |
 | `run_pipeline.py` | Master runner — run this |
 | `migrate_to_firestore.py` | SQLite → Firestore migration script |
