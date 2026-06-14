@@ -858,36 +858,162 @@ def insert_rows(rows: list[dict], source_name: str, source_file: str = "") -> di
     or category_summaries (Tier 2) based on the 'tier' field.
     Skips duplicates via dedup_key.
     Returns counts: {inserted, skipped, failed}
+
+    Optimized with batch executemany() and PRAGMA tuning for bulk inserts.
     """
     inserted = skipped = failed = 0
+
+    # Pre-group rows by table/tier for batch inserts
+    product_rows = []
+    category_rows = []
+    water_rows = []
+
+    for row in rows:
+        if not row.get("dedup_key"):
+            logger.warning("Row missing dedup_key — skipping: %s", row)
+            failed += 1
+            continue
+
+        table = row.get("table", "food")
+        if table == "water":
+            water_rows.append(row)
+        else:
+            tier = row.get("tier", 1)
+            if tier == 1:
+                product_rows.append(row)
+            else:
+                category_rows.append(row)
+
     with get_connection() as conn:
-        for row in rows:
-            if not row.get("dedup_key"):
-                logger.warning("Row missing dedup_key — skipping: %s", row)
-                failed += 1
-                continue
-            try:
-                table = row.get("table", "food")
-                if table == "water":
-                    changes = _insert_water(conn, row)
-                else:
-                    tier = row.get("tier", 1)
-                    if tier == 1:
-                        changes = _insert_product(conn, row)
-                    else:
-                        changes = _insert_category(conn, row)
+        # Speed up bulk inserts
+        conn.execute("PRAGMA synchronous=OFF")
+        conn.execute("PRAGMA cache_size=-64000")  # 64MB cache
 
-                if changes:
-                    inserted += 1
-                else:
-                    skipped += 1
-            except sqlite3.Error as e:
-                logger.error("Insert failed for row %s: %s", row.get("dedup_key"), e)
-                failed += 1
+        # Batch insert product_tests
+        if product_rows:
+            inserted += _batch_insert_products(conn, product_rows, source_name)
 
+        # Batch insert category_summaries
+        if category_rows:
+            inserted += _batch_insert_categories(conn, category_rows, source_name)
+
+        # Batch insert water_tests
+        if water_rows:
+            inserted += _batch_insert_water(conn, water_rows, source_name)
+
+    skipped = len(rows) - inserted - failed
     log_ingest(source_name, "success" if failed == 0 else "partial",
                inserted, skipped, failed, source_file=source_file)
     return {"inserted": inserted, "skipped": skipped, "failed": failed}
+
+
+def _batch_insert_products(conn, rows: list[dict], source_name: str) -> int:
+    """Batch insert product_test rows using executemany."""
+    defaults = {
+        "contaminant": "glyphosate",
+        "measured_ppb": None, "below_detection": 0, "limit_of_detection": None,
+        "original_unit": "ppb", "unit_conversion": 1.0,
+        "is_organic": 0, "is_grf_certified": 0,
+        "methodology_note": None, "raw_file_path": None,
+    }
+    prepared = []
+    for row in rows:
+        r = {**defaults, **row}
+        r["contaminant"] = normalize_contaminant(r["contaminant"])
+        prepared.append(r)
+
+    conn.executemany("""
+        INSERT OR IGNORE INTO product_tests (
+            source_name, source_url, report_label, published_date, data_year,
+            food_category, raw_category, contaminant, product_name,
+            measured_ppb, below_detection, limit_of_detection,
+            original_unit, unit_conversion, is_organic, is_grf_certified,
+            methodology_note, confidence, dedup_key, raw_file_path
+        ) VALUES (
+            :source_name, :source_url, :report_label, :published_date, :data_year,
+            :food_category, :raw_category, :contaminant, :product_name,
+            :measured_ppb, :below_detection, :limit_of_detection,
+            :original_unit, :unit_conversion, :is_organic, :is_grf_certified,
+            :methodology_note, :confidence, :dedup_key, :raw_file_path
+        )
+    """, prepared)
+    return conn.execute("SELECT changes()").fetchone()[0]
+
+
+def _batch_insert_categories(conn, rows: list[dict], source_name: str) -> int:
+    """Batch insert category_summary rows using executemany."""
+    defaults = {
+        "contaminant": "glyphosate",
+        "samples_total": 0, "samples_detected": 0, "detection_rate": 0.0,
+        "avg_ppb": None, "max_ppb": None, "p95_ppb": None,
+        "median_ppb": None, "min_ppb": None,
+        "original_unit": "ppb", "unit_conversion": 1.0,
+        "is_organic": 0, "methodology_note": None, "raw_file_path": None,
+    }
+    prepared = []
+    for row in rows:
+        r = {**defaults, **row}
+        r["contaminant"] = normalize_contaminant(r["contaminant"])
+        prepared.append(r)
+
+    conn.executemany("""
+        INSERT OR IGNORE INTO category_summaries (
+            source_name, source_url, report_label, published_date, data_year,
+            food_category, raw_category, contaminant,
+            samples_total, samples_detected, detection_rate, avg_ppb, max_ppb, p95_ppb,
+            median_ppb, min_ppb,
+            original_unit, unit_conversion, is_organic,
+            methodology_note, confidence, dedup_key, raw_file_path
+        ) VALUES (
+            :source_name, :source_url, :report_label, :published_date, :data_year,
+            :food_category, :raw_category, :contaminant,
+            :samples_total, :samples_detected, :detection_rate, :avg_ppb, :max_ppb, :p95_ppb,
+            :median_ppb, :min_ppb,
+            :original_unit, :unit_conversion, :is_organic,
+            :methodology_note, :confidence, :dedup_key, :raw_file_path
+        )
+    """, prepared)
+    return conn.execute("SELECT changes()").fetchone()[0]
+
+
+def _batch_insert_water(conn, rows: list[dict], source_name: str) -> int:
+    """Batch insert water_test rows using executemany."""
+    defaults = {
+        "contaminant": "glyphosate",
+        "state": None, "county": None, "site_type": None, "site_id": None,
+        "latitude": None, "longitude": None,
+        "measured_ppb": None, "below_detection": 0, "detection_limit_ppb": None,
+        "analytical_method": None, "sample_date": None,
+        "is_aggregate": 0, "samples_total": None, "samples_detected": None,
+        "detection_rate": None, "avg_ppb": None, "max_ppb": None,
+        "methodology_note": None, "confidence": None,
+    }
+    prepared = []
+    for row in rows:
+        r = {**defaults, **row}
+        r["contaminant"] = normalize_contaminant(r["contaminant"])
+        prepared.append(r)
+
+    conn.executemany("""
+        INSERT OR IGNORE INTO water_tests (
+            source_name, source_url, report_label, data_year,
+            contaminant,
+            state, county, site_type, site_id, latitude, longitude,
+            water_type, measured_ppb, below_detection, detection_limit_ppb,
+            analytical_method, sample_date, is_aggregate,
+            samples_total, samples_detected, detection_rate, avg_ppb, max_ppb,
+            methodology_note, confidence, dedup_key
+        ) VALUES (
+            :source_name, :source_url, :report_label, :data_year,
+            :contaminant,
+            :state, :county, :site_type, :site_id, :latitude, :longitude,
+            :water_type, :measured_ppb, :below_detection, :detection_limit_ppb,
+            :analytical_method, :sample_date, :is_aggregate,
+            :samples_total, :samples_detected, :detection_rate, :avg_ppb, :max_ppb,
+            :methodology_note, :confidence, :dedup_key
+        )
+    """, prepared)
+    return conn.execute("SELECT changes()").fetchone()[0]
 
 
 def _insert_product(conn, row: dict) -> int:
