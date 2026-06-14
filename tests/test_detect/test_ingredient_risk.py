@@ -36,7 +36,7 @@ class TestIngredientRiskQuery(unittest.TestCase):
             ("corn", "corn"),
             ("corn starch", "corn"),
             ("sugar", "sugar_beets"),
-            ("salt", "fresh_vegetables"),
+            ("salt", "salt"),
         ]
         self.conn.executemany(
             "INSERT OR IGNORE INTO category_aliases (alias, canonical_key) VALUES (?, ?)",

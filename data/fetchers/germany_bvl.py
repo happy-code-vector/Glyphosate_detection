@@ -784,12 +784,12 @@ class GermanyBVLFetcher(BaseFetcher):
             "walnuss": "walnut",
             "mohnsamen": "poppy seeds",
             "koriandersamen": "coriander seed",
-            "avocadofrüchte": "fresh_fruit",
-            "avocado": "fresh_fruit",
-            "persimonen": "fresh_fruit",
-            "persimonen/kakis": "fresh_fruit",
-            "rhabarber": "fresh_vegetables",
-            "johannisbeeren": "fresh_fruit",
+            "avocadofrüchte": "avocado",
+            "avocado": "avocado",
+            "persimonen": "persimmon",
+            "persimonen/kakis": "persimmon",
+            "rhabarber": "rhubarb",
+            "johannisbeeren": "currants",
             # Vegetables — specific canonical keys
             "kartoffeln": "potato",
             "kartoffel": "potato",
@@ -937,16 +937,7 @@ class GermanyBVLFetcher(BaseFetcher):
             if re.search(pattern, lower):
                 return mappings[german_name]
 
-        # Fallback: classify unmapped names using suffix heuristics.
-        # These are last-resort guesses for unmapped BVL commodities.
-        # German fruit suffixes → broad fruit group
-        if any(s in lower for s in ["früchte", "frucht", "beeren", "beere", "melone"]):
-            return "fresh_fruit"
-        # German vegetable suffixes → broad vegetable group
-        if any(s in lower for s in ["gemüse", "gewürz", "kräuter", "salat", "pilze"]):
-            return "fresh_vegetables"
-        # Frozen variants
-        if "tiefgefroren" in lower:
-            return "fresh_fruit" if "beere" in lower or "frucht" in lower else "fresh_vegetables"
-
-        return name
+        # No match found — return None so caller falls back to normalize_category()
+        # or skips the row. Returning broad categories like fresh_fruit/fresh_vegetables
+        # causes MRL lookup failures since those keys don't exist in tolerance tables.
+        return None

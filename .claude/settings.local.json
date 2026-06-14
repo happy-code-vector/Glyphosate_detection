@@ -1,5 +1,8 @@
 {
   "permissions": {
-    "allow": []
+    "allow": [
+      "Bash(python run_pipeline.py)",
+      "Bash(python -c ' *)"
+    ]
   }
 }

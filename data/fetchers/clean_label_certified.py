@@ -35,10 +35,10 @@ CLEAN_LABEL_PRODUCTS = [
     ("Vega Protein & Greens", "Vega", "soybeans", 2020),
     ("Pea Protein", "Naked Nutrition", "peas", 2020),
     ("Rice Protein", "Naked Nutrition", "rice", 2020),
-    ("Bone Broth Protein", "Naked Nutrition", "fresh_vegetables", 2020),
+    ("Bone Broth Protein", "Naked Nutrition", "chicken", 2020),
     ("Organic Pea Protein", "NOW Foods", "peas", 2020),
     ("Organic Rice Protein", "NOW Foods", "rice", 2020),
-    ("Whey Protein Isolate", "NOW Foods", "fresh_fruit", 2020),
+    ("Whey Protein Isolate", "NOW Foods", "dairy", 2020),
     # ── Baby Food ──────────────────────────────────────────────────────
     ("Organic Baby Food Apple", "Happy Baby", "infant_cereal", 2020),
     ("Organic Baby Food Banana", "Happy Baby", "infant_cereal", 2020),
@@ -63,10 +63,10 @@ CLEAN_LABEL_PRODUCTS = [
     ("Organic Crispy Rice Bars", "Nature's Path", "rice", 2020),
     ("Organic Granola Bars", "Nature's Path", "oats", 2020),
     # ── Dairy Alternatives ─────────────────────────────────────────────
-    ("Organic Almond Milk", "Califia Farms", "fresh_fruit", 2020),
+    ("Organic Almond Milk", "Califia Farms", "almond", 2020),
     ("Organic Oat Milk", "Califia Farms", "oats", 2020),
-    ("Organic Coconut Milk", "Califia Farms", "fresh_fruit", 2020),
-    ("Organic Almond Milk", "Silk", "fresh_fruit", 2020),
+    ("Organic Coconut Milk", "Califia Farms", "coconut", 2020),
+    ("Organic Almond Milk", "Silk", "almond", 2020),
     ("Organic Oat Milk", "Silk", "oats", 2020),
     ("Organic Soy Milk", "Silk", "soybeans", 2020),
 ]
