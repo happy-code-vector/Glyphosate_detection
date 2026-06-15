@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(python run_pipeline.py)",
-      "Bash(python -c ' *)"
+      "Bash(python -c ' *)",
+      "Bash(python seed_ingredients.py)"
     ]
   }
 }

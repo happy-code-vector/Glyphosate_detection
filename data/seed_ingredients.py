@@ -184,7 +184,7 @@ COMMODITY_SEEDS = [
         ],
     },
     {
-        "commodity_slug": "soybean",
+        "commodity_slug": "soybeans",
         "display_name": "Soybean",
         "consumption_tier": "daily",
         "ingredient_aliases": [
@@ -263,7 +263,7 @@ COMMODITY_SEEDS = [
         ],
     },
     {
-        "commodity_slug": "oat",
+        "commodity_slug": "oats",
         "display_name": "Oat",
         "consumption_tier": "daily",
         "ingredient_aliases": [
@@ -320,7 +320,7 @@ COMMODITY_SEEDS = [
         ],
     },
     {
-        "commodity_slug": "bean",
+        "commodity_slug": "beans",
         "display_name": "Bean",
         "consumption_tier": "daily",
         "ingredient_aliases": [
@@ -337,6 +337,639 @@ COMMODITY_SEEDS = [
             "broccoli", "broccoli sprouts", "broccoli powder",
             "dehydrated broccoli",
         ],
+    },
+    # ── Additional high-volume categories ──────────────────────────────
+    {
+        "commodity_slug": "chicken",
+        "display_name": "Chicken",
+        "consumption_tier": "daily",
+        "ingredient_aliases": [
+            "chicken", "chicken breast", "chicken thigh", "chicken wing",
+            "poultry", "turkey", "duck",
+        ],
+    },
+    {
+        "commodity_slug": "cattle",
+        "display_name": "Cattle/Beef",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": [
+            "beef", "cattle", "steak", "ground beef", "veal",
+        ],
+    },
+    {
+        "commodity_slug": "fish",
+        "display_name": "Fish",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": [
+            "fish", "salmon", "tuna", "cod", "tilapia", "catfish",
+            "shrimp", "seafood",
+        ],
+    },
+    {
+        "commodity_slug": "pepper",
+        "display_name": "Pepper",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": [
+            "pepper", "bell pepper", "sweet pepper", "hot pepper",
+            "chili pepper", "jalapeno",
+        ],
+    },
+    {
+        "commodity_slug": "onion",
+        "display_name": "Onion",
+        "consumption_tier": "daily",
+        "ingredient_aliases": [
+            "onion", "onions", "shallot", "shallots", "scallion", "green onion",
+        ],
+    },
+    {
+        "commodity_slug": "mushroom",
+        "display_name": "Mushroom",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": [
+            "mushroom", "mushrooms", "shiitake", "portobello", "cremini",
+        ],
+    },
+    {
+        "commodity_slug": "cabbage",
+        "display_name": "Cabbage",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": [
+            "cabbage", "red cabbage", "savoy cabbage", "chinese cabbage",
+            "napa cabbage", "bok choy",
+        ],
+    },
+    {
+        "commodity_slug": "peas",
+        "display_name": "Peas",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": [
+            "peas", "green peas", "snap peas", "snow peas", "split peas",
+        ],
+    },
+    {
+        "commodity_slug": "lentils",
+        "display_name": "Lentils",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": [
+            "lentils", "red lentils", "green lentils", "brown lentils",
+        ],
+    },
+    {
+        "commodity_slug": "chickpeas",
+        "display_name": "Chickpeas",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": [
+            "chickpeas", "chickpea", "garbanzo beans", "hummus",
+        ],
+    },
+    {
+        "commodity_slug": "avocado",
+        "display_name": "Avocado",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": [
+            "avocado", "avocados", "guacamole",
+        ],
+    },
+    {
+        "commodity_slug": "pineapple",
+        "display_name": "Pineapple",
+        "consumption_tier": "occasional",
+        "ingredient_aliases": [
+            "pineapple", "pineapples", "pineapple juice",
+        ],
+    },
+    {
+        "commodity_slug": "mango",
+        "display_name": "Mango",
+        "consumption_tier": "occasional",
+        "ingredient_aliases": [
+            "mango", "mangoes", "mangos",
+        ],
+    },
+    {
+        "commodity_slug": "watermelon",
+        "display_name": "Watermelon",
+        "consumption_tier": "occasional",
+        "ingredient_aliases": [
+            "watermelon", "watermelons",
+        ],
+    },
+    {
+        "commodity_slug": "cantaloupe",
+        "display_name": "Cantaloupe",
+        "consumption_tier": "occasional",
+        "ingredient_aliases": [
+            "cantaloupe", "cantaloupes",
+        ],
+    },
+    {
+        "commodity_slug": "cauliflower",
+        "display_name": "Cauliflower",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": [
+            "cauliflower",
+        ],
+    },
+    {
+        "commodity_slug": "squash",
+        "display_name": "Squash",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": [
+            "squash", "butternut squash", "acorn squash", "zucchini",
+        ],
+    },
+    {
+        "commodity_slug": "asparagus",
+        "display_name": "Asparagus",
+        "consumption_tier": "occasional",
+        "ingredient_aliases": [
+            "asparagus",
+        ],
+    },
+    {
+        "commodity_slug": "plum",
+        "display_name": "Plum",
+        "consumption_tier": "occasional",
+        "ingredient_aliases": [
+            "plum", "plums", "prune", "prunes",
+        ],
+    },
+    {
+        "commodity_slug": "raspberry",
+        "display_name": "Raspberry",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": [
+            "raspberry", "raspberries",
+        ],
+    },
+    {
+        "commodity_slug": "blackberry",
+        "display_name": "Blackberry",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": [
+            "blackberry", "blackberries",
+        ],
+    },
+    {
+        "commodity_slug": "pumpkin",
+        "display_name": "Pumpkin",
+        "consumption_tier": "occasional",
+        "ingredient_aliases": [
+            "pumpkin", "pumpkins", "pumpkin seeds",
+        ],
+    },
+    {
+        "commodity_slug": "hog, meat",
+        "display_name": "Pork",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": [
+            "pork", "ham", "bacon", "sausage", "salami",
+        ],
+    },
+    {
+        "commodity_slug": "honey",
+        "display_name": "Honey",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": [
+            "honey",
+        ],
+    },
+    {
+        "commodity_slug": "cocoa",
+        "display_name": "Cocoa",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": [
+            "cocoa", "chocolate", "cocoa powder",
+        ],
+    },
+    {
+        "commodity_slug": "coconut",
+        "display_name": "Coconut",
+        "consumption_tier": "occasional",
+        "ingredient_aliases": [
+            "coconut", "coconut milk", "coconut oil", "coconut water",
+        ],
+    },
+    {
+        "commodity_slug": "tea",
+        "display_name": "Tea",
+        "consumption_tier": "daily",
+        "ingredient_aliases": [
+            "tea", "green tea", "black tea", "herbal tea",
+        ],
+    },
+    {
+        "commodity_slug": "coffee",
+        "display_name": "Coffee",
+        "consumption_tier": "daily",
+        "ingredient_aliases": [
+            "coffee",
+        ],
+    },
+    # ── Remaining high-volume categories ───────────────────────────────
+    {
+        "commodity_slug": "water",
+        "display_name": "Water",
+        "consumption_tier": "daily",
+        "ingredient_aliases": ["water", "drinking water", "bottled water"],
+    },
+    {
+        "commodity_slug": "sunflower",
+        "display_name": "Sunflower",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": ["sunflower", "sunflower seeds", "sunflower oil"],
+    },
+    {
+        "commodity_slug": "melon",
+        "display_name": "Melon",
+        "consumption_tier": "occasional",
+        "ingredient_aliases": ["melon", "melons", "honeydew"],
+    },
+    {
+        "commodity_slug": "radish",
+        "display_name": "Radish",
+        "consumption_tier": "occasional",
+        "ingredient_aliases": ["radish", "radishes"],
+    },
+    {
+        "commodity_slug": "garlic",
+        "display_name": "Garlic",
+        "consumption_tier": "daily",
+        "ingredient_aliases": ["garlic"],
+    },
+    {
+        "commodity_slug": "beet",
+        "display_name": "Beet",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": ["beet", "beets", "beetroot"],
+    },
+    {
+        "commodity_slug": "apricot",
+        "display_name": "Apricot",
+        "consumption_tier": "occasional",
+        "ingredient_aliases": ["apricot", "apricots", "dried apricots"],
+    },
+    {
+        "commodity_slug": "canola",
+        "display_name": "Canola",
+        "consumption_tier": "daily",
+        "ingredient_aliases": ["canola", "canola oil", "rapeseed"],
+    },
+    {
+        "commodity_slug": "nectarine",
+        "display_name": "Nectarine",
+        "consumption_tier": "occasional",
+        "ingredient_aliases": ["nectarine", "nectarines"],
+    },
+    {
+        "commodity_slug": "okra",
+        "display_name": "Okra",
+        "consumption_tier": "occasional",
+        "ingredient_aliases": ["okra"],
+    },
+    {
+        "commodity_slug": "table olives",
+        "display_name": "Olives",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": ["olives", "olive", "table olives"],
+    },
+    {
+        "commodity_slug": "eggplant",
+        "display_name": "Eggplant",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": ["eggplant", "eggplants", "aubergine"],
+    },
+    {
+        "commodity_slug": "cranberry",
+        "display_name": "Cranberry",
+        "consumption_tier": "occasional",
+        "ingredient_aliases": ["cranberry", "cranberries", "cranberry juice"],
+    },
+    {
+        "commodity_slug": "papaya",
+        "display_name": "Papaya",
+        "consumption_tier": "occasional",
+        "ingredient_aliases": ["papaya", "papayas"],
+    },
+    {
+        "commodity_slug": "dates",
+        "display_name": "Dates",
+        "consumption_tier": "occasional",
+        "ingredient_aliases": ["dates", "date"],
+    },
+    {
+        "commodity_slug": "grapefruit",
+        "display_name": "Grapefruit",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": ["grapefruit", "grapefruits"],
+    },
+    {
+        "commodity_slug": "parsley",
+        "display_name": "Parsley",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": ["parsley"],
+    },
+    {
+        "commodity_slug": "walnut",
+        "display_name": "Walnut",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": ["walnut", "walnuts"],
+    },
+    {
+        "commodity_slug": "flaxseed",
+        "display_name": "Flaxseed",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": ["flaxseed", "flax seeds"],
+    },
+    {
+        "commodity_slug": "hazelnut",
+        "display_name": "Hazelnut",
+        "consumption_tier": "occasional",
+        "ingredient_aliases": ["hazelnut", "hazelnuts"],
+    },
+    {
+        "commodity_slug": "mint",
+        "display_name": "Mint",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": ["mint", "peppermint", "spearmint"],
+    },
+    {
+        "commodity_slug": "ginger",
+        "display_name": "Ginger",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": ["ginger"],
+    },
+    {
+        "commodity_slug": "turmeric",
+        "display_name": "Turmeric",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": ["turmeric"],
+    },
+    {
+        "commodity_slug": "quinoa",
+        "display_name": "Quinoa",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": ["quinoa"],
+    },
+    {
+        "commodity_slug": "buckwheat",
+        "display_name": "Buckwheat",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": ["buckwheat"],
+    },
+    {
+        "commodity_slug": "sugar_beets",
+        "display_name": "Sugar Beets",
+        "consumption_tier": "daily",
+        "ingredient_aliases": ["sugar beets", "sugar_beets"],
+    },
+    # ── Final sweep ────────────────────────────────────────────────────
+    {
+        "commodity_slug": "brussels sprouts",
+        "display_name": "Brussels Sprouts",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": ["brussels sprouts"],
+    },
+    {
+        "commodity_slug": "pflaume",
+        "display_name": "Plum (German)",
+        "consumption_tier": "occasional",
+        "ingredient_aliases": ["pflaume"],
+    },
+    {
+        "commodity_slug": "rye",
+        "display_name": "Rye",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": ["rye", "rye flour", "rye bread"],
+    },
+    {
+        "commodity_slug": "cassava",
+        "display_name": "Cassava",
+        "consumption_tier": "occasional",
+        "ingredient_aliases": ["cassava", "tapioca", "yuca"],
+    },
+    {
+        "commodity_slug": "artichoke",
+        "display_name": "Artichoke",
+        "consumption_tier": "occasional",
+        "ingredient_aliases": ["artichoke", "artichokes"],
+    },
+    {
+        "commodity_slug": "kiwi",
+        "display_name": "Kiwi",
+        "consumption_tier": "occasional",
+        "ingredient_aliases": ["kiwi", "kiwis"],
+    },
+    {
+        "commodity_slug": "chestnut",
+        "display_name": "Chestnut",
+        "consumption_tier": "occasional",
+        "ingredient_aliases": ["chestnut", "chestnuts"],
+    },
+    {
+        "commodity_slug": "rutabaga",
+        "display_name": "Rutabaga",
+        "consumption_tier": "occasional",
+        "ingredient_aliases": ["rutabaga", "rutabagas", "swede"],
+    },
+    {
+        "commodity_slug": "baby_food",
+        "display_name": "Baby Food",
+        "consumption_tier": "daily",
+        "ingredient_aliases": ["baby food", "baby_food", "infant food"],
+    },
+    {
+        "commodity_slug": "herbs",
+        "display_name": "Herbs",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": ["herbs", "fresh herbs", "dried herbs"],
+    },
+    {
+        "commodity_slug": "fig",
+        "display_name": "Fig",
+        "consumption_tier": "occasional",
+        "ingredient_aliases": ["fig", "figs", "dried figs"],
+    },
+    {
+        "commodity_slug": "persimmon",
+        "display_name": "Persimmon",
+        "consumption_tier": "occasional",
+        "ingredient_aliases": ["persimmon", "persimmons"],
+    },
+    {
+        "commodity_slug": "collard greens",
+        "display_name": "Collard Greens",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": ["collard greens", "collards"],
+    },
+    {
+        "commodity_slug": "currants",
+        "display_name": "Currants",
+        "consumption_tier": "occasional",
+        "ingredient_aliases": ["currants", "currant"],
+    },
+    {
+        "commodity_slug": "rhubarb",
+        "display_name": "Rhubarb",
+        "consumption_tier": "occasional",
+        "ingredient_aliases": ["rhubarb"],
+    },
+    {
+        "commodity_slug": "turnip",
+        "display_name": "Turnip",
+        "consumption_tier": "occasional",
+        "ingredient_aliases": ["turnip", "turnips"],
+    },
+    {
+        "commodity_slug": "watercress",
+        "display_name": "Watercress",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": ["watercress"],
+    },
+    {
+        "commodity_slug": "fennel",
+        "display_name": "Fennel",
+        "consumption_tier": "occasional",
+        "ingredient_aliases": ["fennel"],
+    },
+    {
+        "commodity_slug": "leek",
+        "display_name": "Leek",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": ["leek", "leeks"],
+    },
+    {
+        "commodity_slug": "arugula",
+        "display_name": "Arugula",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": ["arugula", "rocket"],
+    },
+    {
+        "commodity_slug": "chard",
+        "display_name": "Chard",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": ["chard", "swiss chard"],
+    },
+    {
+        "commodity_slug": "kohlrabi",
+        "display_name": "Kohlrabi",
+        "consumption_tier": "occasional",
+        "ingredient_aliases": ["kohlrabi"],
+    },
+    {
+        "commodity_slug": "salsify",
+        "display_name": "Salsify",
+        "consumption_tier": "occasional",
+        "ingredient_aliases": ["salsify"],
+    },
+    {
+        "commodity_slug": "purslane",
+        "display_name": "Purslane",
+        "consumption_tier": "occasional",
+        "ingredient_aliases": ["purslane"],
+    },
+    {
+        "commodity_slug": "horseradish",
+        "display_name": "Horseradish",
+        "consumption_tier": "occasional",
+        "ingredient_aliases": ["horseradish"],
+    },
+    {
+        "commodity_slug": "jerusalem_artichoke",
+        "display_name": "Jerusalem Artichoke",
+        "consumption_tier": "occasional",
+        "ingredient_aliases": ["jerusalem artichoke", "topinambur"],
+    },
+    {
+        "commodity_slug": "parsnip",
+        "display_name": "Parsnip",
+        "consumption_tier": "occasional",
+        "ingredient_aliases": ["parsnip", "parsnips"],
+    },
+    {
+        "commodity_slug": "anise",
+        "display_name": "Anise",
+        "consumption_tier": "rare",
+        "ingredient_aliases": ["anise", "aniseed"],
+    },
+    {
+        "commodity_slug": "tarragon",
+        "display_name": "Tarragon",
+        "consumption_tier": "rare",
+        "ingredient_aliases": ["tarragon"],
+    },
+    {
+        "commodity_slug": "acai",
+        "display_name": "Acai",
+        "consumption_tier": "occasional",
+        "ingredient_aliases": ["acai"],
+    },
+    {
+        "commodity_slug": "algae",
+        "display_name": "Algae",
+        "consumption_tier": "rare",
+        "ingredient_aliases": ["algae", "spirulina", "chlorella"],
+    },
+    {
+        "commodity_slug": "amla",
+        "display_name": "Amla",
+        "consumption_tier": "rare",
+        "ingredient_aliases": ["amla", "indian gooseberry"],
+    },
+    {
+        "commodity_slug": "marjoram",
+        "display_name": "Marjoram",
+        "consumption_tier": "rare",
+        "ingredient_aliases": ["marjoram"],
+    },
+    {
+        "commodity_slug": "ajwain",
+        "display_name": "Ajwain",
+        "consumption_tier": "rare",
+        "ingredient_aliases": ["ajwain"],
+    },
+    {
+        "commodity_slug": "cashew",
+        "display_name": "Cashew",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": ["cashew", "cashews"],
+    },
+    {
+        "commodity_slug": "lamb",
+        "display_name": "Lamb",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": ["lamb", "mutton"],
+    },
+    {
+        "commodity_slug": "acerola",
+        "display_name": "Acerola",
+        "consumption_tier": "rare",
+        "ingredient_aliases": ["acerola"],
+    },
+    {
+        "commodity_slug": "zucchini",
+        "display_name": "Zucchini",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": ["zucchini"],
+    },
+    {
+        "commodity_slug": "infant_cereal",
+        "display_name": "Infant Cereal",
+        "consumption_tier": "daily",
+        "ingredient_aliases": ["infant cereal", "baby cereal"],
+    },
+    {
+        "commodity_slug": "lime",
+        "display_name": "Lime",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": ["lime", "limes"],
+    },
+    {
+        "commodity_slug": "chili pepper",
+        "display_name": "Chili Pepper",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": ["chili pepper", "chili", "jalapeno", "habanero"],
     },
 ]
 
