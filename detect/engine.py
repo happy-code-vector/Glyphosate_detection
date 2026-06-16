@@ -3,23 +3,22 @@ import os
 import sqlite3
 from typing import Optional
 
-from detect.food_risk import FoodRiskQuery
-from detect.product_lookup import ProductLookupQuery
-from detect.water_quality import WaterQualityQuery
-from detect.comparison import ComparisonQuery
-from detect.ingredient_risk import IngredientRiskQuery, IngredientRiskResult
 from detect.open_food_facts import OpenFoodFactsClient
+from detect.ingredient_parser import parse_ingredients
 from detect.models import (
     FoodRiskResult,
     ProductResult,
     WaterQualityResult,
     InternationalComparisonResult,
+    InternationalComparisonEntry,
+    RegulatoryEntry,
     IngredientDetail,
     RegulatoryFlag,
     CommodityDetail,
     CommodityResidue,
     ProductScanResult,
     ContaminantReport,
+    ContaminantDetail,
     BiomonitoringResult,
 )
 
@@ -36,19 +35,35 @@ class DetectionEngine:
             raise FileNotFoundError(f"Invalid SQLite database: {db_path}")
         finally:
             test_conn.close()
-        try:
-            self._conn = sqlite3.connect(db_path)
-            self._conn.row_factory = sqlite3.Row
-        except sqlite3.OperationalError:
-            raise FileNotFoundError(f"Cannot open database: {db_path}")
 
-        self._food_risk = FoodRiskQuery(self._conn)
-        self._product_lookup = ProductLookupQuery(self._conn)
-        self._water_quality = WaterQualityQuery(self._conn)
-        self._comparison = ComparisonQuery(self._conn)
-        self._ingredient_risk = IngredientRiskQuery(self._conn)
+        from data.datastore import create_datastore
+        self._store = create_datastore(backend="sqlite", db_path=db_path)
         self._off_client = OpenFoodFactsClient()
         self._commodity_alias_cache = None  # Instance-level cache
+
+    @classmethod
+    def from_datastore(cls, store):
+        """Create a DetectionEngine from any DataStore implementation.
+
+        Args:
+            store: A DataStore (SqliteDataStore, FirestoreDataStore, etc.)
+
+        Returns:
+            DetectionEngine instance backed by the given store.
+        """
+        # Bypass __init__ — set attributes directly
+        instance = cls.__new__(cls)
+        instance._store = store
+        instance._off_client = OpenFoodFactsClient()
+        instance._commodity_alias_cache = None
+        return instance
+
+    @property
+    def _conn(self):
+        """Backwards-compat: expose the underlying sqlite3.Connection when using SQLite backend."""
+        if hasattr(self._store, '_conn'):
+            return self._store._conn
+        raise AttributeError("No sqlite3.Connection available — engine is using a non-SQLite backend")
 
     def __enter__(self):
         return self
@@ -57,17 +72,92 @@ class DetectionEngine:
         self.close()
 
     def close(self):
-        self._conn.close()
+        self._store.close()
+
+    # ═══════════════════════════════════════════════
+    # FOOD RISK
+    # ═══════════════════════════════════════════════
 
     def food_risk(
         self, food_category: str, contaminant: str | None = None
     ) -> FoodRiskResult | list[FoodRiskResult] | None:
-        return self._food_risk.execute(food_category, contaminant)
+        rows = self._store.get_food_overview(food_category, contaminant)
+        if not rows:
+            return None if contaminant is not None else []
+        if contaminant is not None:
+            return self._build_food_risk_result(rows[0])
+        return [self._build_food_risk_result(r) for r in rows]
+
+    def _build_food_risk_result(self, d: dict) -> FoodRiskResult:
+        reg_entries = self._get_regulatory_comparison(
+            d["food_category"], d["contaminant"], d.get("max_ppb")
+        )
+        return FoodRiskResult(
+            food_category=d["food_category"],
+            contaminant=d["contaminant"],
+            best_source=d["best_source"],
+            data_year=d["best_data_year"],
+            detection_rate=d["detection_rate"],
+            avg_ppb=d.get("avg_ppb"),
+            max_ppb=d.get("max_ppb"),
+            samples_total=d["samples_total"],
+            samples_detected=d["samples_detected"],
+            risk_level=d["risk_level"],
+            confidence=d["confidence"],
+            total_products_tested=d.get("total_products_tested", 0),
+            products_with_detection=d.get("products_with_detection", 0),
+            certified_products_available=d.get("certified_products_available", 0),
+            regulatory_comparison=reg_entries,
+        )
+
+    def _get_regulatory_comparison(
+        self, food_category: str, contaminant: str, max_ppb: float | None = None
+    ) -> list[RegulatoryEntry]:
+        rows = self._store.get_all_tolerance_limits(contaminant, food_category)
+        entries = []
+        for r in rows:
+            tol = r["tolerance_ppb"]
+            pct = None
+            if max_ppb is not None and tol and tol > 0:
+                pct = round(max_ppb / tol * 100, 1)
+            entries.append(RegulatoryEntry(
+                source=r["source"],
+                tolerance_ppb=tol,
+                regulation_reference=r["regulation_reference"],
+                pct_of_tolerance=pct,
+            ))
+        return entries
+
+    # ═══════════════════════════════════════════════
+    # PRODUCT LOOKUP
+    # ═══════════════════════════════════════════════
 
     def product_lookup(
         self, query: str, contaminant: str | None = None
     ) -> list[ProductResult]:
-        return self._product_lookup.execute(query, contaminant)
+        rows = self._store.get_product_lookup(query, contaminant)
+        return [self._build_product_result(r) for r in rows]
+
+    def _build_product_result(self, d: dict) -> ProductResult:
+        return ProductResult(
+            product_name=d["product_name"],
+            food_category=d["food_category"],
+            contaminant=d["contaminant"],
+            source_name=d["source_name"],
+            report_label=d["report_label"],
+            data_year=d["data_year"],
+            measured_ppb=d.get("measured_ppb"),
+            below_detection=bool(d["below_detection"]),
+            is_organic=bool(d["is_organic"]),
+            is_grf_certified=bool(d["is_grf_certified"]),
+            risk_level=d.get("risk_level", "unknown"),
+            confidence=d["confidence"],
+            source_url=d.get("source_url"),
+        )
+
+    # ═══════════════════════════════════════════════
+    # WATER QUALITY
+    # ═══════════════════════════════════════════════
 
     def water_quality(
         self,
@@ -76,19 +166,6 @@ class DetectionEngine:
         water_type: str | None = None,
         zip_code: str | None = None,
     ) -> list[WaterQualityResult] | dict:
-        """
-        Query water quality data by state or zip code.
-
-        Args:
-            state: US state name (e.g. 'California')
-            contaminant: Specific contaminant to filter by
-            water_type: 'surface' or 'groundwater'
-            zip_code: US zip code (e.g. '90210') — resolved to state automatically
-
-        Returns:
-            list[WaterQualityResult] if data found
-            dict with 'error' key if zip code not resolvable or no data
-        """
         # If zip code provided, resolve to state
         if zip_code and not state:
             from detect.zip_to_state import zip_to_state, is_us_zip
@@ -99,53 +176,64 @@ class DetectionEngine:
                 return {"error": f"Could not resolve zip code: {zip_code}", "data": []}
             state = resolved_state.replace("_", " ")
 
-        results = self._water_quality.execute(state, contaminant, water_type)
+        rows = self._store.get_water_overview(state, contaminant, water_type)
+        results = [self._build_water_result(r) for r in rows]
 
-        # If zip code was used and no results, return helpful message
         if zip_code and not results:
             return {
                 "error": f"No water quality data available for zip code {zip_code} ({state})",
                 "data": [],
                 "suggestion": "Water quality data is currently available for US states only. International coverage coming soon.",
             }
-
         return results
+
+    def _build_water_result(self, d: dict) -> WaterQualityResult:
+        return WaterQualityResult(
+            state=d["state"],
+            contaminant=d["contaminant"],
+            water_type=d["water_type"],
+            source_name=d["source_name"],
+            data_year=d["data_year"],
+            detection_rate=d.get("detection_rate"),
+            avg_ppb=d.get("avg_ppb"),
+            max_ppb=d.get("max_ppb"),
+            samples_total=d.get("samples_total"),
+            epa_mcl_ppb=d.get("epa_mcl_ppb"),
+            pct_of_mcl=d.get("pct_of_mcl"),
+        )
+
+    # ═══════════════════════════════════════════════
+    # INTERNATIONAL COMPARISON
+    # ═══════════════════════════════════════════════
 
     def international_comparison(
         self, food_category: str, contaminant: str = "glyphosate"
     ) -> InternationalComparisonResult:
-        return self._comparison.execute(food_category, contaminant)
+        rows = self._store.get_international_comparison(food_category, contaminant)
+        entries = [
+            InternationalComparisonEntry(
+                country_region=r["country_region"],
+                mrl_ppb=r["mrl_ppb"],
+                regulatory_body=r["regulatory_body"] if r["regulatory_body"] is not None else None,
+                measured_max_ppb=r["measured_max_ppb"] if r["measured_max_ppb"] is not None else None,
+                pct_of_mrl=r["pct_of_mrl"] if r["pct_of_mrl"] is not None else None,
+            )
+            for r in rows
+        ]
+        return InternationalComparisonResult(
+            food_category=food_category,
+            contaminant=contaminant,
+            entries=entries,
+        )
+
+    # ═══════════════════════════════════════════════
+    # BIOMONITORING
+    # ═══════════════════════════════════════════════
 
     def biomonitoring(
         self, analyte: str | None = None, cycle: str | None = None
     ) -> list[BiomonitoringResult]:
-        """
-        CDC NHANES biomonitoring data — human exposure levels.
-
-        Shows what percentage of the US population has detectable levels
-        of a contaminant in their blood/urine.
-
-        Args:
-            analyte: Filter by analyte name (e.g., "Glyphosate", "Lead")
-            cycle: Filter by NHANES cycle (e.g., "2017-2018")
-
-        Returns:
-            List of BiomonitoringResult with population-level statistics
-        """
-        conditions = []
-        params = []
-        if analyte:
-            conditions.append("analyte = ?")
-            params.append(analyte)
-        if cycle:
-            conditions.append("cycle = ?")
-            params.append(cycle)
-        where = " WHERE " + " AND ".join(conditions) if conditions else ""
-
-        rows = self._conn.execute(
-            f"SELECT * FROM biomonitoring{where} ORDER BY analyte, cycle", params
-        ).fetchall()
-
+        rows = self._store.get_biomonitoring(analyte, cycle)
         return [
             BiomonitoringResult(
                 analyte=r["analyte"],
@@ -165,45 +253,9 @@ class DetectionEngine:
             for r in rows
         ]
 
-    def ingredient_risk(
-        self,
-        product_name: str,
-        ingredients: list[dict] | str,
-        contaminant: str = "glyphosate",
-        food_category: str | None = None,
-    ) -> IngredientRiskResult:
-        """
-        Three-tier risk scoring based on ingredients.
-
-        Risk hierarchy:
-        1. Product → Check if specific product is flagged glyphosate-free
-        2. Ingredient → Map each ingredient to category, use category data
-        3. Category → Fall back to product's primary food category
-        """
-        return self._ingredient_risk.execute(
-            product_name, ingredients, contaminant, food_category
-        )
-
-    def scan_all_contaminants(
-        self, food_category: str, origin_region: str | None = None
-    ) -> "ContaminantReport":
-        """
-        Scan ALL contaminants for a food category using regulatory data.
-
-        Compares measured levels (from category_summaries) against MRLs
-        (from international_mrls) and tolerances (from tolerance_limits).
-
-        Args:
-            food_category: Canonical food category (e.g., 'oats', 'wheat')
-            origin_region: 'EU' or 'US' — adjusts source priority for monitoring data.
-                           EU products use EFSA/BVL data first, US products use FDA first.
-
-        Returns:
-            ContaminantReport with list of ContaminantDetail entries
-        """
-        return self._ingredient_risk.scan_all_contaminants(
-            food_category, origin_region=origin_region
-        )
+    # ═══════════════════════════════════════════════
+    # INGREDIENT RISK (three-tier scoring)
+    # ═══════════════════════════════════════════════
 
     # Tier → data_confidence mapping per handoff spec
     _TIER_TO_CONFIDENCE = {
@@ -213,99 +265,407 @@ class DetectionEngine:
         "none": "low",          # No data
     }
 
-    # Commodity alias cache (instance-level to avoid cross-instance pollution)
-    _commodity_alias_cache: dict | None = None  # alias -> commodity_slug
+    _HEAVY_METALS = frozenset({
+        "lead", "inorganic_arsenic", "cadmium", "mercury", "arsenic",
+    })
+
+    _CONSUMPTION_MULTIPLIERS = {
+        "daily": 1.0,
+        "weekly": 0.6,
+        "occasional": 0.3,
+        "rare": 0.1,
+    }
+
+    def ingredient_risk(
+        self,
+        product_name: str,
+        ingredients: list[dict] | str,
+        contaminant: str = "glyphosate",
+        food_category: str | None = None,
+    ):
+        """Three-tier risk scoring based on ingredients."""
+        from detect.ingredient_risk import IngredientRiskResult, IngredientScore
+        notes = []
+
+        # ── Tier 1: Product-level check ──
+        product_result = self._check_product(product_name, contaminant)
+        if product_result:
+            if product_result.get("is_grf_certified"):
+                return IngredientRiskResult(
+                    product_name=product_name, contaminant=contaminant,
+                    risk_level="none", score=0.0, tier_used="product",
+                    certified_glyphosate_free=True,
+                    notes=["Product is Glyphosate Residue Free certified"],
+                )
+            if product_result.get("below_detection"):
+                return IngredientRiskResult(
+                    product_name=product_name, contaminant=contaminant,
+                    risk_level="none", score=0.0, tier_used="product",
+                    notes=["Product tested below detection limit"],
+                )
+            risk_level = product_result.get("risk_level", "unknown")
+            score = self._risk_level_to_score(risk_level)
+            return IngredientRiskResult(
+                product_name=product_name, contaminant=contaminant,
+                risk_level=risk_level, score=score, tier_used="product",
+                notes=[f"Product tested at {product_result.get('measured_ppb', 'N/A')} ppb"],
+            )
+
+        # ── Tier 2: Ingredient-level check ──
+        if isinstance(ingredients, str):
+            parsed = parse_ingredients(ingredients)
+            ingredient_dicts = [{"name": ing, "text": ing, "percent": None} for ing in parsed]
+        else:
+            ingredient_dicts = ingredients
+
+        if ingredient_dicts:
+            ingredient_scores = []
+            for ing in ingredient_dicts:
+                name = ing.get("name", "") or ing.get("text", "")
+                score = self._score_ingredient(name, contaminant)
+                if score:
+                    ingredient_scores.append(score)
+
+            if ingredient_scores:
+                known_scores = [
+                    self._risk_level_to_score(s.risk_level)
+                    for s in ingredient_scores
+                    if s.risk_level != "unknown"
+                ]
+                if known_scores:
+                    avg_score = sum(known_scores) / len(known_scores)
+                    max_score = max(known_scores)
+                else:
+                    avg_score = 0.0
+                    max_score = 0.0
+                final_score = 0.7 * max_score + 0.3 * avg_score
+                risk_level = self._score_to_risk_level(final_score)
+                notes.append(f"Scored {len(ingredient_scores)} of {len(ingredient_dicts)} ingredients")
+                return IngredientRiskResult(
+                    product_name=product_name, contaminant=contaminant,
+                    risk_level=risk_level, score=final_score, tier_used="ingredient",
+                    ingredient_scores=ingredient_scores, notes=notes,
+                )
+
+        # ── Tier 3: Category fallback ──
+        if food_category:
+            category_result = self._check_category(food_category, contaminant)
+            if category_result:
+                risk_level = category_result.get("risk_level", "unknown")
+                score = self._risk_level_to_score(risk_level)
+                return IngredientRiskResult(
+                    product_name=product_name, contaminant=contaminant,
+                    risk_level=risk_level, score=score, tier_used="category",
+                    category_fallback=food_category,
+                    notes=[f"Fell back to category '{food_category}'"],
+                )
+
+        return IngredientRiskResult(
+            product_name=product_name, contaminant=contaminant,
+            risk_level="unknown", score=0.5, tier_used="none",
+            notes=["No data available at any tier"],
+        )
+
+    def _check_product(self, product_name: str, contaminant: str) -> Optional[dict]:
+        d = self._store.get_product_tests(product_name, contaminant)
+        if not d:
+            return None
+        if d["is_grf_certified"]:
+            d["risk_level"] = "none"
+        elif d["below_detection"]:
+            d["risk_level"] = "none"
+        elif d["measured_ppb"] is not None:
+            d["risk_level"] = self._ppb_to_risk_level(
+                d["measured_ppb"], contaminant, d.get("food_category")
+            )
+        else:
+            d["risk_level"] = "unknown"
+        return d
+
+    def _score_ingredient(self, ingredient: str, contaminant: str):
+        from detect.ingredient_risk import IngredientScore
+        category = self._store.get_category_alias(ingredient.lower().strip())
+        if not category:
+            # Try substring match via aliases
+            aliases = self._store.get_category_aliases()
+            cleaned = ingredient.lower().strip()
+            for a in aliases:
+                if a["alias"] in cleaned:
+                    category = a["canonical_key"]
+                    break
+        if not category:
+            return None
+
+        d = self._store.get_category_summaries(category, contaminant)
+        if not d:
+            return None
+
+        max_ppb = d.get("max_ppb")
+        consumption_tier = self._store.get_consumption_tier(category)
+        risk_level = self._ppb_to_risk_level(max_ppb, contaminant, category, consumption_tier)
+        return IngredientScore(
+            ingredient=ingredient, category=category,
+            detection_rate=d["detection_rate"], avg_ppb=d.get("avg_ppb"),
+            max_ppb=max_ppb, risk_level=risk_level,
+            source=d["source_name"], data_year=d.get("data_year"),
+        )
+
+    def _check_category(self, food_category: str, contaminant: str) -> Optional[dict]:
+        d = self._store.get_category_summaries(food_category, contaminant)
+        if not d:
+            return None
+        consumption_tier = self._store.get_consumption_tier(food_category)
+        d["risk_level"] = self._ppb_to_risk_level(
+            d.get("max_ppb"), contaminant, food_category, consumption_tier
+        )
+        return d
+
+    # ── Multi-contaminant scan ──────────────────────────────────────────
+
+    def scan_all_contaminants(
+        self, food_category: str, origin_region: str | None = None
+    ) -> ContaminantReport:
+        if origin_region == "EU":
+            source_priority = """
+                CASE source_name
+                    WHEN 'EFSA' THEN 5
+                    WHEN 'Germany_BVL' THEN 4
+                    WHEN 'UK_FSA' THEN 3
+                    WHEN 'CFIA' THEN 2
+                    WHEN 'FDA' THEN 1
+                    ELSE 0
+                END
+            """
+        else:
+            source_priority = """
+                CASE source_name
+                    WHEN 'FDA' THEN 5
+                    WHEN 'CFIA' THEN 4
+                    WHEN 'EFSA' THEN 3
+                    WHEN 'UK_FSA' THEN 2
+                    WHEN 'Germany_BVL' THEN 1
+                    ELSE 0
+                END
+            """
+
+        rows = self._store.get_all_contaminants_for_category(food_category, source_priority)
+        consumption_tier = self._store.get_consumption_tier(food_category)
+
+        contaminants = []
+        for d in rows:
+            contam = d["contaminant"]
+            max_ppb = d.get("max_ppb") or 0
+            avg_ppb = d.get("avg_ppb")
+            contam_type = self._store.get_contaminant_type(contam) or "pesticide"
+
+            risk_level, risk_reason, mrl, mrl_src, tol, tol_src = \
+                self._ppb_to_risk_detail(max_ppb, contam, food_category, consumption_tier)
+
+            pct_of_mrl = (max_ppb / mrl * 100) if mrl and mrl > 0 and max_ppb else None
+            pct_of_tol = (max_ppb / tol * 100) if tol and tol > 0 and max_ppb else None
+
+            contaminants.append(ContaminantDetail(
+                contaminant=contam, contaminant_type=contam_type,
+                food_category=food_category,
+                measured_avg_ppb=avg_ppb,
+                measured_max_ppb=max_ppb if max_ppb > 0 else None,
+                detection_rate=d["detection_rate"],
+                samples_total=d["samples_total"],
+                samples_detected=d["samples_detected"],
+                source_name=d["source_name"], data_year=d.get("data_year"),
+                mrl_ppb=mrl, mrl_source=mrl_src,
+                tolerance_ppb=tol, tolerance_source=tol_src,
+                pct_of_mrl=pct_of_mrl, pct_of_tolerance=pct_of_tol,
+                risk_level=risk_level, risk_reason=risk_reason,
+                confidence="high" if mrl or tol else "medium",
+                detection_frequency=self._detection_rate_to_frequency(d["detection_rate"]),
+            ))
+
+        risk_order = {"high": 0, "medium": 1, "low": 2, "none": 3, "unknown": 4}
+        contaminants.sort(key=lambda c: (risk_order.get(c.risk_level, 4), -c.detection_rate))
+
+        high = sum(1 for c in contaminants if c.risk_level == "high")
+        medium = sum(1 for c in contaminants if c.risk_level == "medium")
+        low = sum(1 for c in contaminants if c.risk_level == "low")
+
+        if high > 0:
+            overall, overall_score = "high", 1.0
+        elif medium > 0:
+            overall, overall_score = "medium", 0.66
+        elif low > 0:
+            overall, overall_score = "low", 0.33
+        else:
+            overall, overall_score = "none", 0.0
+
+        return ContaminantReport(
+            food_category=food_category, contaminant=None,
+            contaminants=contaminants, total_detected=len(contaminants),
+            high_risk_count=high, medium_risk_count=medium, low_risk_count=low,
+            overall_risk_level=overall, overall_score=overall_score,
+        )
+
+    # ── Risk level helpers ──────────────────────────────────────────────
+
+    @staticmethod
+    def _detection_rate_to_frequency(detection_rate: float) -> str:
+        if detection_rate >= 0.66:
+            return "high"
+        elif detection_rate >= 0.31:
+            return "medium"
+        elif detection_rate > 0.0:
+            return "low"
+        return "none"
+
+    def _ppb_to_risk_level(
+        self, ppb: float, contaminant: str, food_category: str | None = None,
+        consumption_tier: str | None = None,
+    ) -> str:
+        if ppb is None or ppb <= 0:
+            return "none"
+        multiplier = self._CONSUMPTION_MULTIPLIERS.get(consumption_tier, 1.0)
+        adjusted_ppb = ppb * multiplier
+
+        tol_data = self._store.get_tolerance_limit(contaminant, food_category) if food_category else None
+        if tol_data and (tol := tol_data.get("tolerance_ppb")) and tol > 0:
+            pct = adjusted_ppb / tol
+            if pct >= 2.0: return "high"
+            elif pct >= 1.0: return "medium"
+            elif ppb > 0: return "low"
+            return "none"
+
+        mrl_data = self._store.get_strictest_mrl(contaminant, food_category) if food_category else None
+        if mrl_data and (mrl := mrl_data.get("mrl_ppb")) and mrl > 0:
+            pct = adjusted_ppb / mrl
+            if pct >= 2.0: return "high"
+            elif pct >= 1.0: return "medium"
+            elif ppb > 0: return "low"
+            return "none"
+
+        return "unknown"
+
+    def _ppb_to_risk_detail(
+        self, ppb: float, contaminant: str, food_category: str | None = None,
+        consumption_tier: str | None = None,
+    ) -> tuple[str, str, float | None, str | None, float | None, str | None]:
+        if ppb is None or ppb <= 0:
+            return "none", "Not detected", None, None, None, None
+
+        multiplier = self._CONSUMPTION_MULTIPLIERS.get(consumption_tier, 1.0)
+        adjusted_ppb = ppb * multiplier
+        is_heavy_metal = contaminant.lower() in self._HEAVY_METALS
+
+        tol_data = self._store.get_tolerance_limit(contaminant, food_category) if food_category else None
+        if tol_data and (tol := tol_data.get("tolerance_ppb")) and tol > 0:
+            tol_source = tol_data.get("source", "EPA")
+            pct = adjusted_ppb / tol * 100
+            if pct >= 200:
+                reason = f"Exceeds {tol_source} limit ({pct:.0f}%)"
+                if is_heavy_metal: reason += " — heavy metal, no established safe level"
+                return "high", reason, None, None, tol, tol_source
+            elif pct >= 100:
+                reason = f"At {tol_source} limit ({pct:.0f}%)"
+                if is_heavy_metal: reason += " — heavy metal, no established safe level"
+                return "medium", reason, None, None, tol, tol_source
+            else:
+                reason = f"Below {tol_source} limit ({pct:.0f}%)"
+                if is_heavy_metal: reason += " — low confidence, consult regulatory guidance"
+                return "low", reason, None, None, tol, tol_source
+
+        mrl_data = self._store.get_strictest_mrl(contaminant, food_category) if food_category else None
+        if mrl_data and (mrl := mrl_data.get("mrl_ppb")) and mrl > 0:
+            mrl_src = mrl_data.get("country_region", "Unknown")
+            pct = adjusted_ppb / mrl * 100
+            if pct >= 200:
+                reason = f"Exceeds {mrl_src} MRL ({pct:.0f}%)"
+                if is_heavy_metal: reason += " — heavy metal, no established safe level"
+                return "high", reason, mrl, mrl_src, None, None
+            elif pct >= 100:
+                reason = f"At {mrl_src} MRL ({pct:.0f}%)"
+                if is_heavy_metal: reason += " — heavy metal, no established safe level"
+                return "medium", reason, mrl, mrl_src, None, None
+            else:
+                reason = f"Below {mrl_src} MRL ({pct:.0f}%)"
+                if is_heavy_metal: reason += " — low confidence, consult regulatory guidance"
+                return "low", reason, mrl, mrl_src, None, None
+
+        reason = "No regulatory benchmark available for comparison"
+        if is_heavy_metal: reason += " — heavy metal, no established safe level"
+        return "unknown", reason, None, None, None, None
+
+    @staticmethod
+    def _risk_level_to_score(risk_level: str) -> float:
+        return {"none": 0.0, "low": 0.33, "medium": 0.66, "high": 1.0, "unknown": 0.5}.get(risk_level, 0.5)
+
+    @staticmethod
+    def _score_to_risk_level(score: float) -> str:
+        if score <= 0.1: return "none"
+        elif score <= 0.4: return "low"
+        elif score <= 0.7: return "medium"
+        else: return "high"
+
+    # ═══════════════════════════════════════════════
+    # BARCODE SCAN
+    # ═══════════════════════════════════════════════
+
+    # Commodity alias cache (instance-level)
+    _commodity_alias_cache: dict | None = None
 
     def _load_commodity_aliases(self) -> dict:
-        """Load commodity ingredient_aliases into a cached dict."""
         if self._commodity_alias_cache is not None:
             return self._commodity_alias_cache
-
-        rows = self._conn.execute(
-            "SELECT commodity_slug, ingredient_aliases FROM commodities "
-            "WHERE ingredient_aliases IS NOT NULL"
-        ).fetchall()
-
-        cache = {}  # alias -> commodity_slug
+        rows = self._store.get_all_commodities_with_aliases()
+        cache = {}
         for row in rows:
             slug = row["commodity_slug"]
-            aliases = json.loads(row["ingredient_aliases"])
+            aliases_raw = row["ingredient_aliases"]
+            aliases = json.loads(aliases_raw) if isinstance(aliases_raw, str) else (aliases_raw or [])
             for alias in aliases:
                 alias_lower = alias.lower().strip()
-                # Prefer longer (more specific) aliases
                 if alias_lower not in cache or len(alias_lower) > len(cache[alias_lower]):
                     cache[alias_lower] = slug
-
         DetectionEngine._commodity_alias_cache = cache
         return cache
 
     def _match_ingredients_to_commodities(self, ingredients: list[dict] | list[str]) -> list[str]:
-        """
-        Match ingredient names to commodity slugs.
-        Returns list of unique matched commodity slugs.
-        """
         alias_cache = self._load_commodity_aliases()
         matched = set()
-
         for ing in ingredients:
             name = (ing.get("name") or ing.get("text") or str(ing)).lower().strip()
             if not name:
                 continue
-
-            # Exact match
             if name in alias_cache:
                 matched.add(alias_cache[name])
                 continue
-
-            # Substring match (ingredient contains alias)
             for alias, slug in alias_cache.items():
                 if alias in name:
                     matched.add(slug)
                     break
-
         return sorted(matched)
 
     def scan_barcode(
-        self,
-        barcode: str,
-        contaminant: str = "glyphosate",
+        self, barcode: str, contaminant: str = "glyphosate",
     ) -> Optional[ProductScanResult]:
-        """
-        Scan a barcode and return full product scan result.
-
-        Complete flow:
-        1. Look up product via Open Food Facts API
-        2. Run three-tier risk scoring (product → ingredient → category)
-        3. Check each ingredient against regulatory flags
-        4. Match ingredients to commodities for PDP residue data
-        5. Compute data_confidence from tier used
-        """
         product = self._off_client.lookup(barcode)
         if not product:
             return None
 
-        # Map OFF categories to canonical food category
         food_category = None
         if product.get("categories"):
-            from db.database import normalize_category
             for cat in product["categories"]:
-                mapped = normalize_category(cat, conn=self._conn)
+                mapped = self._store.get_category_alias(cat)
                 if mapped:
                     food_category = mapped
                     break
 
-        # Detect product origin for source priority
         origin_region = self._detect_origin_region(product)
 
-        # Step 1: Risk scoring (three-tier)
-        risk_result = self._ingredient_risk.execute(
+        risk_result = self.ingredient_risk(
             product_name=product["product_name"],
             ingredients=product["ingredients"],
             contaminant=contaminant,
             food_category=food_category,
         )
 
-        # Step 2: Regulatory flags for each ingredient
         flagged_ingredients = []
         all_flags = []
         ingredient_list = product.get("ingredients", [])
@@ -318,42 +678,32 @@ class DetectionEngine:
                 flagged_ingredients.append(detail)
                 all_flags.extend(detail.flags)
 
-        # Step 3: Commodity matching
         commodities_matched = self._match_ingredients_to_commodities(ingredient_list)
 
-        # Step 4: Multi-contaminant report (all contaminants for this food category)
         contaminant_report = None
         if food_category:
             try:
-                contaminant_report = self.scan_all_contaminants(
-                    food_category, origin_region=origin_region
-                )
+                contaminant_report = self.scan_all_contaminants(food_category, origin_region=origin_region)
             except Exception:
-                pass  # Non-critical — don't fail the scan
+                pass
 
-        # Step 4b: Biomonitoring data for the contaminant
         bio_results = []
         try:
-            # Map contaminant name to NHANES analyte name
             bio_analyte = self._contaminant_to_analyte(contaminant)
             if bio_analyte:
                 bio_results = self.biomonitoring(analyte=bio_analyte)
         except Exception:
-            pass  # Non-critical
+            pass
 
-        # Step 5: Data confidence from tier
         data_confidence = self._TIER_TO_CONFIDENCE.get(
             risk_result.tier_used if risk_result else "none", "low"
         )
 
-        # Build ingredient name list
         ingredients_parsed = [
             (ing.get("name") or ing.get("text") or "").strip()
             for ing in ingredient_list
         ]
 
-        # Use multi-contaminant report as headline risk when available
-        # This reflects ALL contaminants, not just glyphosate
         if contaminant_report and contaminant_report.overall_risk_level != "none":
             effective_risk = contaminant_report.overall_risk_level
             effective_score = contaminant_report.overall_score
@@ -380,21 +730,14 @@ class DetectionEngine:
             biomonitoring=bio_results,
         )
 
-    # Contaminant → NHANES analyte name mapping
     _CONTAMINANT_TO_ANALYTE = {
-        "glyphosate": "Glyphosate",
-        "lead": "Lead",
-        "cadmium": "Cadmium",
-        "mercury": "Mercury",
-        "inorganic_arsenic": "Arsenic",
-        "arsenic": "Arsenic",
+        "glyphosate": "Glyphosate", "lead": "Lead", "cadmium": "Cadmium",
+        "mercury": "Mercury", "inorganic_arsenic": "Arsenic", "arsenic": "Arsenic",
     }
 
     def _contaminant_to_analyte(self, contaminant: str) -> str | None:
-        """Map contaminant key to NHANES analyte name."""
         return self._CONTAMINANT_TO_ANALYTE.get(contaminant.lower())
 
-    # EU countries for origin detection
     _EU_COUNTRIES = frozenset({
         "en:france", "en:germany", "en:italy", "en:spain", "en:netherlands",
         "en:belgium", "en:poland", "en:austria", "en:portugal", "en:sweden",
@@ -405,79 +748,36 @@ class DetectionEngine:
     })
 
     def _detect_origin_region(self, product: dict) -> str | None:
-        """Detect product origin region from Open Food Facts data.
-
-        Returns 'EU' for European products, 'US' for US products, None if unknown.
-        """
         countries = product.get("countries_tags", [])
         origins = product.get("origins_tags", [])
         all_tags = set(countries) | set(origins)
-
         if not all_tags:
             return None
-
-        # Check for EU origin
         if any(tag in self._EU_COUNTRIES for tag in all_tags):
             return "EU"
-
-        # Check for US origin
         if "en:united-states" in all_tags or "en:usa" in all_tags:
             return "US"
-
         return None
 
-    # ═════════════════════════════════════════════
+    # ═══════════════════════════════════════════════
     # REGULATORY QUERY METHODS
-    # ═════════════════════════════════════════════
+    # ═══════════════════════════════════════════════
 
     def ingredient_flags(self, ingredient_name: str) -> Optional[IngredientDetail]:
-        """
-        Look up regulatory flags for a specific ingredient.
-
-        Args:
-            ingredient_name: Ingredient name or ID (e.g. 'red_40', 'potassium bromate')
-
-        Returns:
-            IngredientDetail with all flags, IARC/NTP data, FDA status
-            None if ingredient not found
-        """
         # Try direct ID match first, then alias match
-        row = self._conn.execute(
-            "SELECT * FROM ingredients WHERE ingredient_id = ?",
-            (ingredient_name.lower().replace(" ", "_"),),
-        ).fetchone()
-
+        row = self._store.get_ingredient(
+            ingredient_id=ingredient_name.lower().replace(" ", "_")
+        )
         if not row:
-            # Try alias search — exact match within aliases list
-            name_lower = ingredient_name.lower()
-            candidates = self._conn.execute(
-                "SELECT * FROM ingredients WHERE aliases LIKE ?",
-                (f"%{name_lower}%",),
-            ).fetchall()
-            for c in candidates:
-                try:
-                    alias_list = json.loads(c["aliases"]) if c["aliases"] else []
-                    if name_lower in [a.lower() for a in alias_list]:
-                        row = c
-                        break
-                except (json.JSONDecodeError, TypeError):
-                    pass
-
+            row = self._store.get_ingredient(name=ingredient_name)
         if not row:
             return None
 
-        # Get flags
-        flag_rows = self._conn.execute(
-            "SELECT * FROM regulatory_flags WHERE ingredient_id = ?",
-            (row["ingredient_id"],),
-        ).fetchall()
-
+        flag_rows = self._store.get_regulatory_flags(row["ingredient_id"])
         flags = [
             RegulatoryFlag(
-                flag_id=r["flag_id"],
-                ingredient_id=r["ingredient_id"],
-                jurisdiction=r["jurisdiction"],
-                flag_type=r["flag_type"],
+                flag_id=r["flag_id"], ingredient_id=r["ingredient_id"],
+                jurisdiction=r["jurisdiction"], flag_type=r["flag_type"],
                 regulatory_body=r["regulatory_body"],
                 regulation_citation=r["regulation_citation"],
                 source_url=r["source_url"],
@@ -494,9 +794,7 @@ class DetectionEngine:
         return IngredientDetail(
             ingredient_id=row["ingredient_id"],
             display_name=row["display_name"],
-            aliases=aliases,
-            flag_types=flag_types,
-            flags=flags,
+            aliases=aliases, flag_types=flag_types, flags=flags,
             ntp_classification=row["ntp_classification"],
             iarc_classification=row["iarc_classification"],
             fda_status=row["fda_status"],
@@ -504,27 +802,11 @@ class DetectionEngine:
         )
 
     def commodity_residues(self, commodity_slug: str) -> Optional[CommodityDetail]:
-        """
-        Get pesticide residue data for a commodity.
-
-        Args:
-            commodity_slug: Commodity identifier (e.g. 'strawberry', 'wheat')
-
-        Returns:
-            CommodityDetail with residue data and ingredient aliases
-            None if commodity not found
-        """
-        row = self._conn.execute(
-            "SELECT * FROM commodities WHERE commodity_slug = ?",
-            (commodity_slug.lower(),),
-        ).fetchone()
-
+        row = self._store.get_commodity(commodity_slug)
         if not row:
             return None
-
         aliases = json.loads(row["ingredient_aliases"]) if row["ingredient_aliases"] else []
         raw_residues = json.loads(row["residues"]) if row["residues"] else []
-
         residues = [
             CommodityResidue(
                 pesticide_name=r.get("pesticide_name") or r.get("pesticide", ""),
@@ -537,7 +819,6 @@ class DetectionEngine:
             )
             for r in raw_residues
         ]
-
         return CommodityDetail(
             commodity_slug=row["commodity_slug"],
             display_name=row["display_name"],
@@ -549,147 +830,96 @@ class DetectionEngine:
         )
 
     def lookup_alternatives(self, product_name: str, brand: str = None) -> Optional[dict]:
-        """
-        Look up alternative products for a flagged product.
-
-        Args:
-            product_name: Name of the flagged product (e.g. 'Cheerios (Original)')
-            brand: Optional brand name for disambiguation
-
-        Returns:
-            Dict with flagged_product_name, risk_label, flag_summary, alternatives list
-            None if no alternatives found
-        """
-        # 1. Exact match on product name + brand (most precise)
+        # 1. Exact match on product name + brand
         if brand:
-            row = self._conn.execute(
-                "SELECT * FROM alternatives WHERE flagged_product_name = ? AND LOWER(flagged_brand) = ?",
-                (product_name, brand.lower().strip()),
-            ).fetchone()
+            row = self._store.get_alternatives(product_name, brand)
             if row:
                 return self._build_alternatives_result(row)
 
         # 2. Exact match on product name only
-        row = self._conn.execute(
-            "SELECT * FROM alternatives WHERE flagged_product_name = ?",
-            (product_name,),
-        ).fetchone()
+        row = self._store.get_alternatives(product_name)
         if row:
             return self._build_alternatives_result(row)
 
         # 3. Case-insensitive exact match
-        row = self._conn.execute(
-            "SELECT * FROM alternatives WHERE LOWER(flagged_product_name) = ?",
-            (product_name.lower(),),
-        ).fetchone()
+        row = self._store.get_alternatives_case_insensitive(product_name)
         if row:
             return self._build_alternatives_result(row)
 
-        # 4. Brand + word match (e.g. "Coca-Cola" + "Original" matches "Coca-Cola Classic")
+        # 4. Brand + word match
         if brand:
             brand_lower = brand.lower().strip()
             name_words = [w for w in product_name.lower().split() if len(w) > 2]
             for word in name_words:
-                row = self._conn.execute(
-                    "SELECT * FROM alternatives WHERE LOWER(flagged_brand) = ? "
-                    "AND LOWER(flagged_product_name) LIKE ?",
-                    (brand_lower, f"%{word}%"),
-                ).fetchone()
+                row = self._store.get_alternatives_by_brand_word(brand, word)
                 if row:
                     return self._build_alternatives_result(row)
 
-        # 5. Partial word match (any significant word from product name)
+        # 5. Partial word match
         name_words = [w for w in product_name.lower().split() if len(w) > 3]
         for word in name_words:
-            row = self._conn.execute(
-                "SELECT * FROM alternatives WHERE LOWER(flagged_product_name) LIKE ?",
-                (f"%{word}%",),
-            ).fetchone()
+            row = self._store.get_alternatives_by_word(word)
             if row:
                 return self._build_alternatives_result(row)
 
         # 6. Brand-only match
         if brand:
-            row = self._conn.execute(
-                "SELECT * FROM alternatives WHERE LOWER(flagged_brand) = ?",
-                (brand.lower().strip(),),
-            ).fetchone()
+            row = self._store.get_alternatives_by_brand(brand)
             if row:
                 return self._build_alternatives_result(row)
 
-        # 7. Category-based fallback: search all certified products by keyword
+        # 7. Category-based fallback
         return self._category_fallback(product_name)
 
     def _category_fallback(self, product_name: str) -> Optional[dict]:
-        """
-        Fallback: find certified products matching the product name.
-        Searches all certified products using keyword matching on
-        raw_category and product_name.
-        """
-        # Get product name keywords for matching
         name_words = set(w.lower() for w in product_name.split() if len(w) > 3)
         stop_words = {"with", "from", "this", "that", "have", "been", "your", "their",
                       "original", "classic", "natural", "organic", "conventional"}
         name_words -= stop_words
-
         if not name_words:
             return None
 
-        # Query all certified products
-        rows = self._conn.execute('''
-            SELECT product_name, brand, certification, raw_category
-            FROM certified_products
-            ORDER BY
-                CASE certification
-                    WHEN 'Glyphosate Residue Free' THEN 1
-                    WHEN 'Clean Label Project Certified' THEN 2
-                    WHEN 'USDA Organic' THEN 3
-                    WHEN 'EU Organic' THEN 4
-                    WHEN 'Canada Organic' THEN 5
-                    WHEN 'Soil Association Organic' THEN 6
-                    WHEN 'Non-GMO Project Verified' THEN 7
-                    ELSE 8
-                END
-        ''').fetchall()
-
+        rows = self._store.get_certified_products()
         if not rows:
             return None
 
-        # Score each certified product by keyword overlap
         scored = []
         for row in rows:
-            cert_name = row[0].lower()
-            cert_brand = (row[1] or "").lower()
-            raw_cat = (row[3] or "").lower()
+            cert_name = row[0].lower() if isinstance(row, (list, tuple)) else row.get("product_name", "").lower()
+            cert_brand = (row[1] or "").lower() if isinstance(row, (list, tuple)) else (row.get("brand") or "").lower()
+            raw_cat = (row[3] or "").lower() if isinstance(row, (list, tuple)) else (row.get("raw_category") or "").lower()
             cert_text = f"{cert_name} {cert_brand} {raw_cat}"
 
-            # Skip clearly irrelevant categories
             skip_keywords = ["supplement", "wine", "vitamin", "protein powder",
                              "bone broth", "pet food", "personal care"]
             if any(sk in raw_cat for sk in skip_keywords):
                 continue
 
-            # Score by keyword overlap
             name_matches = sum(1 for w in name_words if w in cert_text)
             cat_matches = sum(1 for w in name_words if w in raw_cat)
-            total_score = name_matches + cat_matches * 2  # Category match weighted higher
+            total_score = name_matches + cat_matches * 2
 
             if total_score > 0:
                 scored.append((total_score, row))
 
-        # Sort by score (descending)
         scored.sort(key=lambda x: -x[0])
 
-        # Take top 5
         alternatives = []
         for score, row in scored[:5]:
-            alternatives.append({
-                "name": row[0],
-                "brand": row[1] or "",
-                "why_better": f"{row[2]} certified",
-                "certification": row[2],
-                "affiliate_eligible": False,
-            })
+            if isinstance(row, (list, tuple)):
+                alternatives.append({
+                    "name": row[0], "brand": row[1] or "",
+                    "why_better": f"{row[2]} certified", "certification": row[2],
+                    "affiliate_eligible": False,
+                })
+            else:
+                alternatives.append({
+                    "name": row.get("product_name", ""),
+                    "brand": row.get("brand") or "",
+                    "why_better": f"{row.get('certification', '')} certified",
+                    "certification": row.get("certification", ""),
+                    "affiliate_eligible": False,
+                })
 
         if not alternatives:
             return None
@@ -704,32 +934,24 @@ class DetectionEngine:
         }
 
     def _build_alternatives_result(self, row) -> dict:
-        """Build result dict from alternatives row."""
         return {
             "lookup_key": row["lookup_key"],
             "flagged_product_name": row["flagged_product_name"],
-            "flagged_brand": row["flagged_brand"],
+            "flagged_brand": row.get("flagged_brand"),
             "risk_label": row["risk_label"],
             "flag_summary": row["flag_summary"],
             "alternatives": json.loads(row["alternatives"]) if row["alternatives"] else [],
         }
 
     def list_ingredients(self) -> list[IngredientDetail]:
-        """List all ingredients in the database."""
-        rows = self._conn.execute("SELECT * FROM ingredients ORDER BY ingredient_id").fetchall()
+        rows = self._store.get_all_ingredients()
         results = []
         for row in rows:
-            flag_rows = self._conn.execute(
-                "SELECT * FROM regulatory_flags WHERE ingredient_id = ?",
-                (row["ingredient_id"],),
-            ).fetchall()
-
+            flag_rows = self._store.get_regulatory_flags(row["ingredient_id"])
             flags = [
                 RegulatoryFlag(
-                    flag_id=r["flag_id"],
-                    ingredient_id=r["ingredient_id"],
-                    jurisdiction=r["jurisdiction"],
-                    flag_type=r["flag_type"],
+                    flag_id=r["flag_id"], ingredient_id=r["ingredient_id"],
+                    jurisdiction=r["jurisdiction"], flag_type=r["flag_type"],
                     regulatory_body=r["regulatory_body"],
                     regulation_citation=r["regulation_citation"],
                     source_url=r["source_url"],
@@ -739,16 +961,12 @@ class DetectionEngine:
                 )
                 for r in flag_rows
             ]
-
             aliases = json.loads(row["aliases"]) if row["aliases"] else []
             flag_types = json.loads(row["flag_types"]) if row["flag_types"] else []
-
             results.append(IngredientDetail(
                 ingredient_id=row["ingredient_id"],
                 display_name=row["display_name"],
-                aliases=aliases,
-                flag_types=flag_types,
-                flags=flags,
+                aliases=aliases, flag_types=flag_types, flags=flags,
                 ntp_classification=row["ntp_classification"],
                 iarc_classification=row["iarc_classification"],
                 fda_status=row["fda_status"],
@@ -757,10 +975,7 @@ class DetectionEngine:
         return results
 
     def list_commodities(self) -> list[CommodityDetail]:
-        """List all commodities in the database."""
-        rows = self._conn.execute(
-            "SELECT * FROM commodities ORDER BY commodity_slug"
-        ).fetchall()
+        rows = self._store.get_all_commodities()
         results = []
         for row in rows:
             aliases = json.loads(row["ingredient_aliases"]) if row["ingredient_aliases"] else []
