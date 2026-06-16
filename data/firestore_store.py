@@ -149,51 +149,54 @@ class FirestoreDataStore:
             }
         return self._aliases_cache
 
+    def _category_exists(self, name: str) -> bool:
+        """Check if a food category exists (limit 1 for speed)."""
+        docs = self._get_collection("category_summaries").where(
+            "food_category", "==", name
+        ).limit(1).stream()
+        return any(True for _ in docs)
+
     def _resolve_category(self, name: str) -> str:
-        """Resolve user-provided category name to canonical form."""
+        """Resolve user-provided category name to canonical form.
+
+        Uses targeted indexed queries — never fetches the full collection.
+        """
         aliases = self._load_aliases()
         lower = name.lower().strip()
 
-        # 1. Check if it exists in category_summaries
-        docs = self._query_eq("category_summaries", "food_category", name)
-        if docs:
+        # 1. Exact match (indexed, limit 1)
+        if self._category_exists(name):
             return name
 
         # 2. Alias lookup
         if lower in aliases:
             canonical = aliases[lower]
-            check = self._query_eq("category_summaries", "food_category", canonical)
-            if check:
+            if self._category_exists(canonical):
                 return canonical
 
-        # 3. Singular/plural
-        variants = set()
-        variants.add(lower)
+        # 3. Singular/plural — try each variant with a targeted query
+        variants = []
         if lower.endswith("ies"):
-            variants.add(lower[:-3] + "y")
+            variants.append(lower[:-3] + "y")
         if lower.endswith("es"):
-            variants.add(lower[:-2])
+            variants.append(lower[:-2])
         if lower.endswith("s") and not lower.endswith("ss"):
-            variants.add(lower[:-1])
+            variants.append(lower[:-1])
         if not lower.endswith("s"):
-            variants.add(lower + "s")
+            variants.append(lower + "s")
             if lower.endswith("y"):
-                variants.add(lower[:-1] + "ies")
-
-        # Fetch all distinct food_categories from category_summaries once
-        all_summaries = self._query_all("category_summaries")
-        known_categories = {d.get("food_category", "") for d in all_summaries}
+                variants.append(lower[:-1] + "ies")
 
         for v in variants:
             if v == name:
                 continue
-            if v in known_categories:
+            if self._category_exists(v):
                 return v
 
-        # 4. Case-insensitive
-        for cat in known_categories:
-            if cat.lower() == lower:
-                return cat
+        # 4. Case-insensitive — try the canonical aliases (small set)
+        for alias, canonical in aliases.items():
+            if alias == lower and self._category_exists(canonical):
+                return canonical
 
         return name
 
@@ -204,7 +207,18 @@ class FirestoreDataStore:
     ) -> list[dict]:
         resolved = self._resolve_category(food_category)
 
-        # Fetch category summaries for this food category
+        # Fast path: try pre-computed app_food_overview collection
+        if contaminant:
+            doc_id = _sanitize_doc_id(f"{resolved}_{contaminant}")
+            doc = self._get_doc("app_food_overview", doc_id)
+            if doc:
+                return [doc]
+        else:
+            results = self._query_eq("app_food_overview", "food_category", resolved)
+            if results:
+                return results
+
+        # Slow path: compute from raw collections
         summaries = self._query_eq("category_summaries", "food_category", resolved)
         if not summaries:
             return []
@@ -281,7 +295,21 @@ class FirestoreDataStore:
     def get_product_lookup(
         self, query: str, contaminant: Optional[str] = None
     ) -> list[dict]:
-        # Fetch all product_tests and filter by substring match (Firestore has no LIKE)
+        # Fast path: try pre-computed app_product_lookup collection
+        all_docs = self._query_all("app_product_lookup")
+        if all_docs:
+            query_lower = query.lower()
+            results = []
+            for d in all_docs:
+                if query_lower not in (d.get("product_name", "").lower()):
+                    continue
+                if contaminant and d.get("contaminant") != contaminant:
+                    continue
+                results.append(d)
+            if results:
+                return results
+
+        # Slow path: compute from raw product_tests
         all_docs = self._query_all("product_tests")
         query_lower = query.lower()
         results = []
@@ -290,7 +318,6 @@ class FirestoreDataStore:
                 continue
             if contaminant and d.get("contaminant") != contaminant:
                 continue
-            # Compute risk_level (matching the SQLite view logic)
             d["below_detection"] = bool(d.get("below_detection"))
             d["is_organic"] = bool(d.get("is_organic"))
             d["is_grf_certified"] = bool(d.get("is_grf_certified"))
@@ -304,11 +331,42 @@ class FirestoreDataStore:
         contaminant: Optional[str] = None,
         water_type: Optional[str] = None,
     ) -> list[dict]:
-        # Fetch all aggregate water tests
+        # Fast path: try pre-computed app_water_overview collection
+        if contaminant and state:
+            doc_id = _sanitize_doc_id(f"{contaminant}_{state}")
+            doc = self._get_doc("app_water_overview", doc_id)
+            if doc:
+                entries = doc.get("entries", [])
+                if water_type:
+                    entries = [e for e in entries if e.get("water_type") == water_type]
+                results = []
+                for entry in entries:
+                    merged = {"contaminant": doc.get("contaminant"), "state": doc.get("state"), **entry}
+                    results.append(merged)
+                if results:
+                    return results
+        else:
+            all_docs = self._query_all("app_water_overview")
+            if all_docs:
+                results = []
+                for doc in all_docs:
+                    entries = doc.get("entries", [])
+                    for entry in entries:
+                        merged = {"contaminant": doc.get("contaminant"), "state": doc.get("state"), **entry}
+                        if state and merged.get("state") != state:
+                            continue
+                        if contaminant and merged.get("contaminant") != contaminant:
+                            continue
+                        if water_type and merged.get("water_type") != water_type:
+                            continue
+                        results.append(merged)
+                if results:
+                    return results
+
+        # Slow path: compute from raw water_tests
         all_tests = self._query_all("water_tests")
         rows = [d for d in all_tests if d.get("is_aggregate")]
 
-        # Apply filters
         if state:
             rows = [d for d in rows if d.get("state") == state]
         if contaminant:
@@ -316,7 +374,6 @@ class FirestoreDataStore:
         if water_type:
             rows = [d for d in rows if d.get("water_type") == water_type]
 
-        # Fetch EPA MCL tolerance limits for drinking water
         all_tolerances = self._query_eq("tolerance_limits", "food_category", "drinking_water")
         epa_mcl = {
             d.get("contaminant"): d.get("tolerance_ppb")
@@ -324,7 +381,6 @@ class FirestoreDataStore:
             if d.get("source") == "EPA_MCL" and (d.get("tolerance_ppb") or 0) > 0
         }
 
-        # Build results with computed fields
         results = []
         for d in rows:
             contam = d.get("contaminant", "")
@@ -355,13 +411,22 @@ class FirestoreDataStore:
     def get_international_comparison(
         self, food_category: str, contaminant: str = "glyphosate"
     ) -> list[dict]:
-        # Fetch international MRLs for this food category
+        # Fast path: try pre-computed app_international_comparison collection
+        doc_id = _sanitize_doc_id(f"{food_category}_{contaminant}")
+        doc = self._get_doc("app_international_comparison", doc_id)
+        if doc:
+            entries = doc.get("entries", [])
+            return [
+                {"food_category": doc.get("food_category"), "contaminant": doc.get("contaminant"), **entry}
+                for entry in entries
+            ]
+
+        # Slow path: compute from raw international_mrls
         all_mrls = self._query_eq("international_mrls", "food_category", food_category)
         mrls = [d for d in all_mrls if d.get("pesticide") == contaminant]
         if not mrls:
             return []
 
-        # Get category summary for measured max ppb
         summaries = self._query_eq("category_summaries", "food_category", food_category)
         measured_max = None
         detection_rate = None
@@ -371,7 +436,6 @@ class FirestoreDataStore:
                 detection_rate = s.get("detection_rate")
                 break
 
-        # Build results
         results = []
         for mrl in mrls:
             mrl_ppb = mrl.get("mrl_ppb")
@@ -392,7 +456,6 @@ class FirestoreDataStore:
                 "pct_of_mrl": pct_of_mrl,
             })
 
-        # Sort by mrl_ppb ascending (strictest first), matching SQLite view
         results.sort(key=lambda d: d.get("mrl_ppb") or 0)
         return results
 
