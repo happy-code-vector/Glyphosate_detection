@@ -3,7 +3,8 @@
     "allow": [
       "Bash(python run_pipeline.py)",
       "Bash(python -c ' *)",
-      "Bash(python seed_ingredients.py)"
+      "Bash(python seed_ingredients.py)",
+      "Bash(python -m pytest tests/ -x -q)"
     ]
   }
 }

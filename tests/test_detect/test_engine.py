@@ -239,6 +239,64 @@ class TestDetectionEngine(unittest.TestCase):
         self.assertEqual(oats.display_name, "Oats")
         engine.close()
 
+    def test_detect_origin_region_eu(self):
+        """Test EU origin detection from countries_tags."""
+        engine = DetectionEngine(self.tmp.name)
+
+        # French product
+        product = {"countries_tags": ["en:france", "en:belgium"]}
+        self.assertEqual(engine._detect_origin_region(product), "EU")
+
+        # German product
+        product = {"countries_tags": ["en:germany"]}
+        self.assertEqual(engine._detect_origin_region(product), "EU")
+
+        # Italian product via origins_tags
+        product = {"countries_tags": [], "origins_tags": ["en:italy"]}
+        self.assertEqual(engine._detect_origin_region(product), "EU")
+
+        engine.close()
+
+    def test_detect_origin_region_us(self):
+        """Test US origin detection."""
+        engine = DetectionEngine(self.tmp.name)
+
+        product = {"countries_tags": ["en:united-states"]}
+        self.assertEqual(engine._detect_origin_region(product), "US")
+
+        product = {"countries_tags": ["en:usa"]}
+        self.assertEqual(engine._detect_origin_region(product), "US")
+
+        engine.close()
+
+    def test_detect_origin_region_unknown(self):
+        """Test unknown origin fallback."""
+        engine = DetectionEngine(self.tmp.name)
+
+        # No tags
+        product = {"countries_tags": []}
+        self.assertIsNone(engine._detect_origin_region(product))
+
+        # Missing key
+        product = {}
+        self.assertIsNone(engine._detect_origin_region(product))
+
+        # Non-EU, non-US country
+        product = {"countries_tags": ["en:japan"]}
+        self.assertIsNone(engine._detect_origin_region(product))
+
+        engine.close()
+
+    def test_detect_origin_region_mixed(self):
+        """Test mixed origin tags — EU detected if any EU country present."""
+        engine = DetectionEngine(self.tmp.name)
+
+        # Product sold in both US and France — should detect EU
+        product = {"countries_tags": ["en:united-states", "en:france"]}
+        self.assertEqual(engine._detect_origin_region(product), "EU")
+
+        engine.close()
+
 
 if __name__ == "__main__":
     unittest.main()
