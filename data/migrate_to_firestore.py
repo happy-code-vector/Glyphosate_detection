@@ -16,6 +16,7 @@ import sys
 import logging
 from pathlib import Path
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 try:
     import firebase_admin
@@ -159,16 +160,59 @@ def batch_write(db, collection_name: str, rows: list[dict], id_func) -> int:
 
         if batch_count >= BATCH_LIMIT:
             batch.commit()
-            logger.info("  Committed batch of %d docs to %s", batch_count, collection_name)
             batch = db.batch()
             batch_count = 0
 
     # Commit remaining
     if batch_count > 0:
         batch.commit()
-        logger.info("  Committed final batch of %d docs to %s", batch_count, collection_name)
 
     return written
+
+
+def batch_write_parallel(db, collection_name: str, rows: list[dict], id_func, max_workers: int = 4) -> int:
+    """Write rows to Firestore using parallel batch commits.
+
+    Splits rows into chunks and commits each chunk in a separate thread.
+    Each thread creates its own batch and commits independently.
+    """
+    # Split rows into chunks for parallel processing
+    chunk_size = BATCH_LIMIT * 10  # 5000 docs per thread
+    chunks = [rows[i:i + chunk_size] for i in range(0, len(rows), chunk_size)]
+
+    def write_chunk(chunk):
+        """Write a chunk of rows in sequential batches."""
+        count = 0
+        batch = db.batch()
+        batch_count = 0
+        for row in chunk:
+            doc_id = id_func(row)
+            if doc_id:
+                ref = db.collection(collection_name).document(doc_id)
+            else:
+                ref = db.collection(collection_name).document()
+            batch.set(ref, row)
+            batch_count += 1
+            count += 1
+            if batch_count >= BATCH_LIMIT:
+                batch.commit()
+                batch = db.batch()
+                batch_count = 0
+        if batch_count > 0:
+            batch.commit()
+        return count
+
+    total_written = 0
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(write_chunk, chunk): i for i, chunk in enumerate(chunks)}
+        for future in as_completed(futures):
+            try:
+                count = future.result()
+                total_written += count
+            except Exception as e:
+                logger.error("  Chunk %d failed: %s", futures[future], e)
+
+    return total_written
 
 
 def compute_risk_level(detection_rate: float | None, max_ppb: float | None) -> str:
@@ -516,6 +560,8 @@ def main():
                         help="Firestore database ID (default: purityiq)")
     parser.add_argument("--resume-from", default=None,
                         help="Resume migration from this table (skip all before it)")
+    parser.add_argument("--workers", type=int, default=4,
+                        help="Number of parallel write threads (default: 4)")
     args = parser.parse_args()
 
     # Validate paths
@@ -559,7 +605,14 @@ def main():
 
         converted = [convert_row(table, dict(r)) for r in rows]
         doc_id_func = lambda r, t=table: get_document_id(t, r)
-        written = batch_write(db, table, converted, doc_id_func)
+
+        # Use parallel writes for large tables (>2000 rows)
+        if len(converted) > 2000 and args.workers > 1:
+            logger.info("  Using %d parallel workers for %d documents", args.workers, len(converted))
+            written = batch_write_parallel(db, table, converted, doc_id_func, max_workers=args.workers)
+        else:
+            written = batch_write(db, table, converted, doc_id_func)
+
         total_written += written
         logger.info("  Migrated %d documents to %s", written, table)
 
