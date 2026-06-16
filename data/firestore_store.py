@@ -2,10 +2,9 @@
 data/firestore_store.py
 FirestoreDataStore — implements the DataStore protocol using firebase-admin.
 
-Reads from the collections created by data/migrate_to_firestore.py:
-  - Raw tables: product_tests, category_summaries, water_tests, etc.
-  - Pre-computed views: app_food_overview, app_product_lookup,
-    app_international_comparison, app_water_overview, app_regulatory_limits
+Reads from raw Firestore collections (product_tests, category_summaries,
+water_tests, international_mrls, etc.) and computes derived views in Python.
+No dependency on pre-computed app_* collections.
 """
 
 from __future__ import annotations
@@ -89,6 +88,57 @@ class FirestoreDataStore:
         docs = self._get_collection(collection).stream()
         return [doc.to_dict() for doc in docs]
 
+    # ── Source priority / risk helpers ─────────────────────────────────
+
+    _SOURCE_PRIORITY = {"FDA": 3, "CFIA": 2, "EFSA": 1}
+
+    def _source_priority(self, source_name: str) -> int:
+        return self._SOURCE_PRIORITY.get(source_name, 0)
+
+    def _compute_risk_level(self, max_ppb: float | None, contaminant: str,
+                            food_category: str | None = None) -> str:
+        """Compute risk level: ppb vs tolerance/MRL, matching the SQLite view logic."""
+        if max_ppb is None or max_ppb <= 0:
+            return "none"
+        if food_category:
+            tol = self.get_tolerance_limit(contaminant, food_category)
+            if tol and (tol_ppb := tol.get("tolerance_ppb")) and tol_ppb > 0:
+                pct = max_ppb / tol_ppb
+                if pct >= 2.0: return "high"
+                if pct >= 1.0: return "medium"
+                return "low"
+            mrl = self.get_strictest_mrl(contaminant, food_category)
+            if mrl and (mrl_ppb := mrl.get("mrl_ppb")) and mrl_ppb > 0:
+                pct = max_ppb / mrl_ppb
+                if pct >= 2.0: return "high"
+                if pct >= 1.0: return "medium"
+                return "low"
+        return "unknown"
+
+    def _compute_product_risk(self, row: dict) -> str:
+        """Compute product risk level, matching the SQLite view logic."""
+        if row.get("is_grf_certified"):
+            return "certified_grf"
+        if row.get("is_organic") and row.get("below_detection"):
+            return "organic_clean"
+        if row.get("is_organic"):
+            return "organic_detected"
+        if row.get("below_detection"):
+            return "none"
+        ppb = row.get("measured_ppb")
+        if ppb is None or ppb <= 0:
+            return "none"
+        food_cat = row.get("food_category")
+        contam = row.get("contaminant", "glyphosate")
+        if food_cat:
+            tol = self.get_tolerance_limit(contam, food_cat)
+            if tol and (tol_ppb := tol.get("tolerance_ppb")) and tol_ppb > 0:
+                pct = ppb / tol_ppb
+                if pct >= 2.0: return "high"
+                if pct >= 1.0: return "medium"
+                return "low"
+        return "unknown"
+
     def _load_aliases(self) -> dict[str, str]:
         """Load and cache category aliases (alias → canonical_key)."""
         if self._aliases_cache is None:
@@ -104,16 +154,16 @@ class FirestoreDataStore:
         aliases = self._load_aliases()
         lower = name.lower().strip()
 
-        # 1. Check if it exists in app_food_overview
-        doc_id = _sanitize_doc_id(f"{name}_glyphosate")
-        if self._get_doc("app_food_overview", doc_id):
+        # 1. Check if it exists in category_summaries
+        docs = self._query_eq("category_summaries", "food_category", name)
+        if docs:
             return name
 
         # 2. Alias lookup
         if lower in aliases:
             canonical = aliases[lower]
-            check_id = _sanitize_doc_id(f"{canonical}_glyphosate")
-            if self._get_doc("app_food_overview", check_id):
+            check = self._query_eq("category_summaries", "food_category", canonical)
+            if check:
                 return canonical
 
         # 3. Singular/plural
@@ -130,12 +180,20 @@ class FirestoreDataStore:
             if lower.endswith("y"):
                 variants.add(lower[:-1] + "ies")
 
+        # Fetch all distinct food_categories from category_summaries once
+        all_summaries = self._query_all("category_summaries")
+        known_categories = {d.get("food_category", "") for d in all_summaries}
+
         for v in variants:
             if v == name:
                 continue
-            check_id = _sanitize_doc_id(f"{v}_glyphosate")
-            if self._get_doc("app_food_overview", check_id):
+            if v in known_categories:
                 return v
+
+        # 4. Case-insensitive
+        for cat in known_categories:
+            if cat.lower() == lower:
+                return cat
 
         return name
 
@@ -145,29 +203,99 @@ class FirestoreDataStore:
         self, food_category: str, contaminant: Optional[str] = None
     ) -> list[dict]:
         resolved = self._resolve_category(food_category)
-        # Try doc ID lookup first (fast path)
-        if contaminant:
-            doc_id = _sanitize_doc_id(f"{resolved}_{contaminant}")
-            doc = self._get_doc("app_food_overview", doc_id)
-            if doc:
-                return [doc]
 
-        # Query by food_category field
-        results = self._query_eq("app_food_overview", "food_category", resolved)
-        if contaminant:
-            results = [r for r in results if r.get("contaminant") == contaminant]
+        # Fetch category summaries for this food category
+        summaries = self._query_eq("category_summaries", "food_category", resolved)
+        if not summaries:
+            return []
+
+        # Pick best source per contaminant (source priority + data year)
+        best: dict[str, dict] = {}
+        for s in summaries:
+            contam = s.get("contaminant", "")
+            if contaminant and contam != contaminant:
+                continue
+            key = contam
+            if key not in best or (
+                self._source_priority(s.get("source_name", "")),
+                s.get("data_year", 0),
+            ) > (
+                self._source_priority(best[key].get("source_name", "")),
+                best[key].get("data_year", 0),
+            ):
+                best[key] = s
+
+        if not best:
+            return []
+
+        # Product stats per contaminant
+        all_products = self._query_eq("product_tests", "food_category", resolved)
+        product_stats: dict[str, dict] = {}
+        for p in all_products:
+            contam = p.get("contaminant", "")
+            if contam not in product_stats:
+                product_stats[contam] = {
+                    "total": 0, "with_detection": 0,
+                    "ppb_sum": 0.0, "ppb_count": 0, "max_ppb": 0.0,
+                }
+            ps = product_stats[contam]
+            ps["total"] += 1
+            if not p.get("below_detection"):
+                ps["with_detection"] += 1
+            ppb = p.get("measured_ppb")
+            if ppb is not None:
+                ps["ppb_sum"] += ppb
+                ps["ppb_count"] += 1
+                ps["max_ppb"] = max(ps["max_ppb"], ppb)
+
+        # Certified product count for this category
+        all_certs = self._query_eq("certified_products", "food_category", resolved)
+        cert_count = len(all_certs)
+
+        # Build result dicts
+        results = []
+        for contam, s in best.items():
+            ps = product_stats.get(contam, {})
+            max_ppb = s.get("max_ppb")
+            results.append({
+                "food_category": resolved,
+                "contaminant": contam,
+                "best_source": s.get("source_name", ""),
+                "best_data_year": s.get("data_year"),
+                "detection_rate": s.get("detection_rate"),
+                "avg_ppb": s.get("avg_ppb"),
+                "max_ppb": max_ppb,
+                "samples_total": s.get("samples_total"),
+                "samples_detected": s.get("samples_detected"),
+                "risk_level": self._compute_risk_level(max_ppb, contam, resolved),
+                "confidence": s.get("confidence"),
+                "total_products_tested": ps.get("total", 0),
+                "products_with_detection": ps.get("with_detection", 0),
+                "avg_product_ppb": round(ps["ppb_sum"] / ps["ppb_count"], 1) if ps.get("ppb_count") else 0,
+                "max_product_ppb": ps.get("max_ppb", 0),
+                "certified_products_available": cert_count,
+            })
+
         return results
 
     def get_product_lookup(
         self, query: str, contaminant: Optional[str] = None
     ) -> list[dict]:
-        # Firestore has no LIKE — fetch all and filter client-side
-        # For production, consider Algolia or a search index
-        all_docs = self._query_all("app_product_lookup")
+        # Fetch all product_tests and filter by substring match (Firestore has no LIKE)
+        all_docs = self._query_all("product_tests")
         query_lower = query.lower()
-        results = [d for d in all_docs if query_lower in (d.get("product_name", "").lower())]
-        if contaminant:
-            results = [r for r in results if r.get("contaminant") == contaminant]
+        results = []
+        for d in all_docs:
+            if query_lower not in (d.get("product_name", "").lower()):
+                continue
+            if contaminant and d.get("contaminant") != contaminant:
+                continue
+            # Compute risk_level (matching the SQLite view logic)
+            d["below_detection"] = bool(d.get("below_detection"))
+            d["is_organic"] = bool(d.get("is_organic"))
+            d["is_grf_certified"] = bool(d.get("is_grf_certified"))
+            d["risk_level"] = self._compute_product_risk(d)
+            results.append(d)
         return results
 
     def get_water_overview(
@@ -176,63 +304,97 @@ class FirestoreDataStore:
         contaminant: Optional[str] = None,
         water_type: Optional[str] = None,
     ) -> list[dict]:
-        # Try doc ID lookup for contaminant+state
-        if contaminant and state:
-            doc_id = _sanitize_doc_id(f"{contaminant}_{state}")
-            doc = self._get_doc("app_water_overview", doc_id)
-            if doc:
-                # app_water_overview stores entries as array — flatten
-                entries = doc.get("entries", [])
-                if water_type:
-                    entries = [e for e in entries if e.get("water_type") == water_type]
-                # Merge parent fields into each entry
-                results = []
-                for entry in entries:
-                    merged = {
-                        "contaminant": doc.get("contaminant"),
-                        "state": doc.get("state"),
-                        **entry,
-                    }
-                    results.append(merged)
-                return results
+        # Fetch all aggregate water tests
+        all_tests = self._query_all("water_tests")
+        rows = [d for d in all_tests if d.get("is_aggregate")]
 
-        # Fallback: query all and filter
-        all_docs = self._query_all("app_water_overview")
+        # Apply filters
+        if state:
+            rows = [d for d in rows if d.get("state") == state]
+        if contaminant:
+            rows = [d for d in rows if d.get("contaminant") == contaminant]
+        if water_type:
+            rows = [d for d in rows if d.get("water_type") == water_type]
+
+        # Fetch EPA MCL tolerance limits for drinking water
+        all_tolerances = self._query_eq("tolerance_limits", "food_category", "drinking_water")
+        epa_mcl = {
+            d.get("contaminant"): d.get("tolerance_ppb")
+            for d in all_tolerances
+            if d.get("source") == "EPA_MCL" and (d.get("tolerance_ppb") or 0) > 0
+        }
+
+        # Build results with computed fields
         results = []
-        for doc in all_docs:
-            entries = doc.get("entries", [])
-            for entry in entries:
-                merged = {
-                    "contaminant": doc.get("contaminant"),
-                    "state": doc.get("state"),
-                    **entry,
-                }
-                if state and merged.get("state") != state:
-                    continue
-                if contaminant and merged.get("contaminant") != contaminant:
-                    continue
-                if water_type and merged.get("water_type") != water_type:
-                    continue
-                results.append(merged)
+        for d in rows:
+            contam = d.get("contaminant", "")
+            max_ppb = d.get("max_ppb")
+            mcl_ppb = epa_mcl.get(contam)
+            pct_of_mcl = None
+            if mcl_ppb and mcl_ppb > 0 and max_ppb is not None:
+                pct_of_mcl = round(max_ppb / mcl_ppb * 100, 1)
+
+            results.append({
+                "contaminant": contam,
+                "state": d.get("state"),
+                "water_type": d.get("water_type"),
+                "source_name": d.get("source_name"),
+                "report_label": d.get("report_label"),
+                "data_year": d.get("data_year"),
+                "samples_total": d.get("samples_total"),
+                "samples_detected": d.get("samples_detected"),
+                "detection_rate": d.get("detection_rate"),
+                "avg_ppb": d.get("avg_ppb"),
+                "max_ppb": max_ppb,
+                "epa_mcl_ppb": mcl_ppb,
+                "pct_of_mcl": pct_of_mcl,
+            })
+
         return results
 
     def get_international_comparison(
         self, food_category: str, contaminant: str = "glyphosate"
     ) -> list[dict]:
-        doc_id = _sanitize_doc_id(f"{food_category}_{contaminant}")
-        doc = self._get_doc("app_international_comparison", doc_id)
-        if doc:
-            entries = doc.get("entries", [])
-            # Merge parent fields
-            return [
-                {
-                    "food_category": doc.get("food_category"),
-                    "contaminant": doc.get("contaminant"),
-                    **entry,
-                }
-                for entry in entries
-            ]
-        return []
+        # Fetch international MRLs for this food category
+        all_mrls = self._query_eq("international_mrls", "food_category", food_category)
+        mrls = [d for d in all_mrls if d.get("pesticide") == contaminant]
+        if not mrls:
+            return []
+
+        # Get category summary for measured max ppb
+        summaries = self._query_eq("category_summaries", "food_category", food_category)
+        measured_max = None
+        detection_rate = None
+        for s in summaries:
+            if s.get("contaminant") == contaminant:
+                measured_max = s.get("max_ppb")
+                detection_rate = s.get("detection_rate")
+                break
+
+        # Build results
+        results = []
+        for mrl in mrls:
+            mrl_ppb = mrl.get("mrl_ppb")
+            pct_of_mrl = None
+            if mrl_ppb and mrl_ppb > 0 and measured_max is not None:
+                pct_of_mrl = round(measured_max / mrl_ppb * 100, 1)
+
+            results.append({
+                "food_category": food_category,
+                "contaminant": contaminant,
+                "country_region": mrl.get("country_region"),
+                "mrl_ppm": mrl.get("mrl_ppm"),
+                "mrl_ppb": mrl_ppb,
+                "regulatory_body": mrl.get("regulatory_body"),
+                "source_url": mrl.get("source_url"),
+                "detection_rate": detection_rate,
+                "measured_max_ppb": measured_max,
+                "pct_of_mrl": pct_of_mrl,
+            })
+
+        # Sort by mrl_ppb ascending (strictest first), matching SQLite view
+        results.sort(key=lambda d: d.get("mrl_ppb") or 0)
+        return results
 
     # ── Raw table reads ─────────────────────────────────────────────────
 

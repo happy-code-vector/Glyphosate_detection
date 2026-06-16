@@ -484,11 +484,6 @@ def precompute_international_comparison(db, conn: sqlite3.Connection):
             batch.commit()
             batch = db.batch()
             count = 0
-        count += 1
-        if count >= BATCH_LIMIT:
-            batch.commit()
-            batch = db.batch()
-            count = 0
 
     if count > 0:
         batch.commit()
