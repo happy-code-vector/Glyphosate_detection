@@ -200,6 +200,7 @@ CREATE TABLE IF NOT EXISTS tolerance_limits (
 );
 
 CREATE INDEX IF NOT EXISTS idx_tl_contaminant  ON tolerance_limits(contaminant);
+CREATE INDEX IF NOT EXISTS idx_tl_food_category_contaminant ON tolerance_limits(food_category, contaminant);
 
 -- ─────────────────────────────────────────────
 -- Biomonitoring data (CDC NHANES)
@@ -267,6 +268,7 @@ CREATE TABLE IF NOT EXISTS international_mrls (
 
 CREATE INDEX IF NOT EXISTS idx_imrl_food_category ON international_mrls(food_category);
 CREATE INDEX IF NOT EXISTS idx_imrl_pesticide ON international_mrls(pesticide);
+CREATE INDEX IF NOT EXISTS idx_imrl_pesticide_food_category ON international_mrls(pesticide, food_category);
 
 -- ═════════════════════════════════════════════
 -- REGULATORY TABLES (seed data)
@@ -440,14 +442,24 @@ product_stats AS (
     GROUP BY pt.food_category, pt.contaminant
 ),
 cert_count AS (
-    SELECT
-        cp.food_category,
-        cc.contaminant,
-        COUNT(*) AS certified_product_count
-    FROM certified_products cp
-    CROSS JOIN (SELECT DISTINCT contaminant FROM category_summaries) cc
-    WHERE cp.contaminant IS NULL OR cp.contaminant = cc.contaminant
-    GROUP BY cp.food_category, cc.contaminant
+    -- Practice-based certs (contaminant IS NULL) apply to all contaminants
+    -- Contaminant-specific certs apply only to their contaminant
+    SELECT food_category, contaminant, SUM(certified_product_count) AS certified_product_count
+    FROM (
+        -- Practice-based certs: count once per food_category, join to contaminants later
+        SELECT cp.food_category, cs.contaminant, COUNT(*) AS certified_product_count
+        FROM certified_products cp
+        INNER JOIN (SELECT DISTINCT contaminant FROM category_summaries) cs
+        WHERE cp.contaminant IS NULL
+        GROUP BY cp.food_category, cs.contaminant
+        UNION ALL
+        -- Contaminant-specific certs: direct match
+        SELECT food_category, contaminant, COUNT(*) AS certified_product_count
+        FROM certified_products
+        WHERE contaminant IS NOT NULL
+        GROUP BY food_category, contaminant
+    )
+    GROUP BY food_category, contaminant
 ),
 tolerance_data AS (
     SELECT
@@ -458,6 +470,16 @@ tolerance_data AS (
     FROM tolerance_limits
     WHERE tolerance_ppb > 0
     GROUP BY food_category, contaminant
+),
+mrl_data AS (
+    SELECT
+        food_category,
+        pesticide           AS contaminant,
+        MIN(mrl_ppb)        AS min_mrl_ppb,
+        MIN(regulatory_body) AS mrl_source
+    FROM international_mrls
+    WHERE mrl_ppb > 0
+    GROUP BY food_category, pesticide
 )
 SELECT
     bs.contaminant,
@@ -469,13 +491,19 @@ SELECT
     bs.max_ppb              AS max_ppb,
     bs.samples_total,
     bs.samples_detected,
-    -- Primary risk: ppb-vs-tolerance (regulatory-based)
+    -- Primary risk: ppb-vs-tolerance (EPA first, then EFSA MRL fallback)
     CASE
         WHEN bs.max_ppb IS NULL OR bs.max_ppb <= 0 THEN 'none'
         WHEN td.min_tolerance_ppb IS NOT NULL AND td.min_tolerance_ppb > 0 THEN
             CASE
                 WHEN bs.max_ppb / td.min_tolerance_ppb >= 2.0 THEN 'high'
                 WHEN bs.max_ppb / td.min_tolerance_ppb >= 1.0 THEN 'medium'
+                ELSE 'low'
+            END
+        WHEN md.min_mrl_ppb IS NOT NULL AND md.min_mrl_ppb > 0 THEN
+            CASE
+                WHEN bs.max_ppb / md.min_mrl_ppb >= 2.0 THEN 'high'
+                WHEN bs.max_ppb / md.min_mrl_ppb >= 1.0 THEN 'medium'
                 ELSE 'low'
             END
         ELSE 'unknown'
@@ -487,8 +515,8 @@ SELECT
     COALESCE(ps.avg_product_ppb, 0)          AS avg_product_ppb,
     COALESCE(ps.max_product_ppb, 0)          AS max_product_ppb,
     COALESCE(cc.certified_product_count, 0)  AS certified_products_available,
-    td.min_tolerance_ppb                     AS tolerance_ppb,
-    td.tolerance_source
+    COALESCE(td.min_tolerance_ppb, md.min_mrl_ppb) AS tolerance_ppb,
+    COALESCE(td.tolerance_source, md.mrl_source)   AS tolerance_source
 FROM best_summary bs
 LEFT JOIN product_stats ps
     ON bs.food_category = ps.food_category
@@ -499,6 +527,9 @@ LEFT JOIN cert_count cc
 LEFT JOIN tolerance_data td
     ON bs.food_category = td.food_category
     AND bs.contaminant = td.contaminant
+LEFT JOIN mrl_data md
+    ON bs.food_category = md.food_category
+    AND bs.contaminant = md.contaminant
 WHERE bs.rn = 1;
 
 -- ─────────────────────────────────────────────

@@ -13,7 +13,7 @@ product results where they actually exist.
 |---|---|
 | `db/schema.sql` | Full SQLite schema: 12 tables, 11+ views |
 | `db/database.py` | Core DB operations, migrations, inserts |
-| `db/category_aliases.csv` | 647 ingredient strings → canonical categories |
+| `db/category_aliases.csv` | 712 ingredient strings → canonical categories |
 | `contaminants.py` | Contaminant registry (glyphosate, lead, atrazine, + more) |
 | `run_pipeline.py` | Master runner — run this |
 | `migrate_to_firestore.py` | SQLite → Firestore migration script |
@@ -76,10 +76,22 @@ Verify column names in SampleData2023.txt by checking FDA's User Manual PDF
 at the report page before running. Column names change between fiscal years.
 
 ### Source priority at query time
-When the same food_category has rows from multiple sources, use this priority:
+When the same food_category has rows from multiple sources, priority depends on product origin:
+
+**US products (default):**
 1. FDA (US regulatory)
 2. CFIA (Canadian, comparable)
 3. EFSA (EU, least relevant for US app)
+
+**EU products (detected from Open Food Facts countries_tags):**
+1. EFSA (EU regulatory)
+2. Germany BVL
+3. UK FSA
+4. CFIA
+5. FDA
+
+### Category mapping
+All fetchers use `normalize_category()` from `db/database.py` to map raw food names to specific canonical keys (e.g., `apple`, `strawberry`, `wheat`). No broad categories like `fresh_fruit` or `fresh_vegetables` are used.
 
 ## Re-running when new data drops
 Set up monitoring for source URLs. When new data drops:

@@ -48,6 +48,7 @@ class DetectionEngine:
         self._comparison = ComparisonQuery(self._conn)
         self._ingredient_risk = IngredientRiskQuery(self._conn)
         self._off_client = OpenFoodFactsClient()
+        self._commodity_alias_cache = None  # Instance-level cache
 
     def __enter__(self):
         return self
@@ -183,25 +184,26 @@ class DetectionEngine:
             product_name, ingredients, contaminant, food_category
         )
 
-    def scan_all_contaminants(self, food_category: str) -> "ContaminantReport":
+    def scan_all_contaminants(
+        self, food_category: str, origin_region: str | None = None
+    ) -> "ContaminantReport":
         """
         Scan ALL contaminants for a food category using regulatory data.
 
         Compares measured levels (from category_summaries) against MRLs
         (from international_mrls) and tolerances (from tolerance_limits).
 
-        Returns a ContaminantReport with per-contaminant risk assessment,
-        sorted by risk level (high first).
-
         Args:
             food_category: Canonical food category (e.g., 'oats', 'wheat')
+            origin_region: 'EU' or 'US' — adjusts source priority for monitoring data.
+                           EU products use EFSA/BVL data first, US products use FDA first.
 
         Returns:
             ContaminantReport with list of ContaminantDetail entries
         """
-        from detect.ingredient_risk import IngredientRiskQuery
-        query = IngredientRiskQuery(self._conn)
-        return query.scan_all_contaminants(food_category)
+        return self._ingredient_risk.scan_all_contaminants(
+            food_category, origin_region=origin_region
+        )
 
     # Tier → data_confidence mapping per handoff spec
     _TIER_TO_CONFIDENCE = {
@@ -211,7 +213,7 @@ class DetectionEngine:
         "none": "low",          # No data
     }
 
-    # Commodity alias cache (loaded once)
+    # Commodity alias cache (instance-level to avoid cross-instance pollution)
     _commodity_alias_cache: dict | None = None  # alias -> commodity_slug
 
     def _load_commodity_aliases(self) -> dict:
@@ -292,6 +294,9 @@ class DetectionEngine:
                     food_category = mapped
                     break
 
+        # Detect product origin for source priority
+        origin_region = self._detect_origin_region(product)
+
         # Step 1: Risk scoring (three-tier)
         risk_result = self._ingredient_risk.execute(
             product_name=product["product_name"],
@@ -320,7 +325,9 @@ class DetectionEngine:
         contaminant_report = None
         if food_category:
             try:
-                contaminant_report = self.scan_all_contaminants(food_category)
+                contaminant_report = self.scan_all_contaminants(
+                    food_category, origin_region=origin_region
+                )
             except Exception:
                 pass  # Non-critical — don't fail the scan
 
@@ -345,6 +352,15 @@ class DetectionEngine:
             for ing in ingredient_list
         ]
 
+        # Use multi-contaminant report as headline risk when available
+        # This reflects ALL contaminants, not just glyphosate
+        if contaminant_report and contaminant_report.overall_risk_level != "none":
+            effective_risk = contaminant_report.overall_risk_level
+            effective_score = contaminant_report.overall_score
+        else:
+            effective_risk = risk_result.risk_level if risk_result else "unknown"
+            effective_score = risk_result.score if risk_result else 0.5
+
         return ProductScanResult(
             upc=barcode,
             name=product["product_name"],
@@ -354,8 +370,8 @@ class DetectionEngine:
             commodities_matched=commodities_matched,
             flags=all_flags,
             data_confidence=data_confidence,
-            risk_level=risk_result.risk_level if risk_result else "unknown",
-            score=risk_result.score if risk_result else 0.5,
+            risk_level=effective_risk,
+            score=effective_score,
             tier_used=risk_result.tier_used if risk_result else "none",
             contaminant=contaminant,
             ingredient_scores=risk_result.ingredient_scores if risk_result else [],
@@ -377,6 +393,38 @@ class DetectionEngine:
     def _contaminant_to_analyte(self, contaminant: str) -> str | None:
         """Map contaminant key to NHANES analyte name."""
         return self._CONTAMINANT_TO_ANALYTE.get(contaminant.lower())
+
+    # EU countries for origin detection
+    _EU_COUNTRIES = frozenset({
+        "en:france", "en:germany", "en:italy", "en:spain", "en:netherlands",
+        "en:belgium", "en:poland", "en:austria", "en:portugal", "en:sweden",
+        "en:denmark", "en:finland", "en:ireland", "en:greece", "en:czechia",
+        "en:romania", "en:hungary", "en:bulgaria", "en:croatia", "en:slovakia",
+        "en:slovenia", "en:estonia", "en:latvia", "en:lithuania", "en:luxembourg",
+        "en:malta", "en:cyprus",
+    })
+
+    def _detect_origin_region(self, product: dict) -> str | None:
+        """Detect product origin region from Open Food Facts data.
+
+        Returns 'EU' for European products, 'US' for US products, None if unknown.
+        """
+        countries = product.get("countries_tags", [])
+        origins = product.get("origins_tags", [])
+        all_tags = set(countries) | set(origins)
+
+        if not all_tags:
+            return None
+
+        # Check for EU origin
+        if any(tag in self._EU_COUNTRIES for tag in all_tags):
+            return "EU"
+
+        # Check for US origin
+        if "en:united-states" in all_tags or "en:usa" in all_tags:
+            return "US"
+
+        return None
 
     # ═════════════════════════════════════════════
     # REGULATORY QUERY METHODS

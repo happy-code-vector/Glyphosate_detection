@@ -139,18 +139,24 @@ class IngredientRiskQuery:
                     ingredient_scores.append(score)
 
             if ingredient_scores:
-                # Aggregate ingredient scores
-                avg_score = sum(
-                    self._risk_level_to_score(s.risk_level) for s in ingredient_scores
-                ) / len(ingredient_scores)
-                max_score = max(
-                    self._risk_level_to_score(s.risk_level) for s in ingredient_scores
-                )
+                # Aggregate ingredient scores — exclude unknown from calculation
+                # to avoid inflating risk when data is simply absent
+                known_scores = [
+                    self._risk_level_to_score(s.risk_level)
+                    for s in ingredient_scores
+                    if s.risk_level != "unknown"
+                ]
+                if known_scores:
+                    avg_score = sum(known_scores) / len(known_scores)
+                    max_score = max(known_scores)
+                else:
+                    avg_score = 0.0
+                    max_score = 0.0
                 # Use weighted average: 70% max risk, 30% average risk
                 final_score = 0.7 * max_score + 0.3 * avg_score
                 risk_level = self._score_to_risk_level(final_score)
 
-                notes.append(f"Scored {len(ingredient_scores)} of {len(ingredients)} ingredients")
+                notes.append(f"Scored {len(ingredient_scores)} of {len(ingredient_dicts)} ingredients")
                 return IngredientRiskResult(
                     product_name=product_name,
                     contaminant=contaminant,
@@ -383,28 +389,58 @@ class IngredientRiskQuery:
 
     # ── Multi-contaminant scan ───────────────────────────────────────────
 
-    def scan_all_contaminants(self, food_category: str) -> ContaminantReport:
+    def scan_all_contaminants(
+        self, food_category: str, origin_region: str | None = None
+    ) -> ContaminantReport:
         """Scan ALL contaminants for a food category using regulatory data.
 
-        Returns a ContaminantReport with per-contaminant risk assessment,
-        comparing measured levels against MRLs and tolerances from the DB.
+        Args:
+            food_category: Canonical food category
+            origin_region: 'EU' or 'US' — adjusts source priority for best-source selection.
+                           EU products prefer EFSA/BVL data, US products prefer FDA.
         """
-        # Get all contaminants with detections for this category
-        # Aggregate by contaminant to avoid duplicates from multiple sources/years
-        rows = self._conn.execute(
+        # Source priority: EU products prefer European monitoring data
+        if origin_region == "EU":
+            source_priority = """
+                CASE source_name
+                    WHEN 'EFSA' THEN 5
+                    WHEN 'Germany_BVL' THEN 4
+                    WHEN 'UK_FSA' THEN 3
+                    WHEN 'CFIA' THEN 2
+                    WHEN 'FDA' THEN 1
+                    ELSE 0
+                END
             """
-            SELECT contaminant,
-                   MAX(detection_rate) AS detection_rate,
-                   AVG(avg_ppb) AS avg_ppb,
-                   MAX(max_ppb) AS max_ppb,
-                   SUM(samples_total) AS samples_total,
-                   SUM(samples_detected) AS samples_detected,
-                   MAX(source_name) AS source_name,
-                   MAX(data_year) AS data_year
-            FROM category_summaries
-            WHERE food_category = ?
-            AND detection_rate > 0
-            GROUP BY contaminant
+        else:
+            source_priority = """
+                CASE source_name
+                    WHEN 'FDA' THEN 5
+                    WHEN 'CFIA' THEN 4
+                    WHEN 'EFSA' THEN 3
+                    WHEN 'UK_FSA' THEN 2
+                    WHEN 'Germany_BVL' THEN 1
+                    ELSE 0
+                END
+            """
+
+        # Get all contaminants with detections for this category
+        # Use source priority to pick the best source per contaminant
+        rows = self._conn.execute(
+            f"""
+            SELECT contaminant, detection_rate, avg_ppb, max_ppb,
+                   samples_total, samples_detected, source_name, data_year
+            FROM (
+                SELECT contaminant, detection_rate, avg_ppb, max_ppb,
+                       samples_total, samples_detected, source_name, data_year,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY contaminant
+                           ORDER BY {source_priority} DESC, data_year DESC
+                       ) AS rn
+                FROM category_summaries
+                WHERE food_category = ?
+                AND detection_rate > 0
+            )
+            WHERE rn = 1
             ORDER BY detection_rate DESC
             """,
             (food_category,),
