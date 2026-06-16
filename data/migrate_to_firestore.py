@@ -82,19 +82,25 @@ def sanitize_doc_id(value: str) -> str:
 
 def get_document_id(table: str, row: dict) -> str | None:
     """Determine the Firestore document ID for a row."""
+    doc_id = None
     if table == "category_aliases":
-        return row.get("alias", None)
-    if table == "ingest_log":
+        doc_id = row.get("alias", None)
+    elif table == "ingest_log":
         return None  # auto-generate
-    if table == "ingredients":
-        return row.get("ingredient_id", None)
-    if table == "regulatory_flags":
-        return row.get("flag_id", None)
-    if table == "commodities":
-        return row.get("commodity_slug", None)
-    if table == "alternatives":
-        return row.get("lookup_key", None)
-    return row.get("dedup_key", None)
+    elif table == "ingredients":
+        doc_id = row.get("ingredient_id", None)
+    elif table == "regulatory_flags":
+        doc_id = row.get("flag_id", None)
+    elif table == "commodities":
+        doc_id = row.get("commodity_slug", None)
+    elif table == "alternatives":
+        doc_id = row.get("lookup_key", None)
+    else:
+        doc_id = row.get("dedup_key", None)
+
+    if doc_id:
+        return sanitize_doc_id(str(doc_id))
+    return None
 
 
 def convert_row(table: str, row: dict) -> dict:
@@ -508,6 +514,8 @@ def main():
                         help="Skip pre-computed app collections")
     parser.add_argument("--database", default="purityiq",
                         help="Firestore database ID (default: purityiq)")
+    parser.add_argument("--resume-from", default=None,
+                        help="Resume migration from this table (skip all before it)")
     args = parser.parse_args()
 
     # Validate paths
@@ -535,7 +543,14 @@ def main():
 
     # ── Migrate raw tables ──
     total_written = 0
+    skip_until = args.resume_from
     for table in TABLES:
+        if skip_until:
+            if table == skip_until:
+                skip_until = None  # Start from this table
+            else:
+                logger.info("Skipping %s (resuming from %s)", table, skip_until)
+                continue
         logger.info("Migrating %s...", table)
         rows = read_table(conn, table)
         if not rows:
