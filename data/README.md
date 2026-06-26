@@ -11,10 +11,10 @@ product results where they actually exist.
 ## Files
 | File | Purpose |
 |---|---|
-| `db/schema.sql` | Full SQLite schema: 12 tables, 11+ views |
+| `db/schema.sql` | Full SQLite schema: 14 tables, 5 views |
 | `db/database.py` | Core DB operations, migrations, inserts |
 | `db/category_aliases.csv` | 712 ingredient strings → canonical categories |
-| `contaminants.py` | Contaminant registry (glyphosate, lead, atrazine, + more) |
+| `contaminants.py` | Contaminant registry (43 contaminants across 6 types) |
 | `run_pipeline.py` | Master runner — run this |
 | `migrate_to_firestore.py` | SQLite → Firestore migration script |
 | `seed_ingredients.py` | Seed regulatory data (ingredients, flags, commodities) |
@@ -64,6 +64,35 @@ Canada Organic, Non-GMO Project, Clean Label Certified
 ### Water quality
 USGS Water Quality Portal (glyphosate, lead, atrazine)
 
+## Architecture
+
+### DataStore Abstraction
+The project uses a `DataStore` Protocol (`data/datastore.py`) with two implementations:
+- `sqlite_store.py` — SQLite (local dev + detection engine)
+- `firestore_store.py` — Google Firestore (production)
+
+Factory: `create_datastore(backend, db_path, cred_path, database_id)`
+
+### Detection Engine
+`detect/engine.py` exposes 15 public methods via `DetectionEngine`:
+- Food risk, product lookup, water quality, international MRL comparison
+- Barcode scanning (Open Food Facts API), multi-contaminant scanning
+- Ingredient risk scoring (three-tier: product → ingredient → category)
+- Regulatory flags, commodity residues, alternatives, biomonitoring
+
+See `docs/DATABASE_AND_ENGINE_STATUS.md` for full details.
+
+### Contaminants
+43 contaminants across 6 types: pesticides (14), heavy metals (4), food dyes (7), additives (7), environmental (9), other (2). Defined in `data/contaminants.py`.
+
+### Regulatory Coverage Gaps
+Three V1 regulatory sources are not built or incomplete:
+- **Codex Alimentarius**: Fetcher deleted, 0 rows in `international_mrls`
+- **Health Canada / PMRA**: Seed data only (3 water limits, 1 ban flag), no food MRL fetcher
+- **FSANZ**: 10 rows from 2019 Australian diet study, no food MRL data
+
+90 of 158 food categories lack an EPA glyphosate tolerance — affects grains (oats, wheat), legumes (lentils, chickpeas), infant food, and dairy. See `docs/DATABASE_AND_ENGINE_STATUS.md` for full details.
+
 ## Important notes for developer
 
 ### EFSA
@@ -91,7 +120,7 @@ When the same food_category has rows from multiple sources, priority depends on 
 5. FDA
 
 ### Category mapping
-All fetchers use `normalize_category()` from `db/database.py` to map raw food names to specific canonical keys (e.g., `apple`, `strawberry`, `wheat`). No broad categories like `fresh_fruit` or `fresh_vegetables` are used.
+All fetchers use `normalize_category()` from `db/database.py` to map raw food names to specific canonical keys (e.g., `apple`, `strawberry`, `wheat`). No broad categories like `fresh_fruit` or `fresh_vegetables` are used. 712 aliases map to ~158 unique canonical keys.
 
 ## Re-running when new data drops
 Set up monitoring for source URLs. When new data drops:

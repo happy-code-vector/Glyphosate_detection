@@ -6,7 +6,8 @@
       "Bash(python seed_ingredients.py)",
       "Bash(python -m pytest tests/ -x -q)",
       "Bash(python -c \"import firebase_admin; print\\(f'firebase-admin version: {firebase_admin.__version__}'\\)\")",
-      "Bash(python data/migrate_to_firestore.py)"
+      "Bash(python data/migrate_to_firestore.py)",
+      "mcp__ide__executeCode"
     ]
   }
 }
