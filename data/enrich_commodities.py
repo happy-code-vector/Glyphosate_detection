@@ -95,6 +95,13 @@ def _resolve_slug_key(mapping: dict, slug: str):
 def enrich_commodities():
     """Populate commodities.residues from category_summaries PDP data."""
     with get_connection() as conn:
+        # Global max PDP year across all commodities — the "current cycle".
+        # pdp_covered (Addendum B 2.2) is True only for commodities still tested
+        # in this current cycle; grains USDA dropped (oats/wheat) fall behind it.
+        max_pdp_year = conn.execute(
+            "SELECT MAX(data_year) FROM category_summaries WHERE source_name = 'USDA_PDP'"
+        ).fetchone()[0]
+
         # Get all commodities
         commodities = conn.execute(
             "SELECT commodity_slug, display_name FROM commodities"
@@ -162,25 +169,30 @@ def enrich_commodities():
             # Get PDP commodity code
             pdp_code = COMMODITY_PDP_CODES.get(slug, [None])[0] if pdp_codes else None
 
+            # Covered iff this commodity's latest PDP year is the current cycle.
+            pdp_covered = 1 if (max_pdp_year and latest_year == max_pdp_year) else 0
+
             # Update the commodity row
             conn.execute(
                 "UPDATE commodities SET "
                 "residues = ?, "
                 "pdp_commodity_code = ?, "
                 "pdp_year_latest = ?, "
+                "pdp_covered = ?, "
                 "last_pdp_update = ? "
                 "WHERE commodity_slug = ?",
                 (
                     json.dumps(residues),
                     pdp_code,
                     latest_year,
+                    pdp_covered,
                     datetime.now().isoformat(),
                     slug,
                 )
             )
 
-            logger.info("  %s: %d residues from '%s' year %d",
-                       slug, len(residues), pdp_category, latest_year)
+            logger.info("  %s: %d residues from '%s' year %d (pdp_covered=%d)",
+                       slug, len(residues), pdp_category, latest_year, pdp_covered)
             enriched += 1
 
         conn.commit()

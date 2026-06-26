@@ -186,6 +186,18 @@ class SqliteDataStore:
             "WHERE ingredient_aliases IS NOT NULL"
         )
 
+    def get_plu(self, plu_code: str) -> Optional[dict]:
+        return self._row(
+            "SELECT * FROM plu_codes WHERE plu = ?",
+            (str(plu_code),),
+        )
+
+    def get_plu_by_commodity(self, commodity_slug: str) -> list[dict]:
+        return self._rows(
+            "SELECT * FROM plu_codes WHERE commodity_slug = ? ORDER BY plu",
+            (commodity_slug,),
+        )
+
     def get_alternatives(
         self, product_name: str, brand: Optional[str] = None
     ) -> Optional[dict]:

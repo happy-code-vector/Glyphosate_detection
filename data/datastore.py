@@ -96,6 +96,14 @@ class DataStore(Protocol):
         """All commodities that have ingredient_aliases (for matching)."""
         ...
 
+    def get_plu(self, plu_code: str) -> Optional[dict]:
+        """Single PLU code -> produce row (plu_codes table)."""
+        ...
+
+    def get_plu_by_commodity(self, commodity_slug: str) -> list[dict]:
+        """All PLU codes mapped to a commodity slug."""
+        ...
+
     def get_alternatives(
         self, product_name: str, brand: Optional[str] = None
     ) -> Optional[dict]:

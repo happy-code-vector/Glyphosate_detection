@@ -773,6 +773,25 @@ def get_regulatory_flags() -> list[dict]:
     return flags
 
 
+# Addendum B 3.4: divergence_type enum — how a flag should be FRAMED in the UI so
+# a warning label is never shown as a ban, a foreign ban as a US ban, etc.
+# Listing/classification flags (prop65_listed, ntp_carcinogen, fda_review) are not
+# ban/restriction divergences and return None.
+_FLAG_TYPE_TO_DIVERGENCE = {
+    "us_banned": "federal_ban",            # US federal ban (e.g. Red 3, BVO)
+    "eu_banned": "foreign_ban",            # banned in EU (e.g. potassium bromate, TiO2)
+    "canada_banned": "foreign_ban",        # banned in Canada
+    "state_banned": "foreign_restriction", # sub-federal US state restriction (e.g. California AB 418)
+    "eu_warning_label": "warning_label_required",  # EU Southampton Six warning (e.g. Red 40)
+}
+
+
+def divergence_type_for(flag_type: str) -> str | None:
+    """Map a flag_type to the Addendum B 3.4 divergence_type enum, or None for
+    flags that are not ban/restriction divergences."""
+    return _FLAG_TYPE_TO_DIVERGENCE.get(flag_type)
+
+
 def get_ingredients() -> list[dict]:
     """
     Flatten all contaminants into ingredient records

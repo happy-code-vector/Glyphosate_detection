@@ -549,6 +549,12 @@ class FirestoreDataStore:
             if d.get("ingredient_aliases")
         ]
 
+    def get_plu(self, plu_code: str) -> Optional[dict]:
+        return self._get_doc("plu_codes", str(plu_code))
+
+    def get_plu_by_commodity(self, commodity_slug: str) -> list[dict]:
+        return self._query_eq("plu_codes", "commodity_slug", commodity_slug)
+
     def get_alternatives(
         self, product_name: str, brand: Optional[str] = None
     ) -> Optional[dict]:

@@ -45,6 +45,7 @@ TABLES = [
     "ingredients",
     "regulatory_flags",
     "commodities",
+    "plu_codes",
     "alternatives",
 ]
 
@@ -61,7 +62,8 @@ BOOL_COLUMNS = {
     "ingest_log": [],
     "ingredients": [],
     "regulatory_flags": [],
-    "commodities": ["dirty_dozen"],
+    "commodities": ["dirty_dozen", "pdp_covered"],
+    "plu_codes": [],
     "alternatives": [],
 }
 
@@ -71,6 +73,7 @@ SKIP_COLUMNS = {
     "ingredients": [],
     "regulatory_flags": [],
     "commodities": [],
+    "plu_codes": [],
     "alternatives": [],
 }
 
@@ -94,6 +97,8 @@ def get_document_id(table: str, row: dict) -> str | None:
         doc_id = row.get("flag_id", None)
     elif table == "commodities":
         doc_id = row.get("commodity_slug", None)
+    elif table == "plu_codes":
+        doc_id = row.get("plu", None)
     elif table == "alternatives":
         doc_id = row.get("lookup_key", None)
     else:

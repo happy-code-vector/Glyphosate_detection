@@ -328,9 +328,34 @@ CREATE TABLE IF NOT EXISTS commodities (
     pdp_year_latest     INTEGER,
     residues            TEXT,                       -- JSON array of residue data
     dirty_dozen         INTEGER DEFAULT 0,          -- boolean
+    pdp_covered         INTEGER DEFAULT 0,          -- boolean: USDA PDP currently tests this commodity (current cycle). Per Addendum B 2.2, grains are NOT in the 2024 PDP rotation.
     last_pdp_update     TEXT,
     consumption_tier    TEXT DEFAULT 'occasional'    -- 'daily', 'weekly', 'occasional', 'rare'
 );
+
+-- ─────────────────────────────────────────────
+-- plu_codes: IFPS Price Look-Up codes for bulk produce.
+-- Produce has no UPC barcode; PLU codes resolve a produce item to a
+-- commodity slug -> Layer 2 (USDA PDP) residue data.
+-- ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS plu_codes (
+    plu                 TEXT PRIMARY KEY,           -- '3000' (4-5 digit IFPS code)
+    commodity_slug      TEXT,                       -- FK commodities.commodity_slug; NULL for unmapped exotic produce
+    commodity_display   TEXT NOT NULL,              -- 'Apples'
+    variety             TEXT,                       -- 'Alkmene', 'All Sizes'
+    size                TEXT,                       -- 'Small', 'Large', 'All Sizes'
+    category            TEXT,                       -- 'Fruits' / 'Vegetables' / 'Herbs' / 'Nuts'
+    botanical           TEXT,                       -- 'Malus domestica'
+    aka                 TEXT,
+    restrictions        TEXT,
+    notes               TEXT,
+    status              TEXT DEFAULT 'Approved',
+    source_file         TEXT,                       -- provenance: 'commodities.csv' | 'NRS' | '2011_innvista'
+    dedup_key           TEXT UNIQUE NOT NULL,       -- build_dedup_key('PLU', plu) for idempotent upserts
+    updated_at          TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_plu_commodity ON plu_codes(commodity_slug);
 
 -- ─────────────────────────────────────────────
 -- Alternatives: replacement product suggestions

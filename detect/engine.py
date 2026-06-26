@@ -20,7 +20,10 @@ from detect.models import (
     ContaminantReport,
     ContaminantDetail,
     BiomonitoringResult,
+    PLUResult,
 )
+
+from data.contaminants import divergence_type_for
 
 
 class DetectionEngine:
@@ -784,6 +787,7 @@ class DetectionEngine:
                 effective_date=r["effective_date"],
                 compliance_date=r["compliance_date"],
                 notes=r["notes"],
+                divergence_type=divergence_type_for(r["flag_type"]),
             )
             for r in flag_rows
         ]
@@ -827,6 +831,38 @@ class DetectionEngine:
             pdp_year_latest=row["pdp_year_latest"],
             residues=residues,
             dirty_dozen=bool(row["dirty_dozen"]),
+            pdp_covered=bool(row.get("pdp_covered", 0)),
+        )
+
+    def lookup_plu(self, plu_code: str) -> Optional[PLUResult]:
+        """Resolve an IFPS Price Look-Up code (bulk produce) to its commodity
+        and any USDA PDP residue data (Layer 2). Produce carries no UPC barcode,
+        so PLU is the produce equivalent of a barcode lookup."""
+        row = self._store.get_plu(plu_code)
+        if not row:
+            return None
+
+        slug = row.get("commodity_slug")
+        commodity = self.commodity_residues(slug) if slug else None
+        pdp_covered = bool(commodity.pdp_covered) if commodity else False
+
+        notes = None
+        if commodity and commodity.residues and not pdp_covered:
+            # Addendum B 2.2: PDP narrowed its rotation; this commodity's data is stale.
+            notes = ("USDA PDP no longer tests this commodity in its current rotation; "
+                     "the residue data shown is from earlier PDP cycles.")
+        elif slug and not (commodity and commodity.residues):
+            notes = "No USDA PDP residue data is available for this commodity."
+
+        return PLUResult(
+            plu=row["plu"],
+            commodity_display=row["commodity_display"],
+            variety=row.get("variety"),
+            size=row.get("size"),
+            category=row.get("category"),
+            commodity=commodity,
+            pdp_covered=pdp_covered,
+            notes=notes,
         )
 
     def lookup_alternatives(self, product_name: str, brand: str = None) -> Optional[dict]:
@@ -958,6 +994,7 @@ class DetectionEngine:
                     effective_date=r["effective_date"],
                     compliance_date=r["compliance_date"],
                     notes=r["notes"],
+                    divergence_type=divergence_type_for(r["flag_type"]),
                 )
                 for r in flag_rows
             ]
@@ -987,5 +1024,6 @@ class DetectionEngine:
                 pdp_year_latest=row["pdp_year_latest"],
                 residues=[],
                 dirty_dozen=bool(row["dirty_dozen"]),
+                pdp_covered=bool(row.get("pdp_covered", 0)),
             ))
         return results

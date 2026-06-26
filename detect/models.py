@@ -94,6 +94,7 @@ class RegulatoryFlag:
     effective_date: str | None
     compliance_date: str | None
     notes: str | None
+    divergence_type: str | None    # Addendum B 3.4: federal_ban | foreign_ban | foreign_restriction | warning_label_required (derived from flag_type)
 
 
 @dataclass
@@ -132,6 +133,22 @@ class CommodityDetail:
     pdp_year_latest: int | None
     residues: list[CommodityResidue]
     dirty_dozen: bool
+    pdp_covered: bool = False    # Addendum B 2.2: True if the current USDA PDP cycle tests this commodity
+
+
+@dataclass
+class PLUResult:
+    """A produce item resolved from an IFPS Price Look-Up code, with optional
+    commodity residue data (Layer 2). Produce carries no UPC barcode, so a PLU
+    code is how a bulk produce item resolves to a commodity slug."""
+    plu: str
+    commodity_display: str
+    variety: str | None
+    size: str | None
+    category: str | None
+    commodity: CommodityDetail | None    # matched commodity + USDA PDP residues (Layer 2), else None
+    pdp_covered: bool                    # whether the current PDP cycle tests this commodity
+    notes: str | None = None             # honest framing when PDP data is stale or absent
 
 
 @dataclass

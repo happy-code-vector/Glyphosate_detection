@@ -96,6 +96,16 @@ def _migrate_add_new_columns(conn):
         logger.info("Adding flagged_brand column to alternatives")
         conn.execute("ALTER TABLE alternatives ADD COLUMN flagged_brand TEXT")
 
+    # Add pdp_covered to commodities (Addendum B 2.2: whether the current USDA
+    # PDP cycle still tests this commodity; 0 for dropped grains like oats/wheat).
+    cols = conn.execute("PRAGMA table_info(commodities)").fetchall()
+    col_names = [c[1] for c in cols]
+    if "pdp_covered" not in col_names:
+        logger.info("Adding pdp_covered column to commodities")
+        conn.execute(
+            "ALTER TABLE commodities ADD COLUMN pdp_covered INTEGER DEFAULT 0"
+        )
+
     logger.info("New columns migration complete")
 
 
@@ -1297,6 +1307,49 @@ def insert_alternatives(rows: list[dict]) -> dict:
                     skipped += 1
             except sqlite3.Error as e:
                 logger.error("Insert alternative failed for %s: %s", row.get("lookup_key"), e)
+                failed += 1
+    return {"inserted": inserted, "skipped": skipped, "failed": failed}
+
+
+def _insert_plu_code(conn, row: dict) -> int:
+    """Insert (upsert) a PLU code record.
+
+    INSERT OR REPLACE so re-running the seed with improved parsing/mapping
+    actually updates existing rows. Safe because dedup_key is stable per PLU
+    (build_dedup_key('PLU', plu)) and `plu` is the primary key.
+    """
+    defaults = {
+        "commodity_slug": None, "variety": None, "size": None,
+        "category": None, "botanical": None, "aka": None,
+        "restrictions": None, "notes": None, "status": "Approved",
+        "source_file": None,
+    }
+    r = {**defaults, **row}
+    conn.execute("""
+        INSERT OR REPLACE INTO plu_codes (
+            plu, commodity_slug, commodity_display, variety, size, category,
+            botanical, aka, restrictions, notes, status, source_file, dedup_key
+        ) VALUES (
+            :plu, :commodity_slug, :commodity_display, :variety, :size, :category,
+            :botanical, :aka, :restrictions, :notes, :status, :source_file, :dedup_key
+        )
+    """, r)
+    return conn.execute("SELECT changes()").fetchone()[0]
+
+
+def insert_plu_codes(rows: list[dict]) -> dict:
+    """Batch upsert PLU code records."""
+    inserted = skipped = failed = 0
+    with get_connection() as conn:
+        for row in rows:
+            try:
+                changes = _insert_plu_code(conn, row)
+                if changes:
+                    inserted += 1
+                else:
+                    skipped += 1
+            except sqlite3.Error as e:
+                logger.error("Insert PLU failed for %s: %s", row.get("plu"), e)
                 failed += 1
     return {"inserted": inserted, "skipped": skipped, "failed": failed}
 
