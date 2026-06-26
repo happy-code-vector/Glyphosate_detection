@@ -12,7 +12,7 @@ import unittest
 
 from tests.test_detect.conftest import get_schema_sql
 from detect.engine import DetectionEngine
-from detect.models import PLUResult
+from detect.models import PLUResult, CodeScanResult
 
 
 def _residues(*items):
@@ -158,6 +158,59 @@ class TestLookupPlu(unittest.TestCase):
 
         # unmapped slug / empty result
         self.assertEqual(self.engine._store.get_plu_by_commodity("oats_unknown"), [])
+
+
+class _FakeOffClient:
+    """OFF client stub: always reports product not found (no network needed)."""
+    def lookup(self, barcode):
+        return None
+
+
+class TestScanCode(unittest.TestCase):
+    """Tests for DetectionEngine.scan_code — unified PLU/UPC dispatcher."""
+
+    def setUp(self):
+        self.tmp_path = _create_engine_db()
+        self.engine = DetectionEngine(self.tmp_path)
+        self.engine._off_client = _FakeOffClient()  # avoid real network
+
+    def tearDown(self):
+        self.engine.close()
+        try:
+            os.unlink(self.tmp_path)
+        except PermissionError:
+            pass
+
+    def test_routes_plu(self):
+        """4-5 digit code -> PLU path."""
+        result = self.engine.scan_code("3000")
+        self.assertIsInstance(result, CodeScanResult)
+        self.assertEqual(result.code_type, "plu")
+        self.assertIsNotNone(result.plu_result)
+        self.assertIsNone(result.product_result)
+        self.assertEqual(result.plu_result.commodity.commodity_slug, "oats")
+
+    def test_strips_nondigits(self):
+        """Labels/spaces are stripped before routing ('PLU-3000' -> PLU)."""
+        result = self.engine.scan_code("PLU-3000")
+        self.assertEqual(result.code_type, "plu")
+        self.assertIsNotNone(result.plu_result)
+
+    def test_routes_barcode(self):
+        """Longer numeric code -> barcode path."""
+        result = self.engine.scan_code("0041000161645")
+        self.assertEqual(result.code_type, "barcode")
+        self.assertIsNone(result.plu_result)
+        # OFF stub finds nothing -> inner is None, but routing is still barcode
+        self.assertIsNone(result.product_result)
+
+    def test_unknown_code(self):
+        """Empty / non-numeric input -> code_type 'unknown'."""
+        for code in ("", "abc", "   "):
+            result = self.engine.scan_code(code)
+            self.assertEqual(result.code_type, "unknown")
+            self.assertIsNone(result.plu_result)
+            self.assertIsNone(result.product_result)
 
 
 if __name__ == "__main__":

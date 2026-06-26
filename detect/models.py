@@ -248,3 +248,15 @@ class ProductScanResult:
     contaminant_report: ContaminantReport | None = None
     # Biomonitoring — human exposure data from CDC NHANES
     biomonitoring: list[BiomonitoringResult] = field(default_factory=list)
+
+
+@dataclass
+class CodeScanResult:
+    """Unified result of scanning a code that could be either a PLU (bulk
+    produce) or a UPC/EAN (packaged product). Exactly one of ``plu_result`` /
+    ``product_result`` is populated per ``code_type``; the inner result may be
+    ``None`` when the code was recognized but not found in the database."""
+    code: str
+    code_type: str                              # 'plu' | 'barcode' | 'unknown'
+    plu_result: PLUResult | None = None
+    product_result: ProductScanResult | None = None

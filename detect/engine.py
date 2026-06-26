@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import sqlite3
 from typing import Optional
 
@@ -21,6 +22,7 @@ from detect.models import (
     ContaminantDetail,
     BiomonitoringResult,
     PLUResult,
+    CodeScanResult,
 )
 
 from data.contaminants import divergence_type_for
@@ -863,6 +865,29 @@ class DetectionEngine:
             commodity=commodity,
             pdp_covered=pdp_covered,
             notes=notes,
+        )
+
+    def scan_code(
+        self, code: str, contaminant: str = "glyphosate"
+    ) -> CodeScanResult:
+        """Scan a code of unknown type and route it automatically.
+
+        A 4-5 digit numeric code is an IFPS PLU -> bulk produce (``lookup_plu``);
+        any longer numeric code is a UPC/EAN -> packaged product
+        (``scan_barcode``). Non-digit characters are stripped first so typed or
+        spaced codes ('PLU-3000', '3 0 0 0') still resolve.
+        """
+        digits = re.sub(r"\D", "", str(code or ""))
+        if not digits:
+            return CodeScanResult(code=str(code), code_type="unknown")
+        if len(digits) in (4, 5):
+            return CodeScanResult(
+                code=str(code), code_type="plu",
+                plu_result=self.lookup_plu(digits),
+            )
+        return CodeScanResult(
+            code=str(code), code_type="barcode",
+            product_result=self.scan_barcode(digits, contaminant=contaminant),
         )
 
     def lookup_alternatives(self, product_name: str, brand: str = None) -> Optional[dict]:
