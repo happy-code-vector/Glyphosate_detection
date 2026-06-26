@@ -1037,7 +1037,7 @@ def seed_fda_action_levels(dry_run=False):
         for category, level in config.get("fda_action_levels", {}).items():
             ppb = level["ppb"]
             action_levels.append({
-                "food_category": f"baby_food_{category}" if category == "baby_food" else category,
+                "food_category": category,
                 "raw_commodity": category,
                 "tolerance_ppm": ppb / 1000.0,
                 "tolerance_ppb": ppb,

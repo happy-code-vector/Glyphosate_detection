@@ -39,8 +39,9 @@ PUBLISHED_DATE = "2024-01-01"
 DATA_YEAR = 2024
 METHODOLOGY_NOTE = (
     "Consumer Reports analysis summary. Estimated values from published "
-    "report summaries — exact sample counts not available. Marked low "
-    "confidence because detection rates lack supporting sample data."
+    "report summaries — exact sample counts not available. Confidence is "
+    "set per row from source quality (scraped report = high, hardcoded "
+    "fallback estimates = low)."
 )
 
 # ---------------------------------------------------------------------------

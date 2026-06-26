@@ -215,22 +215,31 @@ def batch_write_parallel(db, collection_name: str, rows: list[dict], id_func, ma
     return total_written
 
 
-def compute_risk_level(detection_rate: float | None, max_ppb: float | None) -> str:
-    """Compute risk level matching the SQLite CASE logic."""
-    if detection_rate is None and max_ppb is None:
-        return "unknown"
-    if detection_rate is not None:
-        if detection_rate >= 0.66:
-            return "high"
-        if detection_rate >= 0.31:
-            return "medium"
-        if detection_rate > 0.0:
+def compute_risk_level(max_ppb, tolerance_ppb=None, mrl_ppb=None) -> str:
+    """Compute food-overview risk level: ppb vs EPA tolerance, then EFSA MRL fallback.
+
+    Mirrors app_food_overview SQL view and FirestoreDataStore._compute_risk_level.
+    Tolerance/MRL values are the strictest (MIN) per (food_category, contaminant),
+    pre-loaded by the caller.
+    """
+    if max_ppb is None or max_ppb <= 0:
+        return "none"
+    for limit_ppb in (tolerance_ppb, mrl_ppb):
+        if limit_ppb and limit_ppb > 0:
+            pct = max_ppb / limit_ppb
+            if pct >= 2.0:
+                return "high"
+            if pct >= 1.0:
+                return "medium"
             return "low"
-    return "none"
+    return "unknown"
 
 
-def compute_product_risk(row: dict) -> str:
-    """Compute product risk level matching the SQLite CASE logic."""
+def compute_product_risk(row: dict, tolerance_ppb=None) -> str:
+    """Compute product risk level, mirroring app_product_lookup SQL view and
+    FirestoreDataStore._compute_product_risk. Uses the EPA tolerance only
+    (no EFSA MRL fallback); falls back to 'unknown' when no tolerance exists.
+    """
     if row.get("is_grf_certified"):
         return "certified_grf"
     if row.get("is_organic") and row.get("below_detection"):
@@ -240,13 +249,15 @@ def compute_product_risk(row: dict) -> str:
     if row.get("below_detection"):
         return "none"
     ppb = row.get("measured_ppb")
-    if ppb is not None:
-        if ppb >= 500:
+    if ppb is None or ppb <= 0:
+        return "none"
+    if tolerance_ppb and tolerance_ppb > 0:
+        pct = ppb / tolerance_ppb
+        if pct >= 2.0:
             return "high"
-        if ppb >= 100:
+        if pct >= 1.0:
             return "medium"
-        if ppb > 0:
-            return "low"
+        return "low"
     return "unknown"
 
 
@@ -281,8 +292,8 @@ def precompute_food_overview(db, conn: sqlite3.Connection):
     # Product stats per (category, contaminant)
     product_stats = conn.execute("""
         SELECT food_category, contaminant,
-               COUNT(*) AS total,
-               SUM(CASE WHEN below_detection = 0 THEN 1 ELSE 0 END) AS with_detection,
+               COUNT(DISTINCT product_name) AS total,
+               COUNT(DISTINCT CASE WHEN below_detection = 0 THEN product_name END) AS with_detection,
                ROUND(AVG(measured_ppb), 1) AS avg_ppb,
                MAX(measured_ppb) AS max_ppb
         FROM product_tests
@@ -297,6 +308,23 @@ def precompute_food_overview(db, conn: sqlite3.Connection):
         GROUP BY food_category
     """).fetchall()
     cc_map = {r[0]: r[1] for r in cert_counts}
+
+    # Strictest (MIN) tolerance and MRL per (food_category, contaminant) — drives
+    # tolerance-based risk_level, mirroring the app_food_overview tolerance_data/mrl_data CTEs.
+    tolerance_map = {
+        (r[0], r[1]): r[2] for r in conn.execute(
+            "SELECT food_category, contaminant, MIN(tolerance_ppb) "
+            "FROM tolerance_limits WHERE tolerance_ppb > 0 "
+            "GROUP BY food_category, contaminant"
+        ).fetchall()
+    }
+    mrl_map = {
+        (r[0], r[1]): r[2] for r in conn.execute(
+            "SELECT food_category, pesticide, MIN(mrl_ppb) "
+            "FROM international_mrls WHERE mrl_ppb > 0 "
+            "GROUP BY food_category, pesticide"
+        ).fetchall()
+    }
 
     # Build and write documents
     docs = []
@@ -314,7 +342,11 @@ def precompute_food_overview(db, conn: sqlite3.Connection):
             "max_ppb": max_ppb,
             "samples_total": samples_total,
             "samples_detected": samples_detected,
-            "risk_level": compute_risk_level(detection_rate, max_ppb),
+            "risk_level": compute_risk_level(
+                max_ppb,
+                tolerance_map.get((cat, contaminant)),
+                mrl_map.get((cat, contaminant)),
+            ),
             "confidence": confidence,
             "total_products_tested": ps[2] if ps else 0,
             "products_with_detection": ps[3] if ps else 0,
@@ -359,6 +391,16 @@ def precompute_product_lookup(db, conn: sqlite3.Connection):
                "is_organic", "is_grf_certified", "confidence", "methodology_note",
                "source_url", "updated_at", "dedup_key"]
 
+    # Strictest (MIN) EPA tolerance per (food_category, contaminant) — drives
+    # tolerance-based product risk_level, mirroring app_product_lookup.
+    tolerance_map = {
+        (r[0], r[1]): r[2] for r in conn.execute(
+            "SELECT food_category, contaminant, MIN(tolerance_ppb) "
+            "FROM tolerance_limits WHERE tolerance_ppb > 0 "
+            "GROUP BY food_category, contaminant"
+        ).fetchall()
+    }
+
     batch = db.batch()
     count = 0
     for row in rows:
@@ -366,7 +408,9 @@ def precompute_product_lookup(db, conn: sqlite3.Connection):
         d["below_detection"] = bool(d["below_detection"])
         d["is_organic"] = bool(d["is_organic"])
         d["is_grf_certified"] = bool(d["is_grf_certified"])
-        d["risk_level"] = compute_product_risk(d)
+        d["risk_level"] = compute_product_risk(
+            d, tolerance_map.get((d["food_category"], d.get("contaminant", "glyphosate")))
+        )
 
         ref = db.collection("app_product_lookup").document(d.pop("dedup_key"))
         batch.set(ref, d)

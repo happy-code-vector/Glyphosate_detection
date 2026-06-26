@@ -247,20 +247,22 @@ class FirestoreDataStore:
         product_stats: dict[str, dict] = {}
         for p in all_products:
             contam = p.get("contaminant", "")
-            if contam not in product_stats:
-                product_stats[contam] = {
-                    "total": 0, "with_detection": 0,
-                    "ppb_sum": 0.0, "ppb_count": 0, "max_ppb": 0.0,
-                }
-            ps = product_stats[contam]
-            ps["total"] += 1
-            if not p.get("below_detection"):
-                ps["with_detection"] += 1
+            name = p.get("product_name")
+            # Dedup by distinct product name: the same physical product is often
+            # reported by multiple sources, which would otherwise inflate the counts.
+            bucket = product_stats.setdefault(contam, {
+                "seen": set(), "detected": set(),
+                "ppb_sum": 0.0, "ppb_count": 0, "max_ppb": 0.0,
+            })
+            if name:
+                bucket["seen"].add(name)
+                if not p.get("below_detection"):
+                    bucket["detected"].add(name)
             ppb = p.get("measured_ppb")
             if ppb is not None:
-                ps["ppb_sum"] += ppb
-                ps["ppb_count"] += 1
-                ps["max_ppb"] = max(ps["max_ppb"], ppb)
+                bucket["ppb_sum"] += ppb
+                bucket["ppb_count"] += 1
+                bucket["max_ppb"] = max(bucket["max_ppb"], ppb)
 
         # Certified product count for this category
         all_certs = self._query_eq("certified_products", "food_category", resolved)
@@ -283,8 +285,8 @@ class FirestoreDataStore:
                 "samples_detected": s.get("samples_detected"),
                 "risk_level": self._compute_risk_level(max_ppb, contam, resolved),
                 "confidence": s.get("confidence"),
-                "total_products_tested": ps.get("total", 0),
-                "products_with_detection": ps.get("with_detection", 0),
+                "total_products_tested": len(ps["seen"]) if ps else 0,
+                "products_with_detection": len(ps["detected"]) if ps else 0,
                 "avg_product_ppb": round(ps["ppb_sum"] / ps["ppb_count"], 1) if ps.get("ppb_count") else 0,
                 "max_product_ppb": ps.get("max_ppb", 0),
                 "certified_products_available": cert_count,

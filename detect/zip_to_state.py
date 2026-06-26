@@ -320,7 +320,7 @@ _PREFIX_TO_STATE = {
     # Wyoming (WY)
     "820": "Wyoming", "821": "Wyoming", "822": "Wyoming", "823": "Wyoming",
     "824": "Wyoming", "825": "Wyoming", "826": "Wyoming", "827": "Wyoming",
-    "828": "Wyoming", "829": "Wyoming", "830": "Wyoming", "831": "Zip code",
+    "828": "Wyoming", "829": "Wyoming", "830": "Wyoming", "831": "Wyoming",
 }
 
 

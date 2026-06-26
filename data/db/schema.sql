@@ -434,8 +434,8 @@ product_stats AS (
     SELECT
         pt.food_category,
         pt.contaminant,
-        COUNT(*) AS total_products_tested,
-        SUM(CASE WHEN pt.below_detection = 0 THEN 1 ELSE 0 END) AS products_with_detection,
+        COUNT(DISTINCT pt.product_name) AS total_products_tested,
+        COUNT(DISTINCT CASE WHEN pt.below_detection = 0 THEN pt.product_name END) AS products_with_detection,
         ROUND(AVG(pt.measured_ppb), 1) AS avg_product_ppb,
         MAX(pt.measured_ppb) AS max_product_ppb
     FROM product_tests pt

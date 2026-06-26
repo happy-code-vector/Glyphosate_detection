@@ -25,6 +25,10 @@ from db.database import build_dedup_key, get_connection
 
 logger = logging.getLogger(__name__)
 
+# Canonical source identifier — used for row lineage and dedup keys below,
+# and re-exposed as the fetcher's SOURCE_NAME for ingest logging.
+SOURCE_NAME = "CDC_NHANES_Metals"
+
 # ─────────────────────────────────────────────────────────────────────
 # NHANES heavy metals configuration
 # Each entry defines: analyte name, XPT file, variable name, LOD, unit,
@@ -233,7 +237,7 @@ def _compute_analyte_stats(df: pd.DataFrame, config: dict, cycle: str) -> dict |
         geo_mean = p50 = p75 = p90 = p95 = None
 
     return {
-        "source": "CDC_NHANES",
+        "source": SOURCE_NAME,
         "cycle": cycle,
         "analyte": config["analyte"],
         "population_group": "US general population",
@@ -255,14 +259,14 @@ def _compute_analyte_stats(df: pd.DataFrame, config: dict, cycle: str) -> dict |
             f"Converted from {config['unit']} to ng/mL."
         ),
         "confidence": "high",
-        "dedup_key": build_dedup_key("CDC_NHANES", config["analyte"], cycle),
+        "dedup_key": build_dedup_key(SOURCE_NAME, config["analyte"], cycle),
     }
 
 
 class CDC_NHANES_MetalsFetcher(BaseFetcher):
     """Fetcher for CDC NHANES heavy metals biomonitoring data."""
 
-    SOURCE_NAME = "CDC_NHANES_Metals"
+    SOURCE_NAME = SOURCE_NAME  # re-export module-level constant
 
     def fetch(self) -> list[Path]:
         """Download NHANES XPT files for heavy metals."""

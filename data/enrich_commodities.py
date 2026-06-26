@@ -72,6 +72,26 @@ COMMODITY_PDP_CODES = {
 }
 
 
+def _resolve_slug_key(mapping: dict, slug: str):
+    """Look up a commodity slug in a PDP mapping, tolerating singular/plural drift.
+
+    Seed commodity slugs are plural ('soybeans', 'oats', 'beans', 'lentils',
+    'chickpeas') while COMMODITY_TO_PDP / COMMODITY_PDP_CODES use singular keys
+    ('soybean', 'oat', 'bean'). Try the slug as-is first so explicit ``None``
+    mappings are preserved, then singular/plural variants.
+    """
+    if slug in mapping:
+        return mapping[slug]
+    variants = [slug.removesuffix("es"), slug.removesuffix("s"),
+                slug + "s", slug + "es"]
+    if slug.endswith("ies"):
+        variants.append(slug[:-3] + "y")
+    for v in variants:
+        if v != slug and v in mapping:
+            return mapping[v]
+    return None
+
+
 def enrich_commodities():
     """Populate commodities.residues from category_summaries PDP data."""
     with get_connection() as conn:
@@ -84,7 +104,7 @@ def enrich_commodities():
         skipped = 0
 
         for slug, display_name in commodities:
-            pdp_category = COMMODITY_TO_PDP.get(slug)
+            pdp_category = _resolve_slug_key(COMMODITY_TO_PDP, slug)
             if not pdp_category:
                 logger.info("  %s: no PDP mapping — skipping", slug)
                 skipped += 1
@@ -104,7 +124,7 @@ def enrich_commodities():
 
             # Get all pesticide data for this category in the latest year
             # If we have specific PDP codes, filter by those
-            pdp_codes = COMMODITY_PDP_CODES.get(slug)
+            pdp_codes = _resolve_slug_key(COMMODITY_PDP_CODES, slug)
 
             rows = conn.execute(
                 "SELECT contaminant, detection_rate, avg_ppb, max_ppb, "
