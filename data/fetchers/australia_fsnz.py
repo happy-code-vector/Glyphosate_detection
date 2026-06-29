@@ -71,13 +71,9 @@ class AustraliaFSANZFetcher(BaseFetcher):
         for entry in AUSTRALIA_TDS_DATA:
             raw_group = entry["food_group"]
             food_category = normalize_category(raw_group)
-
-            if not food_category:
-                logger.debug(
-                    "%s: no canonical category for '%s' — using raw name",
-                    self.SOURCE_NAME, raw_group,
-                )
-                food_category = raw_group.lower()
+            # Unresolved categories are written as 'unknown' and triaged at
+            # insert time (_resolve_food_category_for_insert) — never stored
+            # as the raw string.
 
             samples_total = entry["samples_total"]
             samples_detected = entry["samples_detected"]

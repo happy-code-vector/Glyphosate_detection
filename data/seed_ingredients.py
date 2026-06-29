@@ -971,6 +971,52 @@ COMMODITY_SEEDS = [
         "consumption_tier": "weekly",
         "ingredient_aliases": ["chili pepper", "chili", "jalapeno", "habanero"],
     },
+    # ── Taxonomy backfill (commodity-mapping unification) ───────────────
+    # Genuinely-missing commodities whose tokens did not resolve against
+    # either alias table. Each is a real, common food; added here so the
+    # shared resolver can map raw strings to a canonical slug.
+    {
+        "commodity_slug": "coriander",
+        "display_name": "Coriander",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": ["coriander", "coriander seed", "cilantro"],
+    },
+    {
+        "commodity_slug": "poppy_seed",
+        "display_name": "Poppy Seed",
+        "consumption_tier": "occasional",
+        "ingredient_aliases": ["poppy seed", "poppy seeds", "poppy_seed"],
+    },
+    {
+        "commodity_slug": "cloves",
+        "display_name": "Cloves",
+        "consumption_tier": "occasional",
+        "ingredient_aliases": ["cloves", "clove"],
+    },
+    {
+        "commodity_slug": "mustard",
+        "display_name": "Mustard",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": ["mustard", "mustard seed", "mustard seeds"],
+    },
+    {
+        "commodity_slug": "chicory",
+        "display_name": "Chicory",
+        "consumption_tier": "occasional",
+        "ingredient_aliases": ["chicory"],
+    },
+    {
+        "commodity_slug": "caraway",
+        "display_name": "Caraway",
+        "consumption_tier": "occasional",
+        "ingredient_aliases": ["caraway", "caraway seed"],
+    },
+    {
+        "commodity_slug": "brazil_nut",
+        "display_name": "Brazil Nut",
+        "consumption_tier": "occasional",
+        "ingredient_aliases": ["brazil nut", "brazil nuts", "brazil_nut"],
+    },
 ]
 
 
@@ -1095,6 +1141,78 @@ def seed_fda_action_levels(dry_run=False):
                 inserted, skipped, failed)
 
 
+# ═════════════════════════════════════════════
+# CATEGORY ALIAS EXTRAS (commodity-mapping unification)
+# Precision-safe synonyms for the shared resolver. Each token is an
+# UNAMBIGUOUS synonym of an existing canonical_key, and only ever appears as
+# the LEADING token of a raw commodity string (e.g. "Celeriac (Root Celery)",
+# "Enokitake Mushrooms", "Adzuki beans", "CAPSICUMS (CAYENNE CHILI...)",
+# "Crayfish (Crawfish)", "Farina, Wheat"). Because the resolver only matches
+# leading tokens, adding these cannot re-introduce the buried-token
+# false-positives the first-segment rule was built to prevent.
+#
+# Data-grounded (dev DB): these ~12 tokens recover ~21.7k previously-
+# unresolved rows. Qualifier-led USDA names ("Chinese Eggplant", "Husk
+# Tomato") are deliberately NOT aliased — they go to unresolved_commodities
+# under the precision-first stance and are curated over time.
+# ═════════════════════════════════════════════
+CATEGORY_ALIAS_EXTRAS = [
+    # synonym -> existing canonical_key
+    ("celeriac", "celery"),
+    ("enokitake", "mushroom"),
+    ("enoki", "mushroom"),
+    ("adzuki", "beans"),
+    ("capsicum", "pepper"),
+    ("capsicums", "pepper"),
+    ("crayfish", "fish"),
+    ("farina", "wheat"),
+    ("sesame", "sesame"),        # bare-token fix: "sesame seed" already aliased
+    # existing-slug form variants
+    ("canned beets", "beet"),
+    ("dried apricot", "apricot"),
+    ("dried_apricot", "apricot"),
+]
+
+
+def seed_category_alias_extras(dry_run=False):
+    """Insert precision-safe synonym aliases into category_aliases.
+
+    Idempotent (INSERT OR IGNORE). Mirrors how _seed_category_aliases seeds the
+    base vocabulary from category_aliases.csv, but for the curated extras that
+    are not part of the CSV source.
+    """
+    logger.info("Prepared %d category-alias extras", len(CATEGORY_ALIAS_EXTRAS))
+    if dry_run:
+        for alias, key in CATEGORY_ALIAS_EXTRAS:
+            logger.info("  [DRY RUN] %s -> %s", alias, key)
+        return
+    inserted = skipped = failed = 0
+    with get_connection() as conn:
+        for alias, key in CATEGORY_ALIAS_EXTRAS:
+            try:
+                conn.execute(
+                    "INSERT OR IGNORE INTO category_aliases (alias, canonical_key) "
+                    "VALUES (?, ?)",
+                    (alias, key),
+                )
+                if conn.execute("SELECT changes()").fetchone()[0]:
+                    inserted += 1
+                else:
+                    skipped += 1
+            except Exception as e:
+                logger.error("Failed to insert alias %s -> %s: %s", alias, key, e)
+                failed += 1
+    # Resolver caches the alias index module-level; drop it so the next
+    # resolution picks up the new aliases.
+    try:
+        from commodity_resolver import invalidate_index  # runtime import root
+    except ImportError:
+        from data.commodity_resolver import invalidate_index
+    invalidate_index()
+    logger.info("Category-alias extras: inserted=%d, skipped=%d, failed=%d",
+                inserted, skipped, failed)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Seed regulatory data tables")
     parser.add_argument("--dry-run", action="store_true", help="Print without inserting")
@@ -1111,6 +1229,9 @@ def main():
 
     logger.info("=== Seeding commodities table ===")
     seed_commodities_table(dry_run=args.dry_run)
+
+    logger.info("=== Seeding category-alias extras ===")
+    seed_category_alias_extras(dry_run=args.dry_run)
 
     logger.info("=== Seeding FDA action levels & water standards ===")
     seed_fda_action_levels(dry_run=args.dry_run)

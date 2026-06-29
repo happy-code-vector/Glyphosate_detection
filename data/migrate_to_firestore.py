@@ -47,6 +47,7 @@ TABLES = [
     "commodities",
     "plu_codes",
     "alternatives",
+    "unresolved_commodities",
 ]
 
 # ── Columns that are 0/1 integers → booleans ──
@@ -65,6 +66,7 @@ BOOL_COLUMNS = {
     "commodities": ["dirty_dozen", "pdp_covered"],
     "plu_codes": [],
     "alternatives": [],
+    "unresolved_commodities": [],
 }
 
 # ── Columns to skip (auto-generated in SQLite, not needed in Firestore) ──
@@ -75,6 +77,7 @@ SKIP_COLUMNS = {
     "commodities": [],
     "plu_codes": [],
     "alternatives": [],
+    "unresolved_commodities": [],
 }
 
 
@@ -101,6 +104,12 @@ def get_document_id(table: str, row: dict) -> str | None:
         doc_id = row.get("plu", None)
     elif table == "alternatives":
         doc_id = row.get("lookup_key", None)
+    elif table == "unresolved_commodities":
+        # PK is (raw_category, source); composite id keeps both, with a
+        # sentinel for NULL source so legacy rows get a stable id too.
+        raw = row.get("raw_category")
+        src = row.get("source") or "unknown"
+        doc_id = f"{raw}|{src}" if raw else None
     else:
         doc_id = row.get("dedup_key", None)
 

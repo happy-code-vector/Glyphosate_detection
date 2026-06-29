@@ -12,6 +12,14 @@ import sqlite3
 from pathlib import Path
 from typing import Optional
 
+# Shared commodity resolver. Dual-root import: this module is loaded as
+# ``data.sqlite_store`` (project root on path) in tests and as ``sqlite_store``
+# (data/ on path) at runtime, so neither prefix is universally valid.
+try:  # project-root / test context
+    from data.commodity_resolver import resolve_commodity
+except ImportError:  # runtime context: data/ is the path root
+    from commodity_resolver import resolve_commodity
+
 
 _DEFAULT_DB_PATH = Path(__file__).parent / "residueiq.db"
 
@@ -79,10 +87,11 @@ class SqliteDataStore:
     def get_international_comparison(
         self, food_category: str, contaminant: str = "glyphosate"
     ) -> list[dict]:
+        resolved = resolve_commodity(food_category, self._conn) or food_category
         return self._rows(
             "SELECT * FROM app_international_comparison "
             "WHERE food_category = ? AND contaminant = ?",
-            (food_category, contaminant),
+            (resolved, contaminant),
         )
 
     # ── Raw table reads ─────────────────────────────────────────────────
@@ -420,63 +429,25 @@ class SqliteDataStore:
     # ── Internal helpers (from database.py) ─────────────────────────────
 
     def _resolve_category(self, name: str) -> str:
-        """Resolve user-provided category name to canonical form."""
-        # 1. Exact match in view
-        row = self._row(
-            "SELECT 1 FROM app_food_overview WHERE food_category = ? LIMIT 1",
-            (name,),
-        )
-        if row:
+        """Resolve a user-provided category name to a canonical key that exists
+        in the food overview view, via the shared resolver.
+
+        Delegates to data.commodity_resolver.resolve_commodity (which handles
+        exact, singular/plural, and first-segment group-string matching), then
+        confirms the resolved key is present in app_food_overview so callers
+        never receive a phantom key. Falls back to the input name."""
+        if not name:
             return name
-
-        # 2. Category aliases lookup
-        alias_row = self._row(
-            "SELECT canonical_key FROM category_aliases WHERE alias = ?",
-            (name.lower(),),
-        )
-        if alias_row:
-            canonical = alias_row["canonical_key"]
-            check = self._row(
-                "SELECT 1 FROM app_food_overview WHERE food_category = ? LIMIT 1",
-                (canonical,),
-            )
-            if check:
-                return canonical
-
-        # 3. Singular/plural variations
-        variants = set()
-        lower = name.lower().strip()
-        variants.add(lower)
-        if lower.endswith("ies"):
-            variants.add(lower[:-3] + "y")
-        if lower.endswith("es"):
-            variants.add(lower[:-2])
-        if lower.endswith("s") and not lower.endswith("ss"):
-            variants.add(lower[:-1])
-        if not lower.endswith("s"):
-            variants.add(lower + "s")
-            if lower.endswith("y"):
-                variants.add(lower[:-1] + "ies")
-
-        for v in variants:
-            if v == name:
+        resolved = resolve_commodity(name, self._conn)
+        for candidate in (resolved, name):
+            if not candidate:
                 continue
             row = self._row(
                 "SELECT 1 FROM app_food_overview WHERE food_category = ? LIMIT 1",
-                (v,),
+                (candidate,),
             )
             if row:
-                return v
-
-        # 4. Case-insensitive
-        like_row = self._row(
-            "SELECT food_category FROM app_food_overview "
-            "WHERE LOWER(food_category) = ? LIMIT 1",
-            (lower,),
-        )
-        if like_row:
-            return like_row["food_category"]
-
+                return candidate
         return name
 
     # ── Lifecycle ───────────────────────────────────────────────────────

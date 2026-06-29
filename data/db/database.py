@@ -12,6 +12,18 @@ from pathlib import Path
 from contextlib import contextmanager
 from typing import Optional
 
+# Shared commodity resolver. Import under both roots so this module works
+# whether loaded as ``data.db.database`` (project root on path) or
+# ``db.database`` (data/ on path).
+try:  # project-root / test context
+    from data.commodity_resolver import (
+        resolve_commodity, invalidate_index, upsert_unresolved,
+    )
+except ImportError:  # runtime context: data/ is the path root
+    from commodity_resolver import (
+        resolve_commodity, invalidate_index, upsert_unresolved,
+    )
+
 logger = logging.getLogger(__name__)
 
 DB_PATH = Path(__file__).parent.parent / "residueiq.db"
@@ -271,54 +283,19 @@ def invalidate_alias_cache():
     global _alias_cache, _alias_substring
     _alias_cache = None
     _alias_substring = None
+    invalidate_index()
 
 
 def normalize_category(raw: str, conn=None) -> Optional[str]:
     """
-    Map any raw category string to a canonical key.
-    Uses cached aliases for fast matching. Falls back to word-boundary substring matching.
-    Returns None if no match found — caller must handle this.
+    Map any raw category string to a canonical key via the shared resolver
+    (data.commodity_resolver.resolve_commodity).
+
+    Uses one unified alias vocabulary (category_aliases UNION
+    commodities.ingredient_aliases) and a first-segment prefix rule. Returns
+    None if unresolved — caller must handle (write 'unknown' + triage).
     """
-    if not raw:
-        return None
-    cleaned = raw.lower().strip()
-    # Normalize punctuation to spaces for matching (commas, semicolons, etc.)
-    normalized = re.sub(r'[,;/\t]+', ' ', cleaned)
-    normalized = re.sub(r'\s+', ' ', normalized).strip()
-
-    _load_alias_cache(conn)
-
-    # 1. Exact match (O(1) dict lookup) — try both raw and normalized
-    if cleaned in _alias_cache:
-        return _alias_cache[cleaned]
-    if normalized != cleaned and normalized in _alias_cache:
-        return _alias_cache[normalized]
-
-    # 2. Word-boundary substring: find best alias that appears as a whole word
-    #    inside the normalized string. Prevents "pea" matching inside "peanut butter".
-    #    When multiple aliases match, prefer longer alias. On tie, prefer the
-    #    match whose captured text covers more of the input (beats generic words
-    #    like "butter" winning over "peanut" in "peanut, butter").
-    best_alias_len = 0
-    best_span = 0
-    best_key = None
-    for alias, key in _alias_substring:
-        if len(alias) < 2:
-            continue
-        if len(alias) < best_alias_len:
-            break  # sorted desc, no better alias possible
-        pattern = r'\b' + re.escape(alias) + r'\b'
-        m = re.search(pattern, normalized)
-        if m:
-            span = m.end() - m.start()
-            if len(alias) > best_alias_len or (len(alias) == best_alias_len and span > best_span):
-                best_alias_len = len(alias)
-                best_span = span
-                best_key = key
-    if best_key:
-        return best_key
-
-    return None
+    return resolve_commodity(raw, conn)
 
 
 def build_dedup_key(*parts) -> str:
@@ -1033,6 +1010,26 @@ def _batch_insert_water(conn, rows: list[dict], source_name: str) -> int:
     return after - before
 
 
+def _resolve_food_category_for_insert(r: dict, conn) -> None:
+    """Normalize ``r['food_category']`` to a canonical key in place.
+
+    Central choke point for every source. An unresolved value is NEVER stored
+    as the raw string (that was the phantom-category bug): it becomes
+    ``"unknown"`` and the raw is recorded in ``unresolved_commodities`` so the
+    taxonomy gap is visible and curatable. ``raw_category`` is preserved either
+    way as the immutable source of truth.
+    """
+    raw_fc = r.get("food_category") or r.get("raw_category")
+    if not raw_fc:
+        return
+    normalized = normalize_category(raw_fc, conn=conn)
+    if normalized:
+        r["food_category"] = normalized
+    else:
+        upsert_unresolved(r.get("raw_category") or raw_fc, r.get("source_name"), conn)
+        r["food_category"] = "unknown"
+
+
 def _insert_product(conn, row: dict) -> int:
     """Insert a Tier 1 product test row."""
     defaults = {
@@ -1045,11 +1042,8 @@ def _insert_product(conn, row: dict) -> int:
     r = {**defaults, **row}
     original_contaminant = r["contaminant"]
     r["contaminant"] = normalize_contaminant(r["contaminant"])
-    # Normalize food_category to canonical key
-    if r.get("food_category"):
-        normalized_cat = normalize_category(r["food_category"], conn=conn)
-        if normalized_cat:
-            r["food_category"] = normalized_cat
+    # Normalize food_category to canonical key (-> 'unknown' + triage if unresolved)
+    _resolve_food_category_for_insert(r, conn)
     conn.execute("""
         INSERT OR IGNORE INTO product_tests (
             source_name, source_url, report_label, published_date, data_year,
@@ -1126,11 +1120,8 @@ def _insert_category(conn, row: dict) -> int:
     r = {**defaults, **row}
     original_contaminant = r["contaminant"]
     r["contaminant"] = normalize_contaminant(r["contaminant"])
-    # Normalize food_category to canonical key for consistent MRL lookups
-    if r.get("food_category"):
-        normalized_cat = normalize_category(r["food_category"], conn=conn)
-        if normalized_cat:
-            r["food_category"] = normalized_cat
+    # Normalize food_category to canonical key (-> 'unknown' + triage if unresolved)
+    _resolve_food_category_for_insert(r, conn)
     conn.execute("""
         INSERT OR IGNORE INTO category_summaries (
             source_name, source_url, report_label, published_date, data_year,

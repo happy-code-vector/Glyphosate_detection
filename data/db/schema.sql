@@ -183,6 +183,21 @@ CREATE TABLE IF NOT EXISTS category_aliases (
 CREATE INDEX IF NOT EXISTS idx_canonical ON category_aliases(canonical_key);
 
 -- ─────────────────────────────────────────────
+-- Unresolved commodity triage log
+-- Raw commodity strings the shared resolver could not map to a canonical
+-- key. Precision-first: ingest writes 'unknown' + a row here (never the raw
+-- string), so taxonomy gaps stay visible and shrinkable instead of silent.
+-- Maps to Firestore: unresolved_commodities collection
+-- ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS unresolved_commodities (
+    raw_category TEXT NOT NULL,
+    source       TEXT,
+    first_seen   TEXT DEFAULT (datetime('now')),
+    hit_count    INTEGER DEFAULT 1,
+    PRIMARY KEY (raw_category, source)
+);
+
+-- ─────────────────────────────────────────────
 -- Regulatory tolerance limits
 -- Maps to Firestore: tolerance_limits collection
 -- ─────────────────────────────────────────────

@@ -15,7 +15,7 @@ import logging
 from pathlib import Path
 
 from fetchers.base import BaseFetcher, RAW_DATA_DIR
-from db.database import normalize_category, build_dedup_key
+from db.database import normalize_category, build_dedup_key, upsert_unresolved
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +89,9 @@ class CleanLabelCertifiedFetcher(BaseFetcher):
             product_name, brand, raw_cat, data_year = entry
             food_category = normalize_category(raw_cat)
             if not food_category:
-                food_category = raw_cat
+                # Unresolved -> 'unknown' + triage; never store the raw string.
+                upsert_unresolved(raw_cat, SOURCE_NAME)
+                food_category = "unknown"
             rows.append({
                 "product_name": product_name,
                 "brand": brand,
