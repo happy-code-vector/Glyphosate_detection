@@ -407,7 +407,7 @@ class DetectionEngine:
 
         max_ppb = d.get("max_ppb")
         consumption_tier = self._store.get_consumption_tier(category)
-        risk_level = self._ppb_to_risk_level(max_ppb, contaminant, category, consumption_tier)
+        risk_level = self._ppb_to_risk_level(max_ppb, contaminant, category, consumption_tier, raw=ingredient)
         return IngredientScore(
             ingredient=ingredient, category=category,
             detection_rate=d["detection_rate"], avg_ppb=d.get("avg_ppb"),
@@ -523,14 +523,14 @@ class DetectionEngine:
 
     def _ppb_to_risk_level(
         self, ppb: float, contaminant: str, food_category: str | None = None,
-        consumption_tier: str | None = None,
+        consumption_tier: str | None = None, raw: str | None = None,
     ) -> str:
         if ppb is None or ppb <= 0:
             return "none"
         multiplier = self._CONSUMPTION_MULTIPLIERS.get(consumption_tier, 1.0)
         adjusted_ppb = ppb * multiplier
 
-        tol_data = self._store.get_tolerance_limit(contaminant, food_category) if food_category else None
+        tol_data = self._store.get_tolerance_limit(contaminant, food_category, raw=raw) if food_category else None
         if tol_data and (tol := tol_data.get("tolerance_ppb")) and tol > 0:
             pct = adjusted_ppb / tol
             if pct >= 2.0: return "high"
@@ -538,7 +538,7 @@ class DetectionEngine:
             elif ppb > 0: return "low"
             return "none"
 
-        mrl_data = self._store.get_strictest_mrl(contaminant, food_category) if food_category else None
+        mrl_data = self._store.get_strictest_mrl(contaminant, food_category, raw=raw) if food_category else None
         if mrl_data and (mrl := mrl_data.get("mrl_ppb")) and mrl > 0:
             pct = adjusted_ppb / mrl
             if pct >= 2.0: return "high"
@@ -550,7 +550,7 @@ class DetectionEngine:
 
     def _ppb_to_risk_detail(
         self, ppb: float, contaminant: str, food_category: str | None = None,
-        consumption_tier: str | None = None,
+        consumption_tier: str | None = None, raw: str | None = None,
     ) -> tuple[str, str, float | None, str | None, float | None, str | None]:
         if ppb is None or ppb <= 0:
             return "none", "Not detected", None, None, None, None
@@ -559,7 +559,7 @@ class DetectionEngine:
         adjusted_ppb = ppb * multiplier
         is_heavy_metal = contaminant.lower() in self._HEAVY_METALS
 
-        tol_data = self._store.get_tolerance_limit(contaminant, food_category) if food_category else None
+        tol_data = self._store.get_tolerance_limit(contaminant, food_category, raw=raw) if food_category else None
         if tol_data and (tol := tol_data.get("tolerance_ppb")) and tol > 0:
             tol_source = tol_data.get("source", "EPA")
             pct = adjusted_ppb / tol * 100
@@ -576,7 +576,7 @@ class DetectionEngine:
                 if is_heavy_metal: reason += " — low confidence, consult regulatory guidance"
                 return "low", reason, None, None, tol, tol_source
 
-        mrl_data = self._store.get_strictest_mrl(contaminant, food_category) if food_category else None
+        mrl_data = self._store.get_strictest_mrl(contaminant, food_category, raw=raw) if food_category else None
         if mrl_data and (mrl := mrl_data.get("mrl_ppb")) and mrl > 0:
             mrl_src = mrl_data.get("country_region", "Unknown")
             pct = adjusted_ppb / mrl * 100

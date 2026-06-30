@@ -151,21 +151,27 @@ class DataStore(Protocol):
         ...
 
     def get_tolerance_limit(
-        self, contaminant: str, food_category: str
+        self, contaminant: str, food_category: str, raw: Optional[str] = None
     ) -> Optional[dict]:
-        """Lowest tolerance for contaminant+category."""
+        """Lowest tolerance for contaminant+category.
+
+        ``raw`` (the original commodity string) enables form-aware resolution:
+        when the benchmark table distinguishes forms (e.g. ``basil, dried
+        leaves`` vs ``basil, fresh leaves``), the tolerance matching the raw's
+        form is selected instead of the generic one.
+        """
         ...
 
     def get_all_tolerance_limits(
-        self, contaminant: str, food_category: str
+        self, contaminant: str, food_category: str, raw: Optional[str] = None
     ) -> list[dict]:
         """All tolerance entries for contaminant+category (for regulatory comparison)."""
         ...
 
     def get_strictest_mrl(
-        self, contaminant: str, food_category: str
+        self, contaminant: str, food_category: str, raw: Optional[str] = None
     ) -> Optional[dict]:
-        """Strictest (lowest) MRL for contaminant+category."""
+        """Strictest (lowest) MRL for contaminant+category (form-aware via raw)."""
         ...
 
     def get_consumption_tier(self, food_category: str) -> Optional[str]:
@@ -182,8 +188,15 @@ class DataStore(Protocol):
         """All contaminants with detections for a category (best source per contaminant)."""
         ...
 
-    def resolve_benchmark_category(self, food_category: str, table: str) -> str:
-        """Resolve canonical key to actual food_category in a benchmark table."""
+    def resolve_benchmark_category(
+        self, food_category: str, table: str, raw: Optional[str] = None
+    ) -> str:
+        """Resolve canonical key to actual food_category in a benchmark table.
+
+        When ``raw`` is supplied and carries a form token (dried/fresh/juice),
+        prefer the form-specific benchmark row if one exists; otherwise resolve
+        to the generic commodity key (historical behavior).
+        """
         ...
 
     # ── Lifecycle ───────────────────────────────────────────────────────

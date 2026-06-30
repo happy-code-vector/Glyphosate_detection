@@ -230,6 +230,72 @@ class TestSqliteDataStoreProtocol(unittest.TestCase):
         self.assertIsInstance(resolved, str)
         self.assertTrue(len(resolved) > 0)
 
+    def test_form_aware_tolerance_lookup(self):
+        """End-to-end form-aware benchmark resolution through the DataStore.
+
+        Mirrors real EPA herb data: 'basil, dried leaves' and
+        'basil, fresh leaves' have divergent mandipropamid tolerances
+        (200,000 vs 30,000 ppb). Passing the raw must select the matching
+        form's tolerance; without raw it falls back to the generic value.
+        """
+        self.conn.executemany(
+            "INSERT INTO tolerance_limits "
+            "(food_category, tolerance_ppm, tolerance_ppb, contaminant, source, dedup_key) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            [
+                ("basil", 0.05, 50.0, "mandipropamid", "EPA", "ds-basil"),
+                ("basil, dried leaves", 200.0, 200000.0, "mandipropamid", "EPA", "ds-basil-dried"),
+                ("basil, fresh leaves", 30.0, 30000.0, "mandipropamid", "EPA", "ds-basil-fresh"),
+            ],
+        )
+        self.conn.commit()
+        # Re-sync the temp-file DB the store reads from.
+        dest = sqlite3.connect(self.tmp.name)
+        for r in self.conn.execute("SELECT food_category, tolerance_ppm, tolerance_ppb, contaminant, source, dedup_key FROM tolerance_limits WHERE dedup_key LIKE 'ds-basil%'"):
+            dest.execute("INSERT OR REPLACE INTO tolerance_limits (food_category, tolerance_ppm, tolerance_ppb, contaminant, source, dedup_key) VALUES (?,?,?,?,?,?)", tuple(r))
+        dest.commit()
+        dest.close()
+
+        dried = self.store.get_tolerance_limit("mandipropamid", "basil", raw="Dried Basil")
+        fresh = self.store.get_tolerance_limit("mandipropamid", "basil", raw="Fresh Basil")
+        generic = self.store.get_tolerance_limit("mandipropamid", "basil")
+
+        # The three forms have distinct tolerances, so the selected ppb proves
+        # which form-specific row was chosen.
+        self.assertEqual(dried["tolerance_ppb"], 200000.0)
+        self.assertEqual(fresh["tolerance_ppb"], 30000.0)
+        # No raw -> generic 'basil' (50.0), never a wrong form.
+        self.assertEqual(generic["tolerance_ppb"], 50.0)
+
+    def test_engine_threads_raw_to_form_aware_tolerance(self):
+        """DetectionEngine._ppb_to_risk_detail forwards ``raw`` to the store so
+        the form-aware tolerance is selected — the LIVE path that makes the
+        data-layer feature actually fire in a detection run. Same ppb, different
+        form => different tolerance and risk level."""
+        conn = sqlite3.connect(self.tmp.name)
+        conn.executemany(
+            "INSERT INTO tolerance_limits "
+            "(food_category, tolerance_ppm, tolerance_ppb, contaminant, source, dedup_key) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            [
+                ("basil", 0.05, 50.0, "mandipropamid", "EPA", "e-basil"),
+                ("basil, dried leaves", 200.0, 200000.0, "mandipropamid", "EPA", "e-basil-dried"),
+            ],
+        )
+        conn.commit()
+        conn.close()
+
+        engine = DetectionEngine.from_datastore(self.store)
+        # Returns (risk_level, reason, mrl, mrl_src, tolerance_ppb, tol_src).
+        dried = engine._ppb_to_risk_detail(100.0, "mandipropamid", "basil", raw="Dried Basil")
+        generic = engine._ppb_to_risk_detail(100.0, "mandipropamid", "basil")
+
+        # 100 ppb vs dried 200,000 => 0.05% => 'low'; vs generic 50 => 200% => 'high'.
+        self.assertEqual(dried[4], 200000.0)
+        self.assertEqual(dried[0], "low")
+        self.assertEqual(generic[4], 50.0)
+        self.assertEqual(generic[0], "high")
+
 
 class TestFromDatastore(unittest.TestCase):
     """Test DetectionEngine.from_datastore() constructor."""

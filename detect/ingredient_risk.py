@@ -24,6 +24,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "data"))
 from detect.ingredient_parser import parse_ingredients
 from detect.models import ContaminantDetail, ContaminantReport
 
+# Shared form-aware benchmark resolver (dual-root import: tests run from the
+# project root as ``data.commodity_resolver``; runtime has data/ on sys.path).
+try:
+    from data.commodity_resolver import resolve_benchmark
+except ImportError:  # runtime context: data/ is the path root
+    from commodity_resolver import resolve_benchmark
+
 
 @dataclass
 class IngredientScore:
@@ -267,7 +274,7 @@ class IngredientRiskQuery:
         max_ppb = d.get("max_ppb")
         # Look up consumption tier for this category
         consumption_tier = self._get_consumption_tier(category)
-        risk_level = self._ppb_to_risk_level(max_ppb, contaminant, category, consumption_tier)
+        risk_level = self._ppb_to_risk_level(max_ppb, contaminant, category, consumption_tier, raw=ingredient)
 
         return IngredientScore(
             ingredient=ingredient,
@@ -339,7 +346,7 @@ class IngredientRiskQuery:
         d = dict(row)
         max_ppb = d.get("max_ppb")
         consumption_tier = self._get_consumption_tier(category)
-        risk_level = self._ppb_to_risk_level(max_ppb, contaminant, category, consumption_tier)
+        risk_level = self._ppb_to_risk_level(max_ppb, contaminant, category, consumption_tier, raw=ingredient)
 
         return IngredientScore(
             ingredient=ingredient,
@@ -587,7 +594,7 @@ class IngredientRiskQuery:
 
     def _ppb_to_risk_level(
         self, ppb: float, contaminant: str, food_category: str | None = None,
-        consumption_tier: str | None = None,
+        consumption_tier: str | None = None, raw: str | None = None,
     ) -> str:
         """Convert ppb measurement to risk level using regulatory data.
 
@@ -609,7 +616,7 @@ class IngredientRiskQuery:
         adjusted_ppb = ppb * multiplier
 
         # 1. Try EPA tolerance_limits first (US standard)
-        tolerance = self._get_lowest_tolerance(contaminant, food_category)
+        tolerance = self._get_lowest_tolerance(contaminant, food_category, raw=raw)
         if tolerance and tolerance > 0:
             pct = adjusted_ppb / tolerance
             if pct >= 2.0:
@@ -621,7 +628,7 @@ class IngredientRiskQuery:
             return "none"
 
         # 2. Try international MRLs (EFSA, Codex, Japan, etc.)
-        mrl = self._get_strictest_mrl(contaminant, food_category)
+        mrl = self._get_strictest_mrl(contaminant, food_category, raw=raw)
         if mrl and mrl > 0:
             pct = adjusted_ppb / mrl
             if pct >= 2.0:
@@ -637,7 +644,7 @@ class IngredientRiskQuery:
 
     def _ppb_to_risk_detail(
         self, ppb: float, contaminant: str, food_category: str | None = None,
-        consumption_tier: str | None = None,
+        consumption_tier: str | None = None, raw: str | None = None,
     ) -> tuple[str, str, float | None, str | None, float | None, str | None]:
         """Return (risk_level, risk_reason, mrl_ppb, mrl_source, tolerance_ppb, tolerance_source).
 
@@ -656,7 +663,7 @@ class IngredientRiskQuery:
         is_heavy_metal = contaminant_lower in self._HEAVY_METALS
 
         # 1. Try EPA tolerance_limits first (US standard)
-        tolerance, tol_source = self._get_lowest_tolerance_with_source(contaminant, food_category)
+        tolerance, tol_source = self._get_lowest_tolerance_with_source(contaminant, food_category, raw=raw)
         if tolerance and tolerance > 0:
             pct = adjusted_ppb / tolerance * 100
             if pct >= 200:
@@ -676,7 +683,7 @@ class IngredientRiskQuery:
                 return "low", reason, None, None, tolerance, tol_source
 
         # 2. Try international MRLs (EFSA, Codex, Japan, etc.)
-        mrl, mrl_source = self._get_strictest_mrl_with_source(contaminant, food_category)
+        mrl, mrl_source = self._get_strictest_mrl_with_source(contaminant, food_category, raw=raw)
         if mrl and mrl > 0:
             pct = adjusted_ppb / mrl * 100
             if pct >= 200:
@@ -702,64 +709,25 @@ class IngredientRiskQuery:
         return "unknown", reason, None, None, None, None
 
     def _resolve_benchmark_category(
-        self, food_category: str, table: str
+        self, food_category: str, table: str, raw: str | None = None
     ) -> str:
         """Resolve a canonical key to the actual food_category in a benchmark table.
 
-        Tries: exact match, plural/singular, underscore/space variants,
-        and reverse alias lookup (aliases that map TO this canonical key).
-        Returns the matched food_category or the original if no match.
+        Delegates to the shared ``commodity_resolver.resolve_benchmark`` — the
+        single form-aware resolver — so this legacy path no longer maintains a
+        duplicate. Reverse-alias, plural/singular and underscore/space matching
+        plus form-aware selection (when ``raw`` carries dried/fresh/juice) all
+        live there. Returns the top-ranked key, or the stripped input when
+        nothing matches so the caller surfaces 'no benchmark' honestly.
         """
-        fc = food_category.strip()
-        candidates = [fc]
-
-        # Plural/singular variations
-        if fc.endswith("s"):
-            candidates.append(fc[:-1])  # "kales" -> "kale"
-        else:
-            candidates.append(fc + "s")  # "kale" -> "kales"
-        if fc.endswith("ies"):
-            candidates.append(fc[:-3] + "y")  # "cherries" -> "cherry"
-        elif fc.endswith("es"):
-            candidates.append(fc[:-2])  # "oranges" -> "orange"
-
-        # Underscore/space variations
-        if "_" in fc:
-            candidates.append(fc.replace("_", " "))
-        if " " in fc:
-            candidates.append(fc.replace(" ", "_"))
-
-        # Reverse alias lookup: find aliases that map TO this canonical key
-        # and try them as benchmark food_category values
-        alias_rows = self._conn.execute(
-            "SELECT alias FROM category_aliases WHERE canonical_key = ?",
-            (fc,),
-        ).fetchall()
-        for r in alias_rows:
-            candidates.append(r["alias"])
-
-        # Check which candidates exist in the benchmark table
-        # Use LOWER() for case-insensitive matching
-        lower_set = set()
-        final_candidates = []
-        for c in candidates:
-            cl = c.lower()
-            if cl not in lower_set:
-                lower_set.add(cl)
-                final_candidates.append(c)
-
-        placeholders = ",".join("?" * len(final_candidates))
-        row = self._conn.execute(
-            f"SELECT DISTINCT food_category FROM {table} "
-            f"WHERE LOWER(food_category) IN ({placeholders}) "
-            f"LIMIT 1",
-            [c.lower() for c in final_candidates],
-        ).fetchone()
-
-        return row["food_category"] if row else fc
+        ranked = resolve_benchmark(
+            food_category, conn=self._conn, raw=raw, table=table
+        )
+        return ranked[0] if ranked else food_category.strip()
 
     def _get_strictest_mrl(
-        self, contaminant: str, food_category: str | None = None
+        self, contaminant: str, food_category: str | None = None,
+        raw: str | None = None,
     ) -> float | None:
         """Get the strictest (lowest) MRL from international_mrls.
 
@@ -769,7 +737,7 @@ class IngredientRiskQuery:
         if not food_category:
             return None
         resolved = self._resolve_benchmark_category(
-            food_category, "international_mrls"
+            food_category, "international_mrls", raw=raw
         )
         row = self._conn.execute(
             "SELECT MIN(mrl_ppb) as min_mrl FROM international_mrls "
@@ -780,7 +748,8 @@ class IngredientRiskQuery:
         return row["min_mrl"] if row and row["min_mrl"] else None
 
     def _get_strictest_mrl_with_source(
-        self, contaminant: str, food_category: str | None = None
+        self, contaminant: str, food_category: str | None = None,
+        raw: str | None = None,
     ) -> tuple[float | None, str | None]:
         """Get the strictest MRL and which country set it.
 
@@ -789,7 +758,7 @@ class IngredientRiskQuery:
         if not food_category:
             return None, None
         resolved = self._resolve_benchmark_category(
-            food_category, "international_mrls"
+            food_category, "international_mrls", raw=raw
         )
         row = self._conn.execute(
             "SELECT mrl_ppb, country_region FROM international_mrls "
@@ -803,7 +772,8 @@ class IngredientRiskQuery:
         return None, None
 
     def _get_lowest_tolerance(
-        self, contaminant: str, food_category: str | None = None
+        self, contaminant: str, food_category: str | None = None,
+        raw: str | None = None,
     ) -> float | None:
         """Get the lowest tolerance from tolerance_limits.
 
@@ -812,7 +782,7 @@ class IngredientRiskQuery:
         if not food_category:
             return None
         resolved = self._resolve_benchmark_category(
-            food_category, "tolerance_limits"
+            food_category, "tolerance_limits", raw=raw
         )
         row = self._conn.execute(
             "SELECT MIN(tolerance_ppb) as min_tol FROM tolerance_limits "
@@ -823,7 +793,8 @@ class IngredientRiskQuery:
         return row["min_tol"] if row and row["min_tol"] else None
 
     def _get_lowest_tolerance_with_source(
-        self, contaminant: str, food_category: str | None = None
+        self, contaminant: str, food_category: str | None = None,
+        raw: str | None = None,
     ) -> tuple[float | None, str | None]:
         """Get the lowest tolerance and its source.
 
@@ -832,7 +803,7 @@ class IngredientRiskQuery:
         if not food_category:
             return None, None
         resolved = self._resolve_benchmark_category(
-            food_category, "tolerance_limits"
+            food_category, "tolerance_limits", raw=raw
         )
         row = self._conn.execute(
             "SELECT tolerance_ppb, source FROM tolerance_limits "

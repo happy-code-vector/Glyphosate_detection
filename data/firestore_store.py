@@ -18,6 +18,12 @@ from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
+# Form-aware benchmark resolution helper (dried/fresh/juice). Dual-root import.
+try:  # project-root / test context
+    from data.commodity_resolver import extract_forms
+except ImportError:  # runtime context: data/ is the path root
+    from commodity_resolver import extract_forms
+
 
 def _sanitize_doc_id(value: str) -> str:
     """Mirror the migration script's doc-ID sanitizer."""
@@ -647,9 +653,11 @@ class FirestoreDataStore:
         return None
 
     def get_tolerance_limit(
-        self, contaminant: str, food_category: str
+        self, contaminant: str, food_category: str, raw: Optional[str] = None
     ) -> Optional[dict]:
-        resolved = self.resolve_benchmark_category(food_category, "tolerance_limits")
+        resolved = self.resolve_benchmark_category(
+            food_category, "tolerance_limits", raw
+        )
         docs = self._query_eq("tolerance_limits", "contaminant", contaminant.lower())
         matches = [
             d for d in docs
@@ -662,16 +670,20 @@ class FirestoreDataStore:
         return matches[0]
 
     def get_all_tolerance_limits(
-        self, contaminant: str, food_category: str
+        self, contaminant: str, food_category: str, raw: Optional[str] = None
     ) -> list[dict]:
-        resolved = self.resolve_benchmark_category(food_category, "tolerance_limits")
+        resolved = self.resolve_benchmark_category(
+            food_category, "tolerance_limits", raw
+        )
         docs = self._query_eq("tolerance_limits", "contaminant", contaminant)
         return [d for d in docs if d.get("food_category") == resolved]
 
     def get_strictest_mrl(
-        self, contaminant: str, food_category: str
+        self, contaminant: str, food_category: str, raw: Optional[str] = None
     ) -> Optional[dict]:
-        resolved = self.resolve_benchmark_category(food_category, "international_mrls")
+        resolved = self.resolve_benchmark_category(
+            food_category, "international_mrls", raw
+        )
         docs = self._query_eq("international_mrls", "pesticide", contaminant.lower())
         matches = [
             d for d in docs
@@ -752,7 +764,9 @@ class FirestoreDataStore:
             priority[source] = value
         return priority
 
-    def resolve_benchmark_category(self, food_category: str, table: str) -> str:
+    def resolve_benchmark_category(
+        self, food_category: str, table: str, raw: Optional[str] = None
+    ) -> str:
         fc = food_category.strip()
         aliases = self._load_aliases()
 
@@ -777,6 +791,7 @@ class FirestoreDataStore:
 
         # Check which candidates exist in the benchmark collection
         lower_set = set()
+        base_match: Optional[str] = None
         for c in candidates:
             cl = c.lower()
             if cl in lower_set:
@@ -786,16 +801,43 @@ class FirestoreDataStore:
             # Try as doc ID first
             doc = self._get_doc(table, c)
             if doc:
-                return doc.get("food_category", c)
+                base_match = doc.get("food_category", c)
+                break
 
-        # Fallback: query and filter
-        all_docs = self._query_all(table)
+        if base_match is None:
+            # Fallback: query and filter
+            all_docs = self._query_all(table)
+            candidate_lower = {c.lower() for c in candidates}
+            for d in all_docs:
+                if d.get("food_category", "").lower() in candidate_lower:
+                    base_match = d["food_category"]
+                    break
+        if base_match is None:
+            base_match = fc
+
+        # Form-aware refinement (see sqlite_store.resolve_benchmark_category).
+        raw_forms = extract_forms(raw)
+        if not raw_forms:
+            return base_match
         candidate_lower = {c.lower() for c in candidates}
-        for d in all_docs:
-            if d.get("food_category", "").lower() in candidate_lower:
-                return d["food_category"]
-
-        return fc
+        scored = []
+        for d in self._query_all(table):
+            fcat = d.get("food_category")
+            if not fcat:
+                continue
+            head = fcat.split(",", 1)[0].strip().lower()
+            if head not in candidate_lower:
+                continue
+            suffix = fcat.split(",", 1)[1].lower() if "," in fcat else ""
+            cand_forms = extract_forms(suffix)
+            primary = (
+                1 if (cand_forms & raw_forms) else (-1 if cand_forms else 0)
+            )
+            scored.append((primary, len(fcat), fcat))
+        if not scored:
+            return base_match
+        scored.sort(key=lambda t: (t[0], t[1]), reverse=True)
+        return scored[0][2]
 
     # ── Lifecycle ───────────────────────────────────────────────────────
 

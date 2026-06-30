@@ -1017,6 +1017,54 @@ COMMODITY_SEEDS = [
         "consumption_tier": "occasional",
         "ingredient_aliases": ["brazil nut", "brazil nuts", "brazil_nut"],
     },
+    # Herbs whose EPA tolerances distinguish DRIED vs FRESH forms (e.g.
+    # 'basil, dried leaves' = 200,000 ppb vs 'basil, fresh leaves' = 30,000 ppb
+    # for mandipropamid — a 6.7x divergence). Seeding them lets the resolver map
+    # 'dried basil' -> basil (canonical) while the form-aware benchmark lookup
+    # re-selects the dried-leaves tolerance from the preserved raw. Without these
+    # the herbs resolved to None and got no tolerance at all.
+    {
+        "commodity_slug": "basil",
+        "display_name": "Basil",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": ["basil", "sweet basil", "holy basil"],
+    },
+    {
+        "commodity_slug": "chive",
+        "display_name": "Chive",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": ["chive", "chives"],
+    },
+    {
+        "commodity_slug": "dill",
+        "display_name": "Dill",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": ["dill", "dill seed", "dillweed", "dill weed"],
+    },
+    {
+        "commodity_slug": "stevia",
+        "display_name": "Stevia",
+        "consumption_tier": "occasional",
+        "ingredient_aliases": ["stevia", "stevia leaf"],
+    },
+    {
+        "commodity_slug": "ginseng",
+        "display_name": "Ginseng",
+        "consumption_tier": "occasional",
+        "ingredient_aliases": ["ginseng", "ginseng root", "panax ginseng"],
+    },
+    {
+        "commodity_slug": "citrus",
+        "display_name": "Citrus",
+        "consumption_tier": "weekly",
+        "ingredient_aliases": ["citrus"],
+    },
+    {
+        "commodity_slug": "wasabi",
+        "display_name": "Wasabi",
+        "consumption_tier": "occasional",
+        "ingredient_aliases": ["wasabi", "japanese horseradish"],
+    },
 ]
 
 

@@ -34,6 +34,7 @@ from typing import Optional
 __all__ = [
     "resolve_commodity",
     "resolve_benchmark",
+    "extract_forms",
     "load_index",
     "invalidate_index",
     "upsert_unresolved",
@@ -42,13 +43,38 @@ __all__ = [
 _PUNCT_RE = re.compile(r"[,;/\t]+")
 _WS_RE = re.compile(r"\s+")
 
+# Commodity *forms* that the benchmark tables (tolerance_limits, international_mrls)
+# distinguish with a comma-suffix — e.g. EPA sets a different glyphosate-class
+# tolerance for ``basil, dried leaves`` (200,000 ppb) than ``basil, fresh leaves``
+# (30,000 ppb), a 6.7x divergence. Recognising these is what lets the form-aware
+# benchmark lookup (resolve_benchmark) pick the correct tolerance for a specific
+# raw instead of the generic one — collapsing to the canonical key for grouping
+# does NOT lose accuracy because the form is re-introduced here, at lookup time.
+_FORM_TOKENS = ("dried", "fresh", "juice")
+_WORD_RE = re.compile(r"[a-z]+")
+
+
+def extract_forms(raw: Optional[str]) -> set[str]:
+    """Whole-word form tokens (subset of _FORM_TOKENS) present in ``raw``.
+
+    Whole-word on purpose: ``refreshing`` must not yield ``fresh``.
+    """
+    if not raw:
+        return set()
+    return set(_WORD_RE.findall(raw.lower())) & set(_FORM_TOKENS)
+
 # Module-level unified alias index (alias -> canonical_key) + overrides.
 # Mirrors the proven cache pattern in database.normalize_category: loaded once,
 # reused; tests invalidate + reload per DB. See resolve_commodity() for the
 # reload decision.
 _index: dict[str, str] = {}
 _group_map: dict[str, str] = {}
+# canonical_key (lower) -> [alias (lower), ...]. Lets resolve_benchmark match a
+# benchmark key filed under an ALIAS of the canonical (e.g. 'sweet basil' for
+# 'basil'), so it is a strict superset of the per-table resolvers.
+_reverse_aliases: dict[str, list[str]] = {}
 _loaded_from: object | None = None  # id() of the conn the cache was built from
+_ALLOWED_BENCHMARK_TABLES = ("tolerance_limits", "international_mrls")
 
 
 def _bridge_slug_to_canonical(conn) -> dict[str, str]:
@@ -75,11 +101,14 @@ def _get_get_connection():
     return get_connection
 
 
-def _build_index(conn) -> tuple[dict[str, str], dict[str, str]]:
+def _build_index(conn) -> tuple[dict[str, str], dict[str, str], dict[str, list[str]]]:
     """Read both alias tables from ``conn`` into a unified index.
 
-    Returns (index, group_map). group_map is seeded empty — the first-segment
-    rule handles every known case; it is the extension point for triage.
+    Returns ``(index, group_map, reverse_aliases)``. ``group_map`` is seeded
+    empty — the first-segment rule handles every known case; it is the extension
+    point for triage. ``reverse_aliases`` (canonical_key -> [alias]) lets
+    :func:`resolve_benchmark` match a benchmark key filed under an alias of the
+    canonical, making it a strict superset of the per-table resolvers.
     """
     index: dict[str, str] = {}
 
@@ -105,7 +134,13 @@ def _build_index(conn) -> tuple[dict[str, str], dict[str, str]]:
             if tok:
                 index.setdefault(tok, canon)
 
-    return index, {}
+    # 3) reverse: canonical_key (lower) -> [alias (lower), ...]. Derived from
+    #    the unified index so it covers both alias tables in one place.
+    reverse: dict[str, list[str]] = {}
+    for alias, canon in index.items():
+        reverse.setdefault(canon, []).append(alias)
+
+    return index, {}, reverse
 
 
 def load_index(conn=None) -> None:
@@ -115,29 +150,50 @@ def load_index(conn=None) -> None:
     ``get_connection`` context manager). Caches the result module-level; tests
     call :func:`invalidate_index` between DBs.
     """
-    global _index, _group_map, _loaded_from
+    global _index, _group_map, _reverse_aliases, _loaded_from
     if conn is None:
         gc = _get_get_connection()
         with gc() as c:
-            index, group_map = _build_index(c)
+            index, group_map, reverse = _build_index(c)
         _loaded_from = None
     else:
-        index, group_map = _build_index(conn)
+        index, group_map, reverse = _build_index(conn)
         _loaded_from = id(conn)
     _index = index
     _group_map = group_map
+    _reverse_aliases = reverse
 
 
 def invalidate_index() -> None:
     """Clear the cached alias index. Call after modifying alias tables."""
-    global _index, _group_map, _loaded_from
-    _index, _group_map, _loaded_from = {}, {}, None
+    global _index, _group_map, _reverse_aliases, _loaded_from
+    _index, _group_map, _reverse_aliases, _loaded_from = {}, {}, {}, None
 
 
 def _parts(raw: str) -> tuple[str, str]:
     cleaned = (raw or "").lower().strip()
     norm = _WS_RE.sub(" ", _PUNCT_RE.sub(" ", cleaned)).strip()
     return cleaned, norm
+
+
+def _strip_leading_form_token(segment: str) -> str:
+    """Drop a leading dried/fresh/juice qualifier from ``segment`` so the base
+    commodity resolves (``dried basil`` -> ``basil``, ``Juice - Apple`` ->
+    ``apple``). Returns '' when the first token isn't a form qualifier.
+
+    Only the FIRST token is considered, so a buried form word is never stripped
+    (mirrors the first-segment prefix rule's precision guarantee). The remainder
+    must still resolve on its own — this never guesses a commodity.
+    """
+    toks = segment.split()
+    if not toks:
+        return ""
+    if toks[0].lower().strip(",-/:;") not in _FORM_TOKENS:
+        return ""
+    rest = toks[1:]
+    while rest and rest[0].strip(",-/:;") == "":  # drop a lone separator
+        rest = rest[1:]
+    return " ".join(rest)
 
 
 def _variants(s: str) -> list[str]:
@@ -152,6 +208,22 @@ def _variants(s: str) -> list[str]:
             seen.add(v)
             res.append(v)
     return res
+
+
+def _prefix_match(segment: str) -> Optional[str]:
+    """Longest-leading-token alias match within a single comma-segment.
+
+    Tries the full segment first, then progressively shorter leading prefixes
+    (with singular/plural variants), so ``ackees, ...`` resolves via ``ackee``.
+    Only tokens of length >= 3 match, suppressing noise like ``or``/``and``.
+    """
+    tokens = segment.split()
+    for i in range(len(tokens), 0, -1):
+        cand = " ".join(tokens[:i])
+        for form in (cand, *_variants(cand)):
+            if len(form) >= 3 and form in _index:
+                return _index[form]
+    return None
 
 
 def resolve_commodity(raw: Optional[str], conn=None) -> Optional[str]:
@@ -191,19 +263,25 @@ def resolve_commodity(raw: Optional[str], conn=None) -> Optional[str]:
         return _group_map[norm]
 
     # 4. first-segment prefix match (longest leading-token alias wins).
-    #    Variants (singular/plural) of the leading candidate are also tried, so
-    #    "ackees, ..." still resolves via singular "ackee". Only the FIRST
-    #    segment is consulted, so buried tokens (e.g. "milk" in segment 3) are
-    #    never reached.
+    #    Only the FIRST comma-segment is consulted, so buried tokens (e.g.
+    #    "milk" in segment 3) are never reached.
     first = norm.split(",", 1)[0].strip()
-    tokens = first.split()
-    for i in range(len(tokens), 0, -1):
-        cand = " ".join(tokens[:i])
-        for form in (cand, *_variants(cand)):
-            if len(form) >= 3 and form in _index:
-                return _index[form]
+    hit = _prefix_match(first)
+    if hit:
+        return hit
 
-    # 5. miss
+    # 5. leading form-qualifier fallback: strip a leading dried/fresh/juice
+    #    qualifier so the base commodity resolves ("dried basil" -> "basil").
+    #    The form stays in the raw for form-aware tolerance lookup. The WHOLE
+    #    remainder must be a known commodity (exact/variant), not just a leading
+    #    prefix — otherwise "fresh water bass" would wrongly match "water".
+    stripped = _strip_leading_form_token(first)
+    if stripped:
+        for v in (stripped, *_variants(stripped)):
+            if len(v) >= 3 and v in _index:
+                return _index[v]
+
+    # 6. miss
     return None
 
 
@@ -234,26 +312,81 @@ def upsert_unresolved(raw: str, source: Optional[str], conn=None, count: int = 1
         conn.execute(sql, params)
 
 
-def resolve_benchmark(canonical_key: Optional[str], conn=None) -> list[str]:
-    """Canonical key -> matching benchmark-table keys (``tolerance_limits`` /
-    ``international_mrls`` ``food_category`` values). Returns ``[]`` when none
-    match — the caller surfaces 'no benchmark' honestly rather than guessing.
+def resolve_benchmark(
+    canonical_key: Optional[str], conn=None, raw: Optional[str] = None,
+    table: Optional[str] = None,
+) -> list[str]:
+    """Canonical key -> ranked matching benchmark-table keys
+    (``tolerance_limits`` / ``international_mrls`` ``food_category`` values),
+    form-aware when ``raw`` is supplied.
+
+    A benchmark row matches when its leading comma-segment equals the canonical
+    key OR one of its aliases (so ``basil`` pulls in ``basil``,
+    ``basil, dried leaves`` and an alias-keyed ``sweet basil``). When ``raw``
+    carries a form token (dried/fresh/juice) the form-specific key whose suffix
+    shares that form ranks FIRST, so the caller applies the correct tolerance
+    for that form rather than the generic one. With no ``raw`` (or no form
+    token) the generic key ranks first — identical to the historical behavior.
+
+    ``table`` restricts the query to a single benchmark table
+    (``"tolerance_limits"`` or ``"international_mrls"``) instead of both —
+    needed by per-table callers (e.g. ``IngredientRiskQuery``) that then look
+    the resolved key up in one specific table.
+
+    Returns ``[]`` when nothing matches — the caller surfaces 'no benchmark'
+    honestly rather than guessing.
     """
     if not canonical_key:
         return []
     if (not _index) or (conn is not None and _loaded_from != id(conn)):
         load_index(conn)
 
-    candidates = {canonical_key.lower()}
-    for v in _variants(canonical_key.lower()):
-        candidates.add(v)
+    if table is not None and table not in _ALLOWED_BENCHMARK_TABLES:
+        raise ValueError(f"unknown benchmark table: {table!r}")
 
-    bench: set[str] = set()
-    for table in ("tolerance_limits", "international_mrls"):
+    key_low = canonical_key.lower()
+    base_keys = {key_low}
+    for v in _variants(key_low):
+        base_keys.add(v)
+    # Reverse-alias expansion: a benchmark key filed under an ALIAS of the
+    # canonical (e.g. 'sweet basil' for 'basil') must also match. Monotonic —
+    # only adds candidates, so no existing match is lost.
+    for alias in _reverse_aliases.get(key_low, []):
+        base_keys.add(alias)
+        for v in _variants(alias):
+            base_keys.add(v)
+
+    tables = (table,) if table else _ALLOWED_BENCHMARK_TABLES
+    ordered: list[str] = []
+    seen: set[str] = set()
+    for tbl in tables:
         for (fc,) in conn.execute(
-            f"SELECT DISTINCT food_category FROM {table} "
+            f"SELECT DISTINCT food_category FROM {tbl} "
             "WHERE food_category IS NOT NULL"
         ).fetchall():
-            if fc and fc.lower() in candidates:
-                bench.add(fc)
-    return sorted(bench)
+            if not fc:
+                continue
+            head = fc.split(",", 1)[0].strip().lower()
+            if head in base_keys and fc not in seen:
+                seen.add(fc)
+                ordered.append(fc)
+
+    raw_forms = extract_forms(raw)
+    if not raw_forms or len(ordered) <= 1:
+        # No form signal, or nothing to choose between: generic (shortest) first.
+        ordered.sort(key=lambda fc: (fc.count(","), len(fc)))
+        return ordered
+
+    def _score(fc: str) -> tuple[int, int]:
+        suffix = fc.split(",", 1)[1].lower() if "," in fc else ""
+        cand_forms = extract_forms(suffix)
+        # +1: this benchmark form matches the raw's form (prefer).
+        #  0: generic, no form suffix (neutral fallback).
+        # -1: a DIFFERENT form (e.g. fresh when raw says dried) — rank last.
+        primary = 1 if (cand_forms & raw_forms) else (-1 if cand_forms else 0)
+        # Tie-break toward the MORE specific form (longer suffix), so
+        # 'basil, dried leaves' outranks 'basil, dried' for raw 'Dried Basil'.
+        return (primary, len(fc))
+
+    ordered.sort(key=_score, reverse=True)
+    return ordered

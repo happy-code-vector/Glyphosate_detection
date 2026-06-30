@@ -11,6 +11,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 from tests.test_detect.conftest import create_test_db, seed_food_data
 from detect.ingredient_risk import IngredientRiskQuery, IngredientRiskResult
 from db.database import invalidate_alias_cache
+from data.commodity_resolver import invalidate_index, load_index
 
 
 class TestIngredientRiskQuery(unittest.TestCase):
@@ -230,6 +231,66 @@ class TestIngredientRiskResult(unittest.TestCase):
         self.assertIsNone(result.category_fallback)
         self.assertFalse(result.certified_glyphosate_free)
         self.assertEqual(result.notes, [])
+
+
+class TestIngredientRiskFormAware(unittest.TestCase):
+    """Form-aware benchmark resolution through the legacy IngredientRiskQuery
+    path. The resolver is deduped onto the shared commodity_resolver.resolve_benchmark
+    and raw=ingredient is threaded through scoring, so 'Dried Basil' selects the
+    dried-leaves tolerance (200,000) instead of the generic one (50)."""
+
+    def setUp(self):
+        invalidate_alias_cache()
+        self.conn = create_test_db()
+        self.conn.executemany(
+            "INSERT INTO category_aliases (alias, canonical_key) VALUES (?, ?)",
+            [("basil", "basil"), ("dried basil", "basil")],
+        )
+        self.conn.executemany(
+            "INSERT INTO tolerance_limits "
+            "(food_category, tolerance_ppm, tolerance_ppb, contaminant, source, dedup_key) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            [
+                ("basil", 0.05, 50.0, "mandipropamid", "EPA", "ir-basil"),
+                ("basil, dried leaves", 200.0, 200000.0, "mandipropamid", "EPA", "ir-basil-dried"),
+            ],
+        )
+        # category_summary so _score_ingredient has a max_ppb to score (100 ppb).
+        self.conn.execute(
+            "INSERT INTO category_summaries "
+            "(source_name, source_url, report_label, published_date, data_year, "
+            "food_category, raw_category, contaminant, samples_total, samples_detected, "
+            "detection_rate, avg_ppb, max_ppb, confidence, dedup_key) "
+            "VALUES ('FDA', 'https://example.com', 'FDA 2024', '2024-01-01', 2024, "
+            "'basil', 'Basil', 'mandipropamid', 50, 40, 0.8, 60.0, 100.0, 'high', 'ir-cs-basil')"
+        )
+        self.conn.commit()
+        load_index(self.conn)
+        self.query = IngredientRiskQuery(self.conn)
+
+    def tearDown(self):
+        self.conn.close()
+        invalidate_index()
+
+    def test_resolve_benchmark_category_delegates_form_aware(self):
+        # Dedupe: delegates to the shared resolve_benchmark. raw selects the
+        # dried form; no raw selects the generic key.
+        dried = self.query._resolve_benchmark_category(
+            "basil", "tolerance_limits", raw="Dried Basil"
+        )
+        self.assertEqual(dried, "basil, dried leaves")
+        generic = self.query._resolve_benchmark_category("basil", "tolerance_limits")
+        self.assertEqual(generic, "basil")
+
+    def test_score_ingredient_threads_raw(self):
+        # End-to-end threading: 100 ppb vs dried 200,000 => 'low';
+        # vs generic 50 => 200% => 'high'. Same data, different form.
+        dried = self.query._score_ingredient("Dried Basil", "mandipropamid")
+        plain = self.query._score_ingredient("Basil", "mandipropamid")
+        self.assertIsNotNone(dried)
+        self.assertEqual(dried.category, "basil")
+        self.assertEqual(dried.risk_level, "low")
+        self.assertEqual(plain.risk_level, "high")
 
 
 if __name__ == "__main__":

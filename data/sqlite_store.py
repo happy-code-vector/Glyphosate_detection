@@ -16,9 +16,9 @@ from typing import Optional
 # ``data.sqlite_store`` (project root on path) in tests and as ``sqlite_store``
 # (data/ on path) at runtime, so neither prefix is universally valid.
 try:  # project-root / test context
-    from data.commodity_resolver import resolve_commodity
+    from data.commodity_resolver import resolve_commodity, extract_forms
 except ImportError:  # runtime context: data/ is the path root
-    from commodity_resolver import resolve_commodity
+    from commodity_resolver import resolve_commodity, extract_forms
 
 
 _DEFAULT_DB_PATH = Path(__file__).parent / "residueiq.db"
@@ -292,9 +292,11 @@ class SqliteDataStore:
         return row["canonical_key"] if row else None
 
     def get_tolerance_limit(
-        self, contaminant: str, food_category: str
+        self, contaminant: str, food_category: str, raw: Optional[str] = None
     ) -> Optional[dict]:
-        resolved = self.resolve_benchmark_category(food_category, "tolerance_limits")
+        resolved = self.resolve_benchmark_category(
+            food_category, "tolerance_limits", raw
+        )
         return self._row(
             "SELECT tolerance_ppb, source FROM tolerance_limits "
             "WHERE LOWER(contaminant) = ? AND LOWER(food_category) = ? "
@@ -304,9 +306,11 @@ class SqliteDataStore:
         )
 
     def get_all_tolerance_limits(
-        self, contaminant: str, food_category: str
+        self, contaminant: str, food_category: str, raw: Optional[str] = None
     ) -> list[dict]:
-        resolved = self.resolve_benchmark_category(food_category, "tolerance_limits")
+        resolved = self.resolve_benchmark_category(
+            food_category, "tolerance_limits", raw
+        )
         return self._rows(
             "SELECT source, tolerance_ppb, regulation_reference "
             "FROM tolerance_limits "
@@ -315,9 +319,11 @@ class SqliteDataStore:
         )
 
     def get_strictest_mrl(
-        self, contaminant: str, food_category: str
+        self, contaminant: str, food_category: str, raw: Optional[str] = None
     ) -> Optional[dict]:
-        resolved = self.resolve_benchmark_category(food_category, "international_mrls")
+        resolved = self.resolve_benchmark_category(
+            food_category, "international_mrls", raw
+        )
         return self._row(
             "SELECT mrl_ppb, country_region FROM international_mrls "
             "WHERE LOWER(pesticide) = ? AND LOWER(food_category) = ? "
@@ -385,7 +391,9 @@ class SqliteDataStore:
             (food_category,),
         )
 
-    def resolve_benchmark_category(self, food_category: str, table: str) -> str:
+    def resolve_benchmark_category(
+        self, food_category: str, table: str, raw: Optional[str] = None
+    ) -> str:
         fc = food_category.strip()
         candidates = [fc]
 
@@ -424,7 +432,36 @@ class SqliteDataStore:
             f"WHERE LOWER(food_category) IN ({placeholders}) LIMIT 1",
             tuple(c.lower() for c in final),
         )
-        return row["food_category"] if row else fc
+        base_match = row["food_category"] if row else fc
+
+        # Form-aware refinement: when ``raw`` carries a form token (dried/fresh/
+        # juice) and the benchmark table has form-specific rows for this
+        # commodity (e.g. ``basil, dried leaves`` vs ``basil, fresh leaves``,
+        # whose EPA tolerances diverge up to 6.7x), prefer the form that
+        # matches the raw. No raw, or no form token, => current behavior.
+        raw_forms = extract_forms(raw)
+        if not raw_forms:
+            return base_match
+        base_lowers = {c.lower() for c in final}
+        scored = []
+        for r in self._rows(
+            f"SELECT DISTINCT food_category FROM {table} "
+            f"WHERE food_category IS NOT NULL"
+        ):
+            fcat = r["food_category"]
+            head = fcat.split(",", 1)[0].strip().lower()
+            if head not in base_lowers:
+                continue
+            suffix = fcat.split(",", 1)[1].lower() if "," in fcat else ""
+            cand_forms = extract_forms(suffix)
+            primary = (
+                1 if (cand_forms & raw_forms) else (-1 if cand_forms else 0)
+            )
+            scored.append((primary, len(fcat), fcat))
+        if not scored:
+            return base_match
+        scored.sort(key=lambda t: (t[0], t[1]), reverse=True)
+        return scored[0][2]
 
     # ── Internal helpers (from database.py) ─────────────────────────────
 
