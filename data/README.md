@@ -2,8 +2,7 @@
 
 ## What this is
 A complete Python pipeline that fetches contaminant detection data from 30+
-public sources, normalizes it into a unified schema, and writes it to SQLite
-(ready for Firestore migration).
+public sources, normalizes it into a unified schema, and writes it to SQLite.
 
 No brand matching. No mock data. Pure category-based detection rates + named
 product results where they actually exist.
@@ -16,7 +15,6 @@ product results where they actually exist.
 | `db/category_aliases.csv` | 712 ingredient strings → canonical categories |
 | `contaminants.py` | Contaminant registry (43 contaminants across 6 types) |
 | `run_pipeline.py` | Master runner — run this |
-| `migrate_to_firestore.py` | SQLite → Firestore migration script |
 | `seed_ingredients.py` | Seed regulatory data (ingredients, flags, commodities) |
 
 ## Setup
@@ -40,9 +38,6 @@ python run_pipeline.py --validate
 
 # Seed regulatory data
 python seed_ingredients.py
-
-# Migrate to Firestore
-python migrate_to_firestore.py
 ```
 
 ## Data Sources (30+)
@@ -67,11 +62,10 @@ USGS Water Quality Portal (glyphosate, lead, atrazine)
 ## Architecture
 
 ### DataStore Abstraction
-The project uses a `DataStore` Protocol (`data/datastore.py`) with two implementations:
-- `sqlite_store.py` — SQLite (local dev + detection engine)
-- `firestore_store.py` — Google Firestore (production)
+The project uses a `DataStore` Protocol (`data/datastore.py`) backed by SQLite:
+- `sqlite_store.py` — SQLite (the sole backend, used by the pipeline + detection engine)
 
-Factory: `create_datastore(backend, db_path, cred_path, database_id)`
+Factory: `create_datastore(db_path)`
 
 ### Detection Engine
 `detect/engine.py` exposes 15 public methods via `DetectionEngine`:

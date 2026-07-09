@@ -42,7 +42,7 @@ class DetectionEngine:
             test_conn.close()
 
         from data.datastore import create_datastore
-        self._store = create_datastore(backend="sqlite", db_path=db_path)
+        self._store = create_datastore(db_path=db_path)
         self._off_client = OpenFoodFactsClient()
         self._commodity_alias_cache = None  # Instance-level cache
 
@@ -51,7 +51,7 @@ class DetectionEngine:
         """Create a DetectionEngine from any DataStore implementation.
 
         Args:
-            store: A DataStore (SqliteDataStore, FirestoreDataStore, etc.)
+            store: A DataStore (SqliteDataStore)
 
         Returns:
             DetectionEngine instance backed by the given store.

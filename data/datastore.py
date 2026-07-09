@@ -1,12 +1,11 @@
 """
 data/datastore.py
 DataStore protocol — abstracts database reads so the detection engine
-works with SQLite, Firestore, or any future backend without code changes.
+is decoupled from the storage layer. SQLite is the sole backend.
 """
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from typing import Optional, Protocol, runtime_checkable
 
@@ -21,10 +20,10 @@ class DataStore(Protocol):
     converts these into dataclasses (FoodRiskResult, ProductResult, etc.)
     at the boundary.
 
-    Implementations: SqliteDataStore, FirestoreDataStore.
+    Implementations: SqliteDataStore.
     """
 
-    # ── App-facing views (pre-computed collections in Firestore) ─────────
+    # ── App-facing views ─────────────────────────────────────────────────
 
     def get_food_overview(
         self, food_category: str, contaminant: Optional[str] = None
@@ -210,48 +209,20 @@ class DataStore(Protocol):
 
 @dataclass
 class DataStoreConfig:
-    """Configuration for creating a DataStore."""
-    backend: str = "sqlite"  # "sqlite" or "firestore"
-    # SQLite options
+    """Configuration for creating a DataStore (SQLite only)."""
     db_path: Optional[str] = None
-    # Firestore options
-    cred_path: Optional[str] = None
-    database_id: str = "purityiq"
 
 
 # ── Factory ─────────────────────────────────────────────────────────────────
 
-def create_datastore(
-    backend: Optional[str] = None,
-    db_path: Optional[str] = None,
-    cred_path: Optional[str] = None,
-    database_id: str = "purityiq",
-) -> DataStore:
-    """Create a DataStore instance.
+def create_datastore(db_path: Optional[str] = None) -> DataStore:
+    """Create a SQLite-backed DataStore instance.
 
     Args:
-        backend: "sqlite" or "firestore". Defaults to RESIDUEIQ_BACKEND env var, then "sqlite".
-        db_path: Path to SQLite database (SQLite only). Defaults to data/residueiq.db.
-        cred_path: Path to Firebase service account JSON (Firestore only).
-        database_id: Firestore database ID. Default "purityiq".
+        db_path: Path to the SQLite database. Defaults to data/residueiq.db.
 
     Returns:
-        A DataStore implementation.
-
-    Raises:
-        ValueError: If backend is unknown or required config is missing.
+        A SqliteDataStore.
     """
-    backend = backend or os.environ.get("RESIDUEIQ_BACKEND", "sqlite")
-
-    if backend == "sqlite":
-        from data.sqlite_store import SqliteDataStore
-        return SqliteDataStore(db_path=db_path)
-
-    elif backend == "firestore":
-        from data.firestore_store import FirestoreDataStore
-        return FirestoreDataStore(cred_path=cred_path, database_id=database_id)
-
-    else:
-        raise ValueError(
-            f"Unknown backend: {backend!r}. Expected 'sqlite' or 'firestore'."
-        )
+    from data.sqlite_store import SqliteDataStore
+    return SqliteDataStore(db_path=db_path)

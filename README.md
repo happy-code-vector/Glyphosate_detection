@@ -63,7 +63,8 @@ python -m pytest -q
 
 ## Architecture decision
 
-The project is **SQLite-first** with a `DataStore` Protocol abstraction that
-also has a Firestore implementation for production. SQLite is primary (local
-dev, detection engine, tests); Firestore is validated separately and kept in
-sync manually (`scripts/validate_firestore.py`).
+The project is **SQLite-only**, behind a `DataStore` Protocol abstraction
+(`data/datastore.py`) with a single implementation (`SqliteDataStore`).
+Firestore was evaluated and removed — its read latency was too slow for the
+detection engine's multi-query scan flow. SQLite serves reads in-process with
+no network round-trips.
