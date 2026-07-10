@@ -832,7 +832,7 @@ class DetectionEngine:
             pdp_commodity_code=row["pdp_commodity_code"],
             pdp_year_latest=row["pdp_year_latest"],
             residues=residues,
-            dirty_dozen=bool(row["dirty_dozen"]),
+            high_residue=bool(row["high_residue"]),
             pdp_covered=bool(row.get("pdp_covered", 0)),
         )
 
@@ -1048,7 +1048,7 @@ class DetectionEngine:
                 pdp_commodity_code=row["pdp_commodity_code"],
                 pdp_year_latest=row["pdp_year_latest"],
                 residues=[],
-                dirty_dozen=bool(row["dirty_dozen"]),
+                high_residue=bool(row["high_residue"]),
                 pdp_covered=bool(row.get("pdp_covered", 0)),
             ))
         return results

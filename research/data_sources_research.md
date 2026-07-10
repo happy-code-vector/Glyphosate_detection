@@ -186,13 +186,10 @@
 
 ## 4. NGO / Consumer Group Testing Programs
 
-#### Environmental Working Group (EWG)
-- **URL**: https://www.ewg.org/
-- **Food Scores Database**: https://www.ewg.org/foodscores/
-- **Data Format**: Web database, PDF reports
-- **Coverage**: US
-- **Freely Accessible**: Yes
-- **Notes**: Major consumer advocacy group. Published "Breakfast With a Dose of Roundup?" (2018) and follow-up reports testing glyphosate in oat products. EWG Food Scores database rates 80,000+ foods on ingredients, nutrition, and processing concerns. Children's health benchmark of 160 ppb for glyphosate.
+> **Prohibited sources** (Master Handoff §0.1 — commercial-use restrictions):
+> Environmental Working Group (EWG), the Pesticide Action Network (PAN) Pesticide
+> Database, Think Dirty, Yuka, Fooducate, and INCI Beauty are **not** to be used,
+> scraped, cited, or referenced as data sources. Do not re-add them here.
 
 #### The Detox Project
 - **URL**: https://www.detoxproject.org/
@@ -201,14 +198,6 @@
 - **Coverage**: US, global
 - **Freely Accessible**: Yes
 - **Notes**: Runs "Glyphosate Residue Free" certification program. Publishes independent testing results. Tests food, water, and human biomonitoring (urine).
-
-#### Pesticide Action Network (PAN)
-- **URL**: https://www.panna.org/
-- **Pesticide Info Database**: https://www.pesticideinfo.org/
-- **Data Format**: Searchable database (15,000+ chemicals/products)
-- **Coverage**: US (PAN North America), global network
-- **Freely Accessible**: Yes
-- **Notes**: Searchable database of pesticide chemicals, products, and regulatory information. Links to health effects, regulatory status, and usage data.
 
 #### Moms Across America
 - **URL**: https://www.momsacrossamerica.com/

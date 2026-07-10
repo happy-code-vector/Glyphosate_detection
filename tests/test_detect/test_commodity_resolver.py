@@ -34,7 +34,7 @@ class TestResolveCommodity(unittest.TestCase):
         )
         self.conn.execute(
             "INSERT INTO commodities (commodity_slug, display_name, ingredient_aliases, "
-            "dirty_dozen, consumption_tier) VALUES (?, ?, ?, 0, 'weekly')",
+            "high_residue, consumption_tier) VALUES (?, ?, ?, 0, 'weekly')",
             ("apple", "Apple", json.dumps(["apple sauce", "apple juice"])),
         )
         self.conn.commit()

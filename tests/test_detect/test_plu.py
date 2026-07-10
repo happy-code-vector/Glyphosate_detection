@@ -36,7 +36,7 @@ def _seed(conn):
     # commodity: current PDP cycle, has residues -> happy path (no note)
     conn.execute(
         "INSERT INTO commodities "
-        "(commodity_slug, display_name, ingredient_aliases, dirty_dozen, "
+        "(commodity_slug, display_name, ingredient_aliases, high_residue, "
         "consumption_tier, residues, pdp_year_latest, pdp_covered) "
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         ("oats", "Oats", json.dumps(["oats", "oat flour"]), 0, "daily",
@@ -45,7 +45,7 @@ def _seed(conn):
     # commodity: stale PDP data, has residues, pdp_covered=0 -> stale note
     conn.execute(
         "INSERT INTO commodities "
-        "(commodity_slug, display_name, ingredient_aliases, dirty_dozen, "
+        "(commodity_slug, display_name, ingredient_aliases, high_residue, "
         "consumption_tier, residues, pdp_year_latest, pdp_covered) "
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         ("strawberry", "Strawberry", json.dumps(["strawberries"]), 1, "weekly",
@@ -54,7 +54,7 @@ def _seed(conn):
     # commodity: mapped but no residue data -> "no residue data" note
     conn.execute(
         "INSERT INTO commodities "
-        "(commodity_slug, display_name, ingredient_aliases, dirty_dozen, "
+        "(commodity_slug, display_name, ingredient_aliases, high_residue, "
         "consumption_tier, residues, pdp_covered) "
         "VALUES (?, ?, ?, ?, ?, NULL, ?)",
         ("apple", "Apple", json.dumps(["apples"]), 1, "weekly", 1),

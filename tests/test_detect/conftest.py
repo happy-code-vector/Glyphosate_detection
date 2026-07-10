@@ -241,7 +241,7 @@ def seed_regulatory_data(conn: sqlite3.Connection):
     # Seed commodity with consumption_tier
     conn.execute(
         "INSERT INTO commodities "
-        "(commodity_slug, display_name, ingredient_aliases, dirty_dozen, consumption_tier) "
+        "(commodity_slug, display_name, ingredient_aliases, high_residue, consumption_tier) "
         "VALUES (?, ?, ?, ?, ?)",
         (
             "strawberry",
@@ -253,7 +253,7 @@ def seed_regulatory_data(conn: sqlite3.Connection):
     )
     conn.execute(
         "INSERT INTO commodities "
-        "(commodity_slug, display_name, ingredient_aliases, dirty_dozen, consumption_tier) "
+        "(commodity_slug, display_name, ingredient_aliases, high_residue, consumption_tier) "
         "VALUES (?, ?, ?, ?, ?)",
         (
             "oats",

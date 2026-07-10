@@ -118,6 +118,17 @@ def _migrate_add_new_columns(conn):
             "ALTER TABLE commodities ADD COLUMN pdp_covered INTEGER DEFAULT 0"
         )
 
+    # EWG mark removal (Master Handoff §0.1): rename commodities.dirty_dozen
+    # -> high_residue. The flag is legitimate (high-detection produce per USDA
+    # PDP); only the EWG-trademarked column name is prohibited.
+    cols = conn.execute("PRAGMA table_info(commodities)").fetchall()
+    col_names = [c[1] for c in cols]
+    if "dirty_dozen" in col_names and "high_residue" not in col_names:
+        logger.info("Renaming commodities.dirty_dozen -> high_residue")
+        conn.execute(
+            "ALTER TABLE commodities RENAME COLUMN dirty_dozen TO high_residue"
+        )
+
     logger.info("New columns migration complete")
 
 
@@ -1197,7 +1208,7 @@ def _insert_commodity(conn, row: dict) -> int:
     defaults = {
         "ingredient_aliases": None, "pdp_commodity_code": None,
         "pdp_year_latest": None, "residues": None,
-        "dirty_dozen": 0, "last_pdp_update": None,
+        "high_residue": 0, "last_pdp_update": None,
         "consumption_tier": "occasional",
     }
     r = {**defaults, **row}
@@ -1205,11 +1216,11 @@ def _insert_commodity(conn, row: dict) -> int:
         INSERT OR IGNORE INTO commodities (
             commodity_slug, display_name, ingredient_aliases,
             pdp_commodity_code, pdp_year_latest, residues,
-            dirty_dozen, last_pdp_update, consumption_tier
+            high_residue, last_pdp_update, consumption_tier
         ) VALUES (
             :commodity_slug, :display_name, :ingredient_aliases,
             :pdp_commodity_code, :pdp_year_latest, :residues,
-            :dirty_dozen, :last_pdp_update, :consumption_tier
+            :high_residue, :last_pdp_update, :consumption_tier
         )
     """, r)
     return conn.execute("SELECT changes()").fetchone()[0]

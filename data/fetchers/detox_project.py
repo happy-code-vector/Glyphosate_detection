@@ -9,7 +9,7 @@ Sources:
   - "The Poison in Our Daily Bread" (2022) — bread, pulses, grains testing
   - Protein powder testing (2021) — pea protein supplements
   Website: https://detoxproject.org/
-  Testing lab: Anresco Laboratories (same as EWG commissioned tests)
+  Testing lab: Anresco Laboratories
 
 HYBRID approach:
   1. Attempts to scrape the Detox Project website for product/ppb data.

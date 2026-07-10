@@ -101,7 +101,7 @@ class TestCommodityResidues(unittest.TestCase):
         result = self.engine.commodity_residues("strawberry")
         self.assertIsNotNone(result)
         self.assertEqual(result.display_name, "Strawberry")
-        self.assertTrue(result.dirty_dozen)
+        self.assertTrue(result.high_residue)
 
     def test_commodity_aliases(self):
         """Verify ingredient aliases are loaded."""
@@ -168,13 +168,13 @@ class TestListCommodities(unittest.TestCase):
         self.assertIn("strawberry", slugs)
         self.assertIn("oats", slugs)
 
-    def test_list_commodities_dirty_dozen(self):
-        """Strawberry should be dirty dozen, oats should not."""
+    def test_list_commodities_high_residue(self):
+        """Strawberry should be flagged high_residue, oats should not."""
         results = self.engine.list_commodities()
         strawberry = [r for r in results if r.commodity_slug == "strawberry"][0]
         oats = [r for r in results if r.commodity_slug == "oats"][0]
-        self.assertTrue(strawberry.dirty_dozen)
-        self.assertFalse(oats.dirty_dozen)
+        self.assertTrue(strawberry.high_residue)
+        self.assertFalse(oats.high_residue)
 
 
 class TestExpandedContaminants(unittest.TestCase):

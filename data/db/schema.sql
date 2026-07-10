@@ -342,7 +342,7 @@ CREATE TABLE IF NOT EXISTS commodities (
     pdp_commodity_code  TEXT,                       -- USDA PDP internal code
     pdp_year_latest     INTEGER,
     residues            TEXT,                       -- JSON array of residue data
-    dirty_dozen         INTEGER DEFAULT 0,          -- boolean
+    high_residue        INTEGER DEFAULT 0,          -- boolean: high-detection produce per USDA PDP
     pdp_covered         INTEGER DEFAULT 0,          -- boolean: USDA PDP currently tests this commodity (current cycle). Per Addendum B 2.2, grains are NOT in the 2024 PDP rotation.
     last_pdp_update     TEXT,
     consumption_tier    TEXT DEFAULT 'occasional'    -- 'daily', 'weekly', 'occasional', 'rare'

@@ -132,7 +132,7 @@ class CommodityDetail:
     pdp_commodity_code: str | None
     pdp_year_latest: int | None
     residues: list[CommodityResidue]
-    dirty_dozen: bool
+    high_residue: bool
     pdp_covered: bool = False    # Addendum B 2.2: True if the current USDA PDP cycle tests this commodity
 
 

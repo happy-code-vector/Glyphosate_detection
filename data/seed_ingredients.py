@@ -43,11 +43,11 @@ COMMODITY_SEEDS = [
     #   occasional — foods eaten a few times/month (berries, nuts, specific vegetables)
     #   rare      — specialty items eaten infrequently (cherries, pears, barley)
 
-    # Priority 1 — Dirty Dozen
+    # Priority 1 — high-residue produce (high USDA PDP detection rates)
     {
         "commodity_slug": "strawberry",
         "display_name": "Strawberry",
-        "dirty_dozen": True,
+        "high_residue": True,
         "consumption_tier": "weekly",
         "ingredient_aliases": [
             "strawberries", "organic strawberries", "freeze-dried strawberries",
@@ -58,7 +58,7 @@ COMMODITY_SEEDS = [
     {
         "commodity_slug": "spinach",
         "display_name": "Spinach",
-        "dirty_dozen": True,
+        "high_residue": True,
         "consumption_tier": "weekly",
         "ingredient_aliases": [
             "spinach", "organic spinach", "baby spinach", "spinach powder",
@@ -68,7 +68,7 @@ COMMODITY_SEEDS = [
     {
         "commodity_slug": "kale",
         "display_name": "Kale",
-        "dirty_dozen": True,
+        "high_residue": True,
         "consumption_tier": "weekly",
         "ingredient_aliases": [
             "kale", "organic kale", "kale powder", "dehydrated kale",
@@ -78,7 +78,7 @@ COMMODITY_SEEDS = [
     {
         "commodity_slug": "peach",
         "display_name": "Peach",
-        "dirty_dozen": True,
+        "high_residue": True,
         "consumption_tier": "weekly",
         "ingredient_aliases": [
             "peaches", "organic peaches", "peach puree", "peach juice",
@@ -88,7 +88,7 @@ COMMODITY_SEEDS = [
     {
         "commodity_slug": "celery",
         "display_name": "Celery",
-        "dirty_dozen": True,
+        "high_residue": True,
         "consumption_tier": "weekly",
         "ingredient_aliases": [
             "celery", "celery seed", "celery salt", "celery extract",
@@ -108,7 +108,7 @@ COMMODITY_SEEDS = [
     {
         "commodity_slug": "lettuce",
         "display_name": "Lettuce",
-        "dirty_dozen": True,
+        "high_residue": True,
         "consumption_tier": "daily",
         "ingredient_aliases": [
             "lettuce", "romaine lettuce", "iceberg lettuce",
@@ -196,7 +196,7 @@ COMMODITY_SEEDS = [
     {
         "commodity_slug": "apple",
         "display_name": "Apple",
-        "dirty_dozen": True,
+        "high_residue": True,
         "consumption_tier": "weekly",
         "ingredient_aliases": [
             "apples", "apple juice", "apple puree", "apple concentrate",
@@ -206,7 +206,7 @@ COMMODITY_SEEDS = [
     {
         "commodity_slug": "grape",
         "display_name": "Grape",
-        "dirty_dozen": True,
+        "high_residue": True,
         "consumption_tier": "weekly",
         "ingredient_aliases": [
             "grapes", "grape juice", "raisins", "grape concentrate",
@@ -254,7 +254,7 @@ COMMODITY_SEEDS = [
     {
         "commodity_slug": "blueberry",
         "display_name": "Blueberry",
-        "dirty_dozen": True,
+        "high_residue": True,
         "consumption_tier": "weekly",
         "ingredient_aliases": [
             "blueberries", "organic blueberries", "freeze-dried blueberries",
@@ -302,7 +302,7 @@ COMMODITY_SEEDS = [
     {
         "commodity_slug": "cherry",
         "display_name": "Cherry",
-        "dirty_dozen": True,
+        "high_residue": True,
         "consumption_tier": "occasional",
         "ingredient_aliases": [
             "cherries", "cherry juice", "dried cherries", "maraschino cherries",
@@ -312,7 +312,7 @@ COMMODITY_SEEDS = [
     {
         "commodity_slug": "pear",
         "display_name": "Pear",
-        "dirty_dozen": True,
+        "high_residue": True,
         "consumption_tier": "weekly",
         "ingredient_aliases": [
             "pears", "pear juice", "pear puree", "pear concentrate",
@@ -1103,7 +1103,7 @@ def seed_commodities_table(dry_run=False):
             "commodity_slug": commodity["commodity_slug"],
             "display_name": commodity["display_name"],
             "ingredient_aliases": json.dumps(commodity.get("ingredient_aliases", [])),
-            "dirty_dozen": 1 if commodity.get("dirty_dozen") else 0,
+            "high_residue": 1 if commodity.get("high_residue") else 0,
             "consumption_tier": commodity.get("consumption_tier", "occasional"),
         })
     logger.info("Prepared %d commodity records", len(rows))
