@@ -285,9 +285,7 @@
 | PubChem | Academic | Global | DB/API | Yes | Yes |
 | EPA CompTox | Academic | US/Global | DB/API | Yes | Yes |
 | PPDB (Hertfordshire) | Academic | Global | Web DB | Yes | Yes |
-| EWG | NGO | US | Web DB/PDF | Yes | Yes |
 | Detox Project | NGO | US/Global | PDF | Yes | Yes (primary focus) |
-| PAN | NGO | US/Global | Web DB | Yes | Partial |
 | Data.gov | Portal | US | CSV/API | Yes | Via PDP |
 | EU Open Data | Portal | EU | CSV/API | Yes | Via EFSA |
 | Kaggle | Portal | Various | CSV | Yes | Various |
@@ -299,7 +297,7 @@
 ### For US glyphosate residue data:
 1. **Primary**: USDA PDP annual data (CSV download) - most comprehensive, longest time series
 2. **Secondary**: FDA monitoring reports
-3. **Supplementary**: EWG Food Scores for consumer-facing data
+3. **Supplementary**: Detox Project / Clean Label Project for consumer-facing data
 
 ### For EU glyphosate residue data:
 1. **Primary**: EFSA annual monitoring reports (Excel data tables)
@@ -315,15 +313,15 @@
 3. EPA CompTox for toxicology data
 
 ### For consumer/advocacy testing:
-1. EWG reports and Food Scores
-2. Detox Project certification and testing data
+1. Detox Project certification and testing data
+2. Clean Label Project product testing
 
 ---
 
 ## 8. Data Quality Notes
 
 - **Government sources** (USDA, EFSA) are the most rigorous: standardized methods, large sample sizes, representative sampling, validated analytical methods (LC-MS/MS)
-- **NGO sources** (EWG, Detox Project) use accredited labs but may have smaller sample sizes and different health benchmarks than regulators
+- **NGO sources** (Detox Project) use accredited labs but may have smaller sample sizes and different health benchmarks than regulators
 - **Codex/JMPR** data represents international consensus but focuses on MRLs rather than monitoring data
 - **Academic studies** vary widely in methodology; prefer peer-reviewed publications with validated methods
 - **Kaggle datasets** should be verified against original government sources before use

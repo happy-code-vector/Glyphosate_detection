@@ -105,7 +105,7 @@ Expand the ResidueIQ glyphosate detection pipeline from 5 sources (126 records) 
 **Implementation:**
 1. Add candy page to `FLORIDA_REPORTS`
 2. Same HTML table parser as existing pages
-3. Add PDF fetcher for the candy PDF (pdfplumber extraction like EWG)
+3. Add PDF fetcher for the candy PDF (pdfplumber extraction, consistent with existing PDF fetchers)
 
 **Expected output:** ~10-20 additional Tier 1 product records.
 
@@ -322,10 +322,10 @@ CREATE TABLE IF NOT EXISTS tolerance_limits (
 
 **Data type:** Independent laboratory testing (Tier 1 product data)
 
-**Scope:** Non-profit organization that commissions glyphosate testing on popular grocery products. Broader food category coverage than EWG (includes crackers, chips, protein powders, pulses, cereals, bread).
+**Scope:** Non-profit organization that commissions glyphosate testing on popular grocery products. Broader food category coverage than other consumer-advocacy testing (includes crackers, chips, protein powders, pulses, cereals, bread).
 
 **Key reports:**
-- "Glyphosate: Unsafe On Any Plate" (2016) — ~30 popular American food products, same Anresco lab as EWG. Products include Cheerios (1,125 ppb), crackers, chips, etc.
+- "Glyphosate: Unsafe On Any Plate" (2016) — ~30 popular American food products tested by Anresco Laboratories. Products include Cheerios (1,125 ppb), crackers, chips, etc.
 - "The Poison in Our Daily Bread" (2022) — comprehensive testing of bread, pulses, grains, protein bars from major retailers. Found glyphosate in 18 of 26 Non-GMO labeled products.
 - Protein powder testing (2021) — pea protein supplements.
 
@@ -338,7 +338,7 @@ CREATE TABLE IF NOT EXISTS tolerance_limits (
 - Map product categories to canonical food categories
 - Derive Tier 2 aggregates from Tier 1 data
 
-**Expected output:** ~50-80 additional Tier 1 product records across broader food categories than EWG.
+**Expected output:** ~50-80 additional Tier 1 product records across broader food categories than other consumer-advocacy testing.
 
 **Effort:** Medium. Web scraping of report pages.
 
@@ -472,7 +472,6 @@ Potential additions depending on data discovered:
 | UK FSA data.gov.uk URLs may change | Scrape collection page for current links |
 | EPA eCFR HTML structure may change | Fuzzy column detection + test regularly |
 | Academic paper data extraction is error-prone | Manual verification of extracted values |
-| EWG PDFs currently inaccessible | Already cached locally; no new EWG data available |
 | Germany BVL tables in German language | Map German commodity/chemical names to English canonical terms |
 | Detox Project web reports have no structured data | Careful scraping with fallback to manual entry |
 | CDC NHANES only covers 2013-2016 for glyphosate | Limited but nationally representative — still valuable |

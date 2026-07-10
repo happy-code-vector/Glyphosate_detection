@@ -279,7 +279,7 @@ WHERE cs.contaminant = 'glyphosate'
     GROUP BY cs2.food_category
     HAVING MAX(
         CASE cs2.source_name
-            WHEN 'EWG' THEN 4
+            WHEN 'consumer_reports' THEN 4
             WHEN 'FDA' THEN 3
             WHEN 'CFIA' THEN 2
             WHEN 'EFSA' THEN 1
@@ -347,7 +347,7 @@ WITH best_summary AS (
             PARTITION BY cs.food_category
             ORDER BY
                 CASE cs.source_name
-                    WHEN 'EWG' THEN 4
+                    WHEN 'consumer_reports' THEN 4
                     WHEN 'FDA' THEN 3
                     WHEN 'CFIA' THEN 2
                     WHEN 'EFSA' THEN 1
@@ -557,7 +557,7 @@ WITH best_summary AS (
             PARTITION BY cs.food_category, cs.contaminant
             ORDER BY
                 CASE cs.source_name
-                    WHEN 'EWG' THEN 4
+                    WHEN 'consumer_reports' THEN 4
                     WHEN 'FDA' THEN 3
                     WHEN 'CFIA' THEN 2
                     WHEN 'EFSA' THEN 1
@@ -1183,7 +1183,7 @@ git commit -m "feat: refactor water quality fetcher for multi-contaminant suppor
 ### Task 5: Update Existing Fetchers — Pass Contaminant Through
 
 **Files:**
-- Modify: `data/fetchers/ewg.py`
+- Modify: `data/fetchers/detox_project.py`
 - Modify: `data/fetchers/florida_hff.py`
 - Modify: `data/fetchers/sources.py` (CFIA, EFSA, FDA)
 - Modify: `data/fetchers/usda_pdp.py`
@@ -1244,7 +1244,7 @@ In `run_all()`, change the `sources` list entry for water_quality from a single 
 Update the `--source` help text to include contaminant variants:
 
 ```python
-parser.add_argument("--source", help="Run only this source: ewg/florida/cfia/efsa/fda/usda_pdp/uk_fsa/ca_dpr/germany_bvl/epa_tolerances/australia_fsnz/codex_mrls/japan_brazil_mrls/academic_papers/detox_project/cdc_nhanes/clean_label_project/consumer_reports/detox_certifications/epa_full_tolerances/usda_fas_mrls/water_quality_glyphosate/water_quality_lead/water_quality_atrazine")
+parser.add_argument("--source", help="Run only this source: florida/cfia/efsa/fda/usda_pdp/uk_fsa/ca_dpr/germany_bvl/epa_tolerances/australia_fsnz/codex_mrls/japan_brazil_mrls/academic_papers/detox_project/cdc_nhanes/clean_label_project/consumer_reports/detox_certifications/epa_full_tolerances/usda_fas_mrls/water_quality_glyphosate/water_quality_lead/water_quality_atrazine")
 ```
 
 Replace the water_quality entry in the `sources` list with three entries:
@@ -1254,7 +1254,6 @@ Replace the water_quality entry in the `sources` list with three entries:
         ("cfia",                    CFIAFetcher),
         ("efsa",                    EFSAFetcher),
         ("fda",                     FDAFetcher),
-        ("ewg",                     EWGFetcher),
         ("florida",                 FloridaHFFFetcher),
         ("usda_pdp",                USDA_PDPFetcher),
         ("uk_fsa",                  UKFSAFetcher),
