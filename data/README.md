@@ -10,7 +10,7 @@ product results where they actually exist.
 ## Files
 | File | Purpose |
 |---|---|
-| `db/schema.sql` | Full SQLite schema: 14 tables, 5 views |
+| `db/schema.sql` | Full SQLite schema: 16 tables, 5 views |
 | `db/database.py` | Core DB operations, migrations, inserts |
 | `db/category_aliases.csv` | 712 ingredient strings → canonical categories |
 | `contaminants.py` | Contaminant registry (43 contaminants across 6 types) |
@@ -42,10 +42,10 @@ python seed_ingredients.py
 
 ## Data Sources (30+)
 
-### Government (public domain)
-CFIA, EFSA, FDA, USDA PDP, UK FSA, CA DPR, Germany BVL, EPA Tolerances,
-EPA Full Tolerances, Australia FSANZ, Codex MRLs, Japan/Brazil MRLs,
-USDA FAS MRLs, CDC NHANES
+### Government & regulatory
+CFIA, EFSA (monitoring), EFSA MRLs, FDA (monitoring), FDA Toxic Elements,
+FDA Total Diet Study, USDA PDP, UK FSA, CA DPR, Germany BVL, EPA Tolerances,
+Australia FSANZ, Codex MRLs, CDC NHANES, CDC NHANES Metals
 
 ### Independent testing
 Detox Project, Clean Label Project, Consumer Reports, HRI Labs,
@@ -80,8 +80,7 @@ See `docs/DATABASE_AND_ENGINE_STATUS.md` for full details.
 43 contaminants across 6 types: pesticides (14), heavy metals (4), food dyes (7), additives (7), environmental (9), other (2). Defined in `data/contaminants.py`.
 
 ### Regulatory Coverage Gaps
-Three V1 regulatory sources are not built or incomplete:
-- **Codex Alimentarius**: Fetcher deleted, 0 rows in `international_mrls`
+Two regulatory sources remain incomplete (food-level MRLs deferred):
 - **Health Canada / PMRA**: Seed data only (3 water limits, 1 ban flag), no food MRL fetcher
 - **FSANZ**: 10 rows from 2019 Australian diet study, no food MRL data
 
