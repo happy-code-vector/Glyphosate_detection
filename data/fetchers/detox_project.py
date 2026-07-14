@@ -287,6 +287,7 @@ def _try_parse_div_layout(soup) -> list[dict]:
 
 class DetoxProjectFetcher(BaseFetcher):
     SOURCE_NAME = "DetoxProject"
+    CONTAMINANT = "glyphosate"
 
     def fetch(self) -> list[Path]:
         """

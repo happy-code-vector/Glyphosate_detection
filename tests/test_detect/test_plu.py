@@ -198,7 +198,7 @@ class TestScanCode(unittest.TestCase):
 
     def test_routes_barcode(self):
         """Longer numeric code -> barcode path."""
-        result = self.engine.scan_code("0041000161645")
+        result = self.engine.scan_code("0041000161645", contaminant="glyphosate")
         self.assertEqual(result.code_type, "barcode")
         self.assertIsNone(result.plu_result)
         # OFF stub finds nothing -> inner is None, but routing is still barcode

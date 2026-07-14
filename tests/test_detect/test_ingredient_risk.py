@@ -76,12 +76,13 @@ class TestIngredientRiskQuery(unittest.TestCase):
         result = self.query.execute(
             "Safe Oats Cereal",
             "whole grain oats, sugar, salt",
+            contaminant="glyphosate",
         )
 
         self.assertEqual(result.risk_level, "none")
         self.assertEqual(result.score, 0.0)
         self.assertEqual(result.tier_used, "product")
-        self.assertTrue(result.certified_glyphosate_free)
+        self.assertTrue(result.certified_residue_free)
 
     def test_tier1_below_detection_product(self):
         """Tier 1: Product tested below detection should score 0."""
@@ -99,6 +100,7 @@ class TestIngredientRiskQuery(unittest.TestCase):
         result = self.query.execute(
             "Clean Oats",
             "whole grain oats, sugar",
+            contaminant="glyphosate",
         )
 
         self.assertEqual(result.risk_level, "none")
@@ -110,6 +112,7 @@ class TestIngredientRiskQuery(unittest.TestCase):
         result = self.query.execute(
             "Cheerios Original",
             "whole grain oats, corn starch, sugar, salt",
+            contaminant="glyphosate",
         )
 
         self.assertEqual(result.tier_used, "product")
@@ -122,6 +125,7 @@ class TestIngredientRiskQuery(unittest.TestCase):
         result = self.query.execute(
             "Unknown Cereal",
             "whole grain oats, corn starch, sugar, salt",
+            contaminant="glyphosate",
         )
 
         self.assertEqual(result.tier_used, "ingredient")
@@ -136,6 +140,7 @@ class TestIngredientRiskQuery(unittest.TestCase):
         result = self.query.execute(
             "Mixed Product",
             "whole grain oats, mystery ingredient, corn starch",
+            contaminant="glyphosate",
         )
 
         self.assertEqual(result.tier_used, "ingredient")
@@ -151,6 +156,7 @@ class TestIngredientRiskQuery(unittest.TestCase):
             "Unknown Product",
             "unknown ingredient 1, unknown ingredient 2",
             food_category="oats",
+            contaminant="glyphosate",
         )
 
         self.assertEqual(result.tier_used, "category")
@@ -163,6 +169,7 @@ class TestIngredientRiskQuery(unittest.TestCase):
         result = self.query.execute(
             "Mystery Product",
             "unknown ingredient",
+            contaminant="glyphosate",
         )
 
         self.assertEqual(result.tier_used, "none")
@@ -175,6 +182,7 @@ class TestIngredientRiskQuery(unittest.TestCase):
             "Some Product",
             "",
             food_category="oats",
+            contaminant="glyphosate",
         )
 
         self.assertEqual(result.tier_used, "category")
@@ -229,7 +237,7 @@ class TestIngredientRiskResult(unittest.TestCase):
         self.assertEqual(result.tier_used, "ingredient")
         self.assertEqual(result.ingredient_scores, [])
         self.assertIsNone(result.category_fallback)
-        self.assertFalse(result.certified_glyphosate_free)
+        self.assertFalse(result.certified_residue_free)
         self.assertEqual(result.notes, [])
 
 

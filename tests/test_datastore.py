@@ -344,7 +344,7 @@ class TestFromDatastore(unittest.TestCase):
 
     def test_from_datastore_international_comparison(self):
         engine = DetectionEngine.from_datastore(self.store)
-        result = engine.international_comparison("oats")
+        result = engine.international_comparison("oats", contaminant="glyphosate")
         self.assertIsInstance(result, InternationalComparisonResult)
 
     def test_from_datastore_biomonitoring(self):
@@ -430,8 +430,8 @@ class TestParityWithDirectInit(unittest.TestCase):
             self.assertEqual(o.contaminant, n.contaminant)
 
     def test_parity_international_comparison(self):
-        old = self.engine_old.international_comparison("oats")
-        new = self.engine_new.international_comparison("oats")
+        old = self.engine_old.international_comparison("oats", contaminant="glyphosate")
+        new = self.engine_new.international_comparison("oats", contaminant="glyphosate")
         self.assertEqual(len(old.entries), len(new.entries))
 
     def test_parity_biomonitoring(self):

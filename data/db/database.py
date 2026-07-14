@@ -71,6 +71,13 @@ def _migrate_add_contaminant_column(conn):
         col_names = [c[1] for c in cols]
         if "contaminant" not in col_names:
             logger.info("Adding contaminant column to %s", table)
+            # Legacy backfill only: these tables predate the contaminant column
+            # and hold rows migrated from the old glyphosate_measurements table,
+            # so every existing row IS glyphosate. SQLite requires a DEFAULT to
+            # add a NOT NULL column to a populated table. This DEFAULT is dormant
+            # for new inserts — the insert helpers now require an explicit
+            # contaminant (see insert_rows). Fresh tables get NOT NULL with no
+            # DEFAULT via schema.sql.
             conn.execute(
                 f"ALTER TABLE {table} ADD COLUMN contaminant TEXT NOT NULL DEFAULT 'glyphosate'"
             )
@@ -908,7 +915,6 @@ def insert_rows(rows: list[dict], source_name: str, source_file: str = "") -> di
 def _batch_insert_products(conn, rows: list[dict], source_name: str) -> int:
     """Batch insert product_test rows using executemany."""
     defaults = {
-        "contaminant": "glyphosate",
         "measured_ppb": None, "below_detection": 0, "limit_of_detection": None,
         "original_unit": "ppb", "unit_conversion": 1.0,
         "is_organic": 0, "is_grf_certified": 0,
@@ -917,6 +923,13 @@ def _batch_insert_products(conn, rows: list[dict], source_name: str) -> int:
     prepared = []
     for row in rows:
         r = {**defaults, **row}
+        if not r.get("contaminant"):
+            raise ValueError(
+                f"{source_name}: row missing required 'contaminant' "
+                f"(raw_category={row.get('raw_category')!r}, "
+                f"product={row.get('product_name')!r}) — set it per-row or "
+                "declare CONTAMINANT on the fetcher."
+            )
         r["contaminant"] = normalize_contaminant(r["contaminant"])
         prepared.append(r)
 
@@ -944,7 +957,6 @@ def _batch_insert_products(conn, rows: list[dict], source_name: str) -> int:
 def _batch_insert_categories(conn, rows: list[dict], source_name: str) -> int:
     """Batch insert category_summary rows using executemany."""
     defaults = {
-        "contaminant": "glyphosate",
         "samples_total": 0, "samples_detected": 0, "detection_rate": 0.0,
         "avg_ppb": None, "max_ppb": None, "p95_ppb": None,
         "median_ppb": None, "min_ppb": None,
@@ -954,6 +966,13 @@ def _batch_insert_categories(conn, rows: list[dict], source_name: str) -> int:
     prepared = []
     for row in rows:
         r = {**defaults, **row}
+        if not r.get("contaminant"):
+            raise ValueError(
+                f"{source_name}: row missing required 'contaminant' "
+                f"(raw_category={row.get('raw_category')!r}, "
+                f"product={row.get('product_name')!r}) — set it per-row or "
+                "declare CONTAMINANT on the fetcher."
+            )
         r["contaminant"] = normalize_contaminant(r["contaminant"])
         prepared.append(r)
 
@@ -982,7 +1001,6 @@ def _batch_insert_categories(conn, rows: list[dict], source_name: str) -> int:
 def _batch_insert_water(conn, rows: list[dict], source_name: str) -> int:
     """Batch insert water_test rows using executemany."""
     defaults = {
-        "contaminant": "glyphosate",
         "state": None, "county": None, "site_type": None, "site_id": None,
         "latitude": None, "longitude": None,
         "measured_ppb": None, "below_detection": 0, "detection_limit_ppb": None,
@@ -994,6 +1012,13 @@ def _batch_insert_water(conn, rows: list[dict], source_name: str) -> int:
     prepared = []
     for row in rows:
         r = {**defaults, **row}
+        if not r.get("contaminant"):
+            raise ValueError(
+                f"{source_name}: row missing required 'contaminant' "
+                f"(raw_category={row.get('raw_category')!r}, "
+                f"product={row.get('product_name')!r}) — set it per-row or "
+                "declare CONTAMINANT on the fetcher."
+            )
         r["contaminant"] = normalize_contaminant(r["contaminant"])
         prepared.append(r)
 
@@ -1044,13 +1069,19 @@ def _resolve_food_category_for_insert(r: dict, conn) -> None:
 def _insert_product(conn, row: dict) -> int:
     """Insert a Tier 1 product test row."""
     defaults = {
-        "contaminant": "glyphosate",
         "measured_ppb": None, "below_detection": 0, "limit_of_detection": None,
         "original_unit": "ppb", "unit_conversion": 1.0,
         "is_organic": 0, "is_grf_certified": 0,
         "methodology_note": None, "raw_file_path": None,
     }
     r = {**defaults, **row}
+    if not r.get("contaminant"):
+        raise ValueError(
+            f"{row.get('source_name', '?')}: row missing required 'contaminant' "
+            f"(raw_category={row.get('raw_category')!r}, "
+            f"product={row.get('product_name')!r}) — set it per-row or "
+            "declare CONTAMINANT on the fetcher."
+        )
     original_contaminant = r["contaminant"]
     r["contaminant"] = normalize_contaminant(r["contaminant"])
     # Normalize food_category to canonical key (-> 'unknown' + triage if unresolved)
@@ -1080,7 +1111,6 @@ def _insert_product(conn, row: dict) -> int:
 def _insert_water(conn, row: dict) -> int:
     """Insert a water_tests row."""
     defaults = {
-        "contaminant": "glyphosate",
         "state": None, "county": None, "site_type": None, "site_id": None,
         "latitude": None, "longitude": None,
         "measured_ppb": None, "below_detection": 0, "detection_limit_ppb": None,
@@ -1090,6 +1120,13 @@ def _insert_water(conn, row: dict) -> int:
         "methodology_note": None, "confidence": None,
     }
     r = {**defaults, **row}
+    if not r.get("contaminant"):
+        raise ValueError(
+            f"{row.get('source_name', '?')}: row missing required 'contaminant' "
+            f"(raw_category={row.get('raw_category')!r}, "
+            f"product={row.get('product_name')!r}) — set it per-row or "
+            "declare CONTAMINANT on the fetcher."
+        )
     original_contaminant = r["contaminant"]
     r["contaminant"] = normalize_contaminant(r["contaminant"])
     conn.execute("""
@@ -1121,7 +1158,6 @@ def _insert_water(conn, row: dict) -> int:
 def _insert_category(conn, row: dict) -> int:
     """Insert a Tier 2 category summary row."""
     defaults = {
-        "contaminant": "glyphosate",
         "samples_total": 0, "samples_detected": 0, "detection_rate": 0.0,
         "avg_ppb": None, "max_ppb": None, "p95_ppb": None,
         "median_ppb": None, "min_ppb": None,
@@ -1129,6 +1165,13 @@ def _insert_category(conn, row: dict) -> int:
         "is_organic": 0, "methodology_note": None, "raw_file_path": None,
     }
     r = {**defaults, **row}
+    if not r.get("contaminant"):
+        raise ValueError(
+            f"{row.get('source_name', '?')}: row missing required 'contaminant' "
+            f"(raw_category={row.get('raw_category')!r}, "
+            f"product={row.get('product_name')!r}) — set it per-row or "
+            "declare CONTAMINANT on the fetcher."
+        )
     original_contaminant = r["contaminant"]
     r["contaminant"] = normalize_contaminant(r["contaminant"])
     # Normalize food_category to canonical key (-> 'unknown' + triage if unresolved)

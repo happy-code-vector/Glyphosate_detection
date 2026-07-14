@@ -55,7 +55,7 @@ class IngredientRiskResult:
     tier_used: str  # 'product', 'ingredient', or 'category'
     ingredient_scores: List[IngredientScore] = field(default_factory=list)
     category_fallback: Optional[str] = None
-    certified_glyphosate_free: bool = False
+    certified_residue_free: bool = False
     notes: List[str] = field(default_factory=list)
 
 
@@ -73,7 +73,7 @@ class IngredientRiskQuery:
         self,
         product_name: str,
         ingredients: list[dict] | str,
-        contaminant: str = "glyphosate",
+        contaminant: str | None = None,
         food_category: Optional[str] = None,
     ) -> IngredientRiskResult:
         """
@@ -84,12 +84,17 @@ class IngredientRiskQuery:
             ingredients: Either:
                 - List of dicts with 'id', 'name', 'text', 'percent' (from OFF API)
                 - Raw ingredients string (fallback, will be parsed)
-            contaminant: Contaminant to check (default: glyphosate)
+            contaminant: Contaminant to check (required; no glyphosate default)
             food_category: Optional fallback category if ingredient mapping fails
 
         Returns:
             IngredientRiskResult with risk level and breakdown
         """
+        if contaminant is None:
+            raise ValueError(
+                "IngredientRiskQuery.execute() requires an explicit contaminant; "
+                "pass contaminant='glyphosate'."
+            )
         notes = []
 
         # ── Tier 1: Product-level check ──────────────────────────────────
@@ -102,7 +107,7 @@ class IngredientRiskQuery:
                     risk_level="none",
                     score=0.0,
                     tier_used="product",
-                    certified_glyphosate_free=True,
+                    certified_residue_free=True,
                     notes=["Product is Glyphosate Residue Free certified"],
                 )
             if product_result.get("below_detection"):

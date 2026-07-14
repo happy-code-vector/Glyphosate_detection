@@ -266,6 +266,7 @@ def _parse_rate(text: str) -> float | None:
 
 class ConsumerReportsFetcher(BaseFetcher):
     SOURCE_NAME = "ConsumerReports"
+    CONTAMINANT = "glyphosate"
 
     def fetch(self) -> list[Path]:
         """

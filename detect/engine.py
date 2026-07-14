@@ -212,9 +212,30 @@ class DetectionEngine:
     # ═══════════════════════════════════════════════
 
     def international_comparison(
-        self, food_category: str, contaminant: str = "glyphosate"
-    ) -> InternationalComparisonResult:
+        self, food_category: str, contaminant: str | None = None
+    ) -> InternationalComparisonResult | list[InternationalComparisonResult] | None:
+        """Compare regulatory MRLs across countries.
+
+        ``contaminant=None`` returns one result per contaminant for the category
+        (mirrors ``food_risk``); a specific contaminant returns a single result,
+        or ``None`` if no data.
+        """
         rows = self._store.get_international_comparison(food_category, contaminant)
+        if not rows:
+            return None if contaminant is not None else []
+        if contaminant is not None:
+            return self._build_international_comparison(food_category, contaminant, rows)
+        by_contaminant: dict[str, list] = {}
+        for r in rows:
+            by_contaminant.setdefault(r["contaminant"], []).append(r)
+        return [
+            self._build_international_comparison(food_category, c, grp)
+            for c, grp in by_contaminant.items()
+        ]
+
+    def _build_international_comparison(
+        self, food_category: str, contaminant: str, rows: list[dict],
+    ) -> InternationalComparisonResult:
         entries = [
             InternationalComparisonEntry(
                 country_region=r["country_region"],
@@ -285,10 +306,16 @@ class DetectionEngine:
         self,
         product_name: str,
         ingredients: list[dict] | str,
-        contaminant: str = "glyphosate",
+        contaminant: str | None = None,
         food_category: str | None = None,
     ):
         """Three-tier risk scoring based on ingredients."""
+        if contaminant is None:
+            raise ValueError(
+                "ingredient_risk() requires an explicit contaminant; pass "
+                "contaminant='glyphosate' (or use scan_all_contaminants() for "
+                "a multi-contaminant view)."
+            )
         from detect.ingredient_risk import IngredientRiskResult, IngredientScore
         notes = []
 
@@ -299,7 +326,7 @@ class DetectionEngine:
                 return IngredientRiskResult(
                     product_name=product_name, contaminant=contaminant,
                     risk_level="none", score=0.0, tier_used="product",
-                    certified_glyphosate_free=True,
+                    certified_residue_free=True,
                     notes=["Product is Glyphosate Residue Free certified"],
                 )
             if product_result.get("below_detection"):
@@ -648,8 +675,13 @@ class DetectionEngine:
         return sorted(matched)
 
     def scan_barcode(
-        self, barcode: str, contaminant: str = "glyphosate",
+        self, barcode: str, contaminant: str | None = None,
     ) -> Optional[ProductScanResult]:
+        if contaminant is None:
+            raise ValueError(
+                "scan_barcode() requires an explicit contaminant; pass "
+                "contaminant='glyphosate'."
+            )
         product = self._off_client.lookup(barcode)
         if not product:
             return None
@@ -868,7 +900,7 @@ class DetectionEngine:
         )
 
     def scan_code(
-        self, code: str, contaminant: str = "glyphosate"
+        self, code: str, contaminant: str | None = None
     ) -> CodeScanResult:
         """Scan a code of unknown type and route it automatically.
 
@@ -884,6 +916,12 @@ class DetectionEngine:
             return CodeScanResult(
                 code=str(code), code_type="plu",
                 plu_result=self.lookup_plu(digits),
+            )
+        # Barcode branch — contaminant is required (PLU scans don't use it).
+        if contaminant is None:
+            raise ValueError(
+                "scan_code() requires an explicit contaminant for barcode "
+                "scans; pass contaminant='glyphosate'."
             )
         return CodeScanResult(
             code=str(code), code_type="barcode",

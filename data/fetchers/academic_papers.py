@@ -89,6 +89,7 @@ class AcademicPapersFetcher(BaseFetcher):
     """Hardcoded academic research data — no file downloads needed."""
 
     SOURCE_NAME = SOURCE_NAME
+    CONTAMINANT = "glyphosate"
 
     def fetch(self) -> list[Path]:
         """No files to download — all data is hardcoded."""

@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS tolerance_limits (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
     food_category       TEXT NOT NULL,
     raw_commodity       TEXT,
-    contaminant         TEXT NOT NULL DEFAULT 'glyphosate',
+    contaminant         TEXT NOT NULL,
     tolerance_ppm       REAL NOT NULL,
     tolerance_ppb       REAL NOT NULL,
     source              TEXT NOT NULL,

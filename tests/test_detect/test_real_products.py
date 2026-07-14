@@ -61,7 +61,7 @@ class TestRealProductScan(unittest.TestCase):
         product = load_product_json("0038000138416.json")
         self._mock_off_client(product)
 
-        result = self.engine.scan_barcode(product["barcode"])
+        result = self.engine.scan_barcode(product["barcode"], contaminant="glyphosate")
 
         self.assertIsNotNone(result, f"scan_barcode returned None for {product['barcode']}")
         self.assertEqual(result.name, "Original Potato Crisps")
@@ -79,7 +79,7 @@ class TestRealProductScan(unittest.TestCase):
         product = load_product_json("5000112637922.json")
         self._mock_off_client(product)
 
-        result = self.engine.scan_barcode(product["barcode"])
+        result = self.engine.scan_barcode(product["barcode"], contaminant="glyphosate")
 
         self.assertIsNotNone(result)
         self.assertEqual(result.name, "Coca Cola")
@@ -92,7 +92,7 @@ class TestRealProductScan(unittest.TestCase):
         product = load_product_json("3017620422003.json")
         self._mock_off_client(product)
 
-        result = self.engine.scan_barcode(product["barcode"])
+        result = self.engine.scan_barcode(product["barcode"], contaminant="glyphosate")
 
         self.assertIsNotNone(result)
         self.assertEqual(result.name, "Nutella")
@@ -105,7 +105,7 @@ class TestRealProductScan(unittest.TestCase):
         product = load_product_json("0044000032159.json")
         self._mock_off_client(product)
 
-        result = self.engine.scan_barcode(product["barcode"])
+        result = self.engine.scan_barcode(product["barcode"], contaminant="glyphosate")
 
         self.assertIsNotNone(result)
         self.assertIn(result.risk_level, ["none", "low", "medium", "high", "unknown"])
@@ -117,7 +117,7 @@ class TestRealProductScan(unittest.TestCase):
         product = load_product_json("5000159484695.json")
         self._mock_off_client(product)
 
-        result = self.engine.scan_barcode(product["barcode"])
+        result = self.engine.scan_barcode(product["barcode"], contaminant="glyphosate")
 
         self.assertIsNotNone(result)
         self.assertIn(result.risk_level, ["none", "low", "medium", "high", "unknown"])
@@ -133,7 +133,7 @@ class TestRealProductScan(unittest.TestCase):
         for product in products:
             self._mock_off_client(product)
             try:
-                result = self.engine.scan_barcode(product["barcode"])
+                result = self.engine.scan_barcode(product["barcode"], contaminant="glyphosate")
                 results.append((product["product_name"], result))
             except Exception as e:
                 self.fail(f"scan_barcode crashed on {product['product_name']}: {e}")

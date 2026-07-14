@@ -237,11 +237,11 @@ class ProductScanResult:
     commodities_matched: list[str]
     flags: list[RegulatoryFlag]
     data_confidence: str  # 'high', 'medium', 'low'
+    contaminant: str
     # Risk data from ingredient scoring
     risk_level: str = "unknown"
     score: float = 0.5
     tier_used: str = "none"
-    contaminant: str = "glyphosate"
     ingredient_scores: list = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
     # Multi-contaminant report

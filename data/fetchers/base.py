@@ -108,7 +108,12 @@ class BaseFetcher(ABC):
     Implement fetch() and parse() — runner calls both.
     """
     SOURCE_NAME: str = ""
-    CONTAMINANT: str = "glyphosate"
+    # The contaminant this fetcher ingests, declared per source. None means the
+    # fetcher must set 'contaminant' on every row dict itself (multi-contaminant
+    # sources). run() injects this into rows that don't specify one, so the
+    # ingest helpers can require contaminant without a hardcoded glyphosate
+    # default. Glyphosate-only fetchers declare CONTAMINANT = "glyphosate".
+    CONTAMINANT: str | None = None
 
     @abstractmethod
     def fetch(self) -> list[Path]:
@@ -148,6 +153,12 @@ class BaseFetcher(ABC):
             raise
 
         logger.info("%s parsed %d rows, inserting...", self.SOURCE_NAME, len(rows))
+        # Apply the fetcher's declared contaminant to any row that didn't set
+        # one. Multi-contaminant fetchers (CONTAMINANT = None) must set
+        # per-row contaminant; insert_rows raises ValueError if missing.
+        if self.CONTAMINANT:
+            for row in rows:
+                row.setdefault("contaminant", self.CONTAMINANT)
         counts = insert_rows(rows, self.SOURCE_NAME, str(files))
         logger.info(
             "%s complete: inserted=%d skipped=%d failed=%d",

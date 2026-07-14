@@ -345,7 +345,7 @@ CREATE TABLE IF NOT EXISTS certified_products (
     food_category TEXT,
     raw_category TEXT,
     certification TEXT DEFAULT 'Glyphosate Residue Free',
-    contaminant TEXT DEFAULT 'glyphosate',
+    contaminant TEXT,
     threshold_ppb REAL DEFAULT 10.0,
     source TEXT NOT NULL DEFAULT 'DetoxProject',
     source_url TEXT,

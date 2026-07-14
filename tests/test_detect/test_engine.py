@@ -53,8 +53,33 @@ class TestDetectionEngine(unittest.TestCase):
         self.assertIsInstance(results[0], WaterQualityResult)
 
     def test_international_comparison(self):
-        result = self.engine.international_comparison("oats")
+        result = self.engine.international_comparison("oats", contaminant="glyphosate")
         self.assertIsInstance(result, InternationalComparisonResult)
+
+    def test_international_comparison_none_returns_all(self):
+        """contaminant=None returns a list (one result per contaminant)."""
+        results = self.engine.international_comparison("oats")
+        self.assertIsInstance(results, list)
+        self.assertGreater(len(results), 0)
+        self.assertIsInstance(results[0], InternationalComparisonResult)
+
+    def test_ingredient_risk_requires_contaminant(self):
+        """ingredient_risk() with no contaminant raises (no silent glyphosate)."""
+        with self.assertRaises(ValueError):
+            self.engine.ingredient_risk("Cheerios", "whole grain oats")
+
+    def test_scan_barcode_requires_contaminant(self):
+        """scan_barcode() with no contaminant raises before any lookup."""
+        with self.assertRaises(ValueError):
+            self.engine.scan_barcode("0001600014588")
+
+    def test_scan_code_barcode_requires_contaminant(self):
+        """scan_code() on a barcode with no contaminant raises; PLU does not."""
+        with self.assertRaises(ValueError):
+            self.engine.scan_code("0001600014588")
+        # PLU scans (4-5 digits) don't use a contaminant and must NOT raise.
+        plu = self.engine.scan_code("3000")
+        self.assertEqual(plu.code_type, "plu")
 
     def test_file_not_found(self):
         with self.assertRaises(FileNotFoundError):
@@ -103,7 +128,7 @@ class TestDetectionEngine(unittest.TestCase):
         )
         engine._conn.commit()
 
-        result = engine.scan_barcode("0001600014588")
+        result = engine.scan_barcode("0001600014588", contaminant="glyphosate")
 
         self.assertIsNotNone(result)
         self.assertIsInstance(result, ProductScanResult)
@@ -133,7 +158,7 @@ class TestDetectionEngine(unittest.TestCase):
         engine = DetectionEngine(self.tmp.name)
         engine._off_client = mock_client
 
-        result = engine.scan_barcode("9999999999999")
+        result = engine.scan_barcode("9999999999999", contaminant="glyphosate")
 
         self.assertIsNone(result)
         engine.close()
@@ -170,7 +195,7 @@ class TestDetectionEngine(unittest.TestCase):
         )
         engine._conn.commit()
 
-        result = engine.scan_barcode("0001600014588")
+        result = engine.scan_barcode("0001600014588", contaminant="glyphosate")
 
         self.assertIsNotNone(result)
         self.assertEqual(result.tier_used, "product")

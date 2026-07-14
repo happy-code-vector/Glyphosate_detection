@@ -85,14 +85,15 @@ class SqliteDataStore:
         return self._rows(f"SELECT * FROM app_water_overview{where}", tuple(params))
 
     def get_international_comparison(
-        self, food_category: str, contaminant: str = "glyphosate"
+        self, food_category: str, contaminant: Optional[str] = None
     ) -> list[dict]:
         resolved = resolve_commodity(food_category, self._conn) or food_category
-        return self._rows(
-            "SELECT * FROM app_international_comparison "
-            "WHERE food_category = ? AND contaminant = ?",
-            (resolved, contaminant),
-        )
+        sql = "SELECT * FROM app_international_comparison WHERE food_category = ?"
+        params: list = [resolved]
+        if contaminant is not None:
+            sql += " AND contaminant = ?"
+            params.append(contaminant)
+        return self._rows(sql, tuple(params))
 
     # ── Raw table reads ─────────────────────────────────────────────────
 

@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS product_tests (
     -- Food classification
     food_category       TEXT    NOT NULL,
     raw_category        TEXT    NOT NULL,
-    contaminant         TEXT    NOT NULL DEFAULT 'glyphosate',
+    contaminant         TEXT    NOT NULL,
 
     -- Product-specific measurement
     product_name        TEXT    NOT NULL,
@@ -79,7 +79,7 @@ CREATE TABLE IF NOT EXISTS category_summaries (
     -- Food classification
     food_category       TEXT    NOT NULL,
     raw_category        TEXT    NOT NULL,
-    contaminant         TEXT    NOT NULL DEFAULT 'glyphosate',
+    contaminant         TEXT    NOT NULL,
 
     -- Aggregate statistics
     samples_total       INTEGER NOT NULL,
@@ -136,7 +136,7 @@ CREATE TABLE IF NOT EXISTS water_tests (
 
     -- Measurement
     water_type          TEXT    NOT NULL,
-    contaminant         TEXT    NOT NULL DEFAULT 'glyphosate',
+    contaminant         TEXT    NOT NULL,
     measured_ppb        REAL,
     below_detection     INTEGER DEFAULT 0,
     detection_limit_ppb REAL,
@@ -207,7 +207,7 @@ CREATE TABLE IF NOT EXISTS tolerance_limits (
     raw_commodity       TEXT,
     tolerance_ppm       REAL NOT NULL,
     tolerance_ppb       REAL NOT NULL,
-    contaminant         TEXT NOT NULL DEFAULT 'glyphosate',
+    contaminant         TEXT NOT NULL,
     source              TEXT NOT NULL,
     regulation_reference TEXT,
     updated_at          TEXT DEFAULT (datetime('now')),
@@ -271,7 +271,7 @@ CREATE TABLE IF NOT EXISTS international_mrls (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
     food_category       TEXT NOT NULL,
     raw_commodity       TEXT,
-    pesticide           TEXT NOT NULL DEFAULT 'glyphosate',
+    pesticide           TEXT NOT NULL,
     country_region      TEXT NOT NULL,
     mrl_ppm             REAL NOT NULL,
     mrl_ppb             REAL NOT NULL,

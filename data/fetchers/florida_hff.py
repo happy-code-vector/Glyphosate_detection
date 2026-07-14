@@ -59,6 +59,7 @@ PRODUCT_COLUMN_PATTERNS = [
 
 class FloridaHFFetcher(BaseFetcher):
     SOURCE_NAME = "FloridaHFF"
+    CONTAMINANT = "glyphosate"
 
     def fetch(self) -> list[Path]:
         """Fetch and cache all Florida HFF report pages as HTML files."""

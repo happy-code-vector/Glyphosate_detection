@@ -47,7 +47,7 @@ class DataStore(Protocol):
         ...
 
     def get_international_comparison(
-        self, food_category: str, contaminant: str = "glyphosate"
+        self, food_category: str, contaminant: Optional[str] = None
     ) -> list[dict]:
         """MRL comparison entries across countries."""
         ...
