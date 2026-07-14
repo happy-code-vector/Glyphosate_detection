@@ -31,7 +31,7 @@ logging.basicConfig(
 logger = logging.getLogger("pipeline")
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--source", help="Run only this source: florida/cfia/efsa/fda/usda_pdp/uk_fsa/ca_dpr/germany_bvl/epa_cfr_tolerances/efsa_mrls/fda_toxic_elements/fda_total_diet_study/australia_fsnz/academic_papers/detox_project/cdc_nhanes/clean_label_project/consumer_reports/detox_certifications/water_quality/water_quality_glyphosate/water_quality_lead/water_quality_atrazine/water_quality_inorganic_arsenic/water_quality_cadmium/water_quality_mercury")
+parser.add_argument("--source", help="Run only this source: florida/cfia/efsa/fda/usda_pdp/uk_fsa/ca_dpr/germany_bvl/epa_cfr_tolerances/efsa_mrls/fda_toxic_elements/fda_total_diet_study/australia_fsnz/academic_papers/detox_project/cdc_nhanes/cdc_nhanes_metals/codex_mrls/clean_label_project/consumer_reports/detox_certifications/water_quality/water_quality_glyphosate/water_quality_lead/water_quality_atrazine/water_quality_inorganic_arsenic/water_quality_cadmium/water_quality_mercury")
 parser.add_argument("--validate", action="store_true")
 args = parser.parse_args()
 
@@ -66,6 +66,7 @@ def run_all():
     from fetchers.non_gmo_project import NonGMOProjectFetcher
     from fetchers.clean_label_certified import CleanLabelCertifiedFetcher
     from fetchers.cdc_nhanes_metals import CDC_NHANES_MetalsFetcher
+    from fetchers.codex_mrls import CodexMRLsFetcher
 
     logger.info("Initializing database")
     initialize()
@@ -85,6 +86,7 @@ def run_all():
         ("detox_project",   DetoxProjectFetcher),
         ("cdc_nhanes",      CDC_NHANESFetcher),
         ("cdc_nhanes_metals", CDC_NHANES_MetalsFetcher),
+        ("codex_mrls",      CodexMRLsFetcher),
         ("clean_label_project", CleanLabelProjectFetcher),
         ("consumer_reports",    ConsumerReportsFetcher),
         ("detox_certifications", DetoxCertificationsFetcher),
