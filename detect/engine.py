@@ -27,6 +27,39 @@ from detect.models import (
 
 from data.contaminants import divergence_type_for
 
+# US state postal codes -> canonical full name (DB stores full Title-Case names).
+_US_STATE_BY_ABBR = {
+    "AL": "Alabama", "AK": "Alaska", "AZ": "Arizona", "AR": "Arkansas",
+    "CA": "California", "CO": "Colorado", "CT": "Connecticut", "DE": "Delaware",
+    "DC": "District Of Columbia", "FL": "Florida", "GA": "Georgia", "HI": "Hawaii",
+    "ID": "Idaho", "IL": "Illinois", "IN": "Indiana", "IA": "Iowa", "KS": "Kansas",
+    "KY": "Kentucky", "LA": "Louisiana", "ME": "Maine", "MD": "Maryland",
+    "MA": "Massachusetts", "MI": "Michigan", "MN": "Minnesota", "MS": "Mississippi",
+    "MO": "Missouri", "MT": "Montana", "NE": "Nebraska", "NV": "Nevada",
+    "NH": "New Hampshire", "NJ": "New Jersey", "NM": "New Mexico", "NY": "New York",
+    "NC": "North Carolina", "ND": "North Dakota", "OH": "Ohio", "OK": "Oklahoma",
+    "OR": "Oregon", "PA": "Pennsylvania", "RI": "Rhode Island",
+    "SC": "South Carolina", "SD": "South Dakota", "TN": "Tennessee", "TX": "Texas",
+    "UT": "Utah", "VT": "Vermont", "VA": "Virginia", "WA": "Washington",
+    "WV": "West Virginia", "WI": "Wisconsin", "WY": "Wyoming",
+}
+
+
+def _normalize_state(state: Optional[str]) -> Optional[str]:
+    """Normalize a user-supplied state to the DB's canonical Title-Case full name.
+
+    Accepts 2-letter postal codes (``CA``/``ca``) and full names in any case
+    (``california``/``new york``). Passes through anything already canonical.
+    """
+    if not state:
+        return state
+    s = state.strip()
+    full = _US_STATE_BY_ABBR.get(s.upper())
+    if full:
+        return full
+    # DB stores Title Case ("California", "New York", "District Of Columbia").
+    return s.title()
+
 
 class DetectionEngine:
     def __init__(self, db_path: str):
@@ -181,7 +214,9 @@ class DetectionEngine:
                 return {"error": f"Could not resolve zip code: {zip_code}", "data": []}
             state = resolved_state.replace("_", " ")
 
-        rows = self._store.get_water_overview(state, contaminant, water_type)
+        rows = self._store.get_water_overview(
+            _normalize_state(state), contaminant, water_type
+        )
         results = [self._build_water_result(r) for r in rows]
 
         if zip_code and not results:
