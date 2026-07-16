@@ -5,3 +5,8 @@ beautifulsoup4>=4.12.0
 pdfplumber>=0.10.0
 pandas>=2.1.0
 openpyxl>=3.1.0
+
+# --- Online API server (api/) ---
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+firebase-admin>=6.4.0

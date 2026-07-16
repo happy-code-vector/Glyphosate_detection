@@ -27,9 +27,28 @@ _DEFAULT_DB_PATH = Path(__file__).parent / "residueiq.db"
 class SqliteDataStore:
     """SQLite-backed DataStore. Reads from the same database the pipeline writes to."""
 
-    def __init__(self, db_path: Optional[str] = None):
+    def __init__(self, db_path: Optional[str] = None, *,
+                 read_only: bool = False,
+                 check_same_thread: Optional[bool] = None):
+        """Open the SQLite connection.
+
+        Defaults preserve the original behavior (read-write, default
+        ``check_same_thread``). The API server passes ``read_only=True`` (safer
+        for a shared, image/GCS-served DB) and ``check_same_thread=False`` (the
+        connection is guarded by a Lock in the API layer so it may be touched by
+        FastAPI's threadpool).
+        """
         path = str(db_path or _DEFAULT_DB_PATH)
-        self._conn = sqlite3.connect(path)
+        connect_kwargs: dict = {}
+        if read_only:
+            # SQLite file: URI with mode=ro; absolute path via as_uri() (cross-platform).
+            target = Path(path).resolve().as_uri() + "?mode=ro"
+            connect_kwargs["uri"] = True
+        else:
+            target = path
+        if check_same_thread is not None:
+            connect_kwargs["check_same_thread"] = check_same_thread
+        self._conn = sqlite3.connect(target, **connect_kwargs)
         self._conn.row_factory = sqlite3.Row
 
     # ── helpers ─────────────────────────────────────────────────────────

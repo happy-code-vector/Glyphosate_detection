@@ -215,14 +215,21 @@ class DataStoreConfig:
 
 # ── Factory ─────────────────────────────────────────────────────────────────
 
-def create_datastore(db_path: Optional[str] = None) -> DataStore:
+def create_datastore(db_path: Optional[str] = None, *,
+                     read_only: bool = False,
+                     check_same_thread: Optional[bool] = None) -> DataStore:
     """Create a SQLite-backed DataStore instance.
 
     Args:
         db_path: Path to the SQLite database. Defaults to data/residueiq.db.
+        read_only: Open the connection read-only (file: URI, mode=ro). Used by
+            the online API server.
+        check_same_thread: Override sqlite3's same-thread check. The API server
+            sets False (it serializes access with a Lock).
 
     Returns:
         A SqliteDataStore.
     """
     from data.sqlite_store import SqliteDataStore
-    return SqliteDataStore(db_path=db_path)
+    return SqliteDataStore(db_path=db_path, read_only=read_only,
+                           check_same_thread=check_same_thread)
