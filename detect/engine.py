@@ -399,12 +399,21 @@ class DetectionEngine:
                     for s in ingredient_scores
                     if s.risk_level != "unknown"
                 ]
-                if known_scores:
-                    avg_score = sum(known_scores) / len(known_scores)
-                    max_score = max(known_scores)
-                else:
-                    avg_score = 0.0
-                    max_score = 0.0
+                # Every matched ingredient lacked a regulatory benchmark: we
+                # cannot score this product. Return 'unknown' rather than
+                # blending to 0.0 (which would falsely read as a clean 'none').
+                if not known_scores:
+                    notes.append(
+                        f"Matched {len(ingredient_scores)} of {len(ingredient_dicts)} "
+                        "ingredients, but none had a regulatory benchmark"
+                    )
+                    return IngredientRiskResult(
+                        product_name=product_name, contaminant=contaminant,
+                        risk_level="unknown", score=0.5, tier_used="ingredient",
+                        ingredient_scores=ingredient_scores, notes=notes,
+                    )
+                avg_score = sum(known_scores) / len(known_scores)
+                max_score = max(known_scores)
                 final_score = 0.7 * max_score + 0.3 * avg_score
                 risk_level = self._score_to_risk_level(final_score)
                 notes.append(f"Scored {len(ingredient_scores)} of {len(ingredient_dicts)} ingredients")
@@ -776,12 +785,23 @@ class DetectionEngine:
             for ing in ingredient_list
         ]
 
-        if contaminant_report and contaminant_report.overall_risk_level != "none":
-            effective_risk = contaminant_report.overall_risk_level
-            effective_score = contaminant_report.overall_score
-        else:
+        # Decide the headline risk. A direct product test (Tier 1) is the
+        # strongest signal and is never overridden by the category-level
+        # aggregate (scan_all_contaminants) — a product actually measured clean
+        # must not be relabelled risky just because its food category averages
+        # high. Otherwise the category report fills in when it has a non-'none'
+        # verdict; else fall back to the tiered ingredient/category result.
+        tier = risk_result.tier_used if risk_result else "none"
+        category_verdict = (
+            contaminant_report is not None
+            and contaminant_report.overall_risk_level != "none"
+        )
+        if tier == "product" or not category_verdict:
             effective_risk = risk_result.risk_level if risk_result else "unknown"
             effective_score = risk_result.score if risk_result else 0.5
+        else:
+            effective_risk = contaminant_report.overall_risk_level
+            effective_score = contaminant_report.overall_score
 
         return ProductScanResult(
             upc=barcode,
