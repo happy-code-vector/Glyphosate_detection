@@ -24,6 +24,87 @@ except ImportError:  # runtime context: data/ is the path root
 _DEFAULT_DB_PATH = Path(__file__).parent / "residueiq.db"
 
 
+# `app_food_overview` is defined as a VIEW in schema.sql, but reading it
+# re-aggregates the entire category_summaries table (~730k rows: window
+# functions + 5 CTEs) on every call -> ~12s. This parameterized inline query
+# pushes the food_category/contaminant filter into each CTE so SQLite uses
+# indexes -> ~7ms (single contaminant) / ~130ms (all). Verified byte-identical
+# to the view across 8 cases (single + all-contaminant, populated + empty) on
+# 2026-07-16. The view stays as the source-of-truth/reference and is still used
+# by _resolve_category's existence check (on the base table, below).
+_FOOD_OVERVIEW_SQL = """
+WITH best_summary AS (
+    SELECT cs.food_category, cs.contaminant, cs.source_name, cs.report_label,
+           cs.data_year, cs.samples_total, cs.samples_detected, cs.detection_rate,
+           cs.avg_ppb, cs.max_ppb, cs.confidence,
+           CASE WHEN cs.detection_rate >= 0.66 THEN 'high'
+                WHEN cs.detection_rate >= 0.31 THEN 'medium'
+                WHEN cs.detection_rate >  0.0  THEN 'low'
+                ELSE 'none' END AS detection_frequency,
+           ROW_NUMBER() OVER (
+               PARTITION BY cs.food_category, cs.contaminant
+               ORDER BY CASE cs.source_name WHEN 'FDA' THEN 3 WHEN 'CFIA' THEN 2
+                            WHEN 'EFSA' THEN 1 ELSE 0 END DESC, cs.data_year DESC) AS rn
+    FROM category_summaries cs
+    WHERE cs.food_category = :fc {cont_cs}
+),
+product_stats AS (
+    SELECT pt.food_category, pt.contaminant,
+           COUNT(DISTINCT pt.product_name) AS total_products_tested,
+           COUNT(DISTINCT CASE WHEN pt.below_detection = 0 THEN pt.product_name END) AS products_with_detection,
+           ROUND(AVG(pt.measured_ppb), 1) AS avg_product_ppb,
+           MAX(pt.measured_ppb) AS max_product_ppb
+    FROM product_tests pt
+    WHERE pt.food_category = :fc {cont_pt}
+    GROUP BY pt.food_category, pt.contaminant
+),
+tolerance_data AS (
+    SELECT food_category, contaminant, MIN(tolerance_ppb) AS min_tolerance_ppb,
+           MIN(source) AS tolerance_source
+    FROM tolerance_limits
+    WHERE tolerance_ppb > 0 AND food_category = :fc {cont_tl}
+    GROUP BY food_category, contaminant
+),
+mrl_data AS (
+    SELECT food_category, pesticide AS contaminant, MIN(mrl_ppb) AS min_mrl_ppb,
+           MIN(regulatory_body) AS mrl_source
+    FROM international_mrls
+    WHERE mrl_ppb > 0 AND food_category = :fc {cont_mrl}
+    GROUP BY food_category, pesticide
+)
+SELECT bs.contaminant, bs.food_category, bs.source_name AS best_source,
+       bs.data_year AS best_data_year, bs.detection_rate, bs.avg_ppb, bs.max_ppb,
+       bs.samples_total, bs.samples_detected,
+       CASE WHEN bs.max_ppb IS NULL OR bs.max_ppb <= 0 THEN 'none'
+            WHEN td.min_tolerance_ppb IS NOT NULL AND td.min_tolerance_ppb > 0 THEN
+                CASE WHEN bs.max_ppb / td.min_tolerance_ppb >= 2.0 THEN 'high'
+                     WHEN bs.max_ppb / td.min_tolerance_ppb >= 1.0 THEN 'medium'
+                     ELSE 'low' END
+            WHEN md.min_mrl_ppb IS NOT NULL AND md.min_mrl_ppb > 0 THEN
+                CASE WHEN bs.max_ppb / md.min_mrl_ppb >= 2.0 THEN 'high'
+                     WHEN bs.max_ppb / md.min_mrl_ppb >= 1.0 THEN 'medium'
+                     ELSE 'low' END
+            ELSE 'unknown' END AS risk_level,
+       bs.detection_frequency, bs.confidence,
+       COALESCE(ps.total_products_tested, 0) AS total_products_tested,
+       COALESCE(ps.products_with_detection, 0) AS products_with_detection,
+       COALESCE(ps.avg_product_ppb, 0) AS avg_product_ppb,
+       COALESCE(ps.max_product_ppb, 0) AS max_product_ppb,
+       COALESCE((SELECT COUNT(*) FROM certified_products cp
+                  WHERE cp.food_category = bs.food_category AND cp.contaminant IS NULL)
+              + (SELECT COUNT(*) FROM certified_products cp
+                  WHERE cp.food_category = bs.food_category AND cp.contaminant = bs.contaminant), 0)
+           AS certified_products_available,
+       COALESCE(td.min_tolerance_ppb, md.min_mrl_ppb) AS tolerance_ppb,
+       COALESCE(td.tolerance_source, md.mrl_source) AS tolerance_source
+FROM best_summary bs
+LEFT JOIN product_stats ps ON bs.food_category = ps.food_category AND bs.contaminant = ps.contaminant
+LEFT JOIN tolerance_data td ON bs.food_category = td.food_category AND bs.contaminant = td.contaminant
+LEFT JOIN mrl_data md ON bs.food_category = md.food_category AND bs.contaminant = md.contaminant
+WHERE bs.rn = 1
+"""
+
+
 class SqliteDataStore:
     """SQLite-backed DataStore. Reads from the same database the pipeline writes to."""
 
@@ -66,12 +147,20 @@ class SqliteDataStore:
         self, food_category: str, contaminant: Optional[str] = None
     ) -> list[dict]:
         resolved = self._resolve_category(food_category)
-        sql = "SELECT * FROM app_food_overview WHERE food_category = ?"
-        params: list = [resolved]
         if contaminant is not None:
-            sql += " AND contaminant = ?"
-            params.append(contaminant)
-        return self._rows(sql, tuple(params))
+            sql = _FOOD_OVERVIEW_SQL.format(
+                cont_cs="AND cs.contaminant = :cont",
+                cont_pt="AND pt.contaminant = :cont",
+                cont_tl="AND contaminant = :cont",
+                cont_mrl="AND pesticide = :cont",
+            )
+            params: dict | tuple = {"fc": resolved, "cont": contaminant}
+        else:
+            sql = _FOOD_OVERVIEW_SQL.format(
+                cont_cs="", cont_pt="", cont_tl="", cont_mrl=""
+            )
+            params = {"fc": resolved}
+        return self._rows(sql, params)
 
     def get_product_lookup(
         self, query: str, contaminant: Optional[str] = None
@@ -491,8 +580,13 @@ class SqliteDataStore:
 
         Delegates to data.commodity_resolver.resolve_commodity (which handles
         exact, singular/plural, and first-segment group-string matching), then
-        confirms the resolved key is present in app_food_overview so callers
-        never receive a phantom key. Falls back to the input name."""
+        confirms the resolved key is present in category_summaries so callers
+        never receive a phantom key. Falls back to the input name.
+
+        Existence is checked on category_summaries (indexed) rather than the
+        app_food_overview view: the view's food_category set is exactly
+        category_summaries' set (its rn=1 filter dedups per contaminant but
+        removes no category), and reading the view re-aggregates ~730k rows."""
         if not name:
             return name
         resolved = resolve_commodity(name, self._conn)
@@ -500,7 +594,7 @@ class SqliteDataStore:
             if not candidate:
                 continue
             row = self._row(
-                "SELECT 1 FROM app_food_overview WHERE food_category = ? LIMIT 1",
+                "SELECT 1 FROM category_summaries WHERE food_category = ? LIMIT 1",
                 (candidate,),
             )
             if row:

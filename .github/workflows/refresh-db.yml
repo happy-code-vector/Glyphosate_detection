@@ -1,0 +1,85 @@
+# Nightly data refresh: rebuild the DB from the pipeline, VACUUM it, upload to
+# GCS, and roll a new Cloud Run revision (which re-pulls the fresh DB).
+#
+# Required GitHub configuration (one-time — see README "Online API" runbook):
+#   Repository variables (vars.*):
+#     GCP_PROJECT_ID     numeric/organizational project id
+#     GCP_REGION         e.g. us-central1
+#     CLOUDRUN_SERVICE   e.g. residueiq-api
+#     GCS_BUCKET         bucket name (no gs://), e.g. residueiq-db
+#   Repository secrets (secrets.*):
+#     WIF_PROVIDER       Workload Identity Federation provider, full resource name:
+ #                        projects/<id>/locations/global/workloadIdentityPools/<pool>/providers/<provider>
+#     GCP_SA_EMAIL        the Google service account GitHub impersonates
+#
+# The impersonated SA needs: Storage Object Admin on the bucket + Cloud Run Invoker/
+# Updater on the service. No long-lived JSON keys — auth is via WIF.
+name: Refresh DB
+
+on:
+  schedule:
+    - cron: "17 7 * * *"   # ~07:17 UTC daily
+  workflow_dispatch: {}     # manual run from the Actions tab
+
+# Avoid two refreshes racing (a manual run while the nightly one is mid-build).
+concurrency:
+  group: refresh-db
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write           # required for Workload Identity Federation
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 70     # full pipeline + slow sources (efsa, usda_pdp, bvl, …)
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run the data pipeline
+        working-directory: data
+        run: python run_pipeline.py
+
+      - name: VACUUM (shrink before upload)
+        run: |
+          python - <<'PY'
+          import sqlite3
+          c = sqlite3.connect("data/residueiq.db")
+          c.execute("VACUUM")
+          c.close()
+          import os
+          mib = os.path.getsize("data/residueiq.db") / (1 << 20)
+          print(f"VACUUM done ({mib:.0f} MiB)")
+          PY
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SA_EMAIL }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Upload DB to GCS
+        run: |
+          gcloud storage cp data/residueiq.db \
+            "gs://${{ vars.GCS_BUCKET }}/residueiq.db" \
+            --project "${{ vars.GCP_PROJECT_ID }}"
+
+      - name: Roll a new Cloud Run revision (forces DB re-pull)
+        # Bumping DATA_VERSION creates a new revision; the entrypoint re-runs
+        # fetch_db on the new revision's first instance.
+        run: |
+          gcloud run services update "${{ vars.CLOUDRUN_SERVICE }}" \
+            --region "${{ vars.GCP_REGION }}" \
+            --project "${{ vars.GCP_PROJECT_ID }}" \
+            --update-env-vars "DATA_VERSION=${{ github.run_id }}"
