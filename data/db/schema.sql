@@ -600,7 +600,12 @@ SELECT
         WHEN pt.is_organic = 1 AND pt.below_detection = 1 THEN 'organic_clean'
         WHEN pt.is_organic = 1 THEN 'organic_detected'
         WHEN pt.below_detection = 1 THEN 'none'
-        WHEN pt.measured_ppb IS NULL OR pt.measured_ppb <= 0 THEN 'none'
+        -- NULL measured_ppb (e.g. Consumer Reports per-serving-mass rows) cannot
+        -- be scored against a ppb tolerance: 'unknown', NOT 'none' (which would
+        -- read as a clean result). A non-positive value that is not flagged
+        -- below_detection stays 'none'.
+        WHEN pt.measured_ppb IS NULL THEN 'unknown'
+        WHEN pt.measured_ppb <= 0 THEN 'none'
         WHEN td.min_tolerance_ppb IS NOT NULL AND td.min_tolerance_ppb > 0 THEN
             CASE
                 WHEN pt.measured_ppb / td.min_tolerance_ppb >= 2.0 THEN 'high'

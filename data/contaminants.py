@@ -460,6 +460,109 @@ CONTAMINANTS = {
     },
 
     # ══════════════════════════════════════════
+    # ADDITIVES + PROCESS CONTAMINANTS (Consumer Reports product testing)
+    # Added 2026-07 to support CR's product-level per-serving-mass data.
+    # risk_thresholds follow the additive convention; CR rows are stored
+    # with measured_ppb=NULL (mass-per-serving, not concentration), so
+    # these thresholds do not drive CR risk tiers.
+    # ══════════════════════════════════════════
+    "bha": {
+        "type": "additive",
+        "display_name": "BHA (Butylated Hydroxyanisole)",
+        "cas_number": "25013-16-5",
+        "aliases": ["bha", "butylated hydroxyanisole", "e320"],
+        "units": "ppb",
+        "risk_thresholds": {"high": 500, "medium": 100, "low": 0},
+        "regulatory_flags": [
+            {"jurisdiction": "California", "flag_type": "prop65_listed", "regulatory_body": "OEHHA",
+             "notes": "Listed on California Proposition 65 (carcinogen)"},
+        ],
+        "iarc_classification": "Group 2B",
+        "fda_status": "permitted",
+        "fda_cfr_citation": "21 CFR 182.3169 (GRAS)",
+    },
+    "bht": {
+        "type": "additive",
+        "display_name": "BHT (Butylated Hydroxytoluene)",
+        "cas_number": "128-37-0",
+        "aliases": ["bht", "butylated hydroxytoluene", "e321"],
+        "units": "ppb",
+        "risk_thresholds": {"high": 500, "medium": 100, "low": 0},
+        "regulatory_flags": [],
+        "iarc_classification": "Group 3",
+        "fda_status": "permitted",
+        "fda_cfr_citation": "21 CFR 182.3173 (GRAS)",
+    },
+    "acesulfame_k": {
+        "type": "additive",
+        "display_name": "Acesulfame Potassium",
+        "cas_number": "55589-62-3",
+        "aliases": ["acesulfame k", "acesulfame potassium", "acesulfame", "e950"],
+        "units": "ppb",
+        "risk_thresholds": {"high": 500, "medium": 100, "low": 0},
+        "regulatory_flags": [],
+        "fda_status": "permitted",
+        "fda_cfr_citation": "21 CFR 172.800",
+    },
+    "aspartame": {
+        "type": "additive",
+        "display_name": "Aspartame",
+        "cas_number": "22839-47-0",
+        "aliases": ["aspartame", "e951", "nutrasweet", "equal"],
+        "units": "ppb",
+        "risk_thresholds": {"high": 500, "medium": 100, "low": 0},
+        "regulatory_flags": [],
+        # IARC reclassified aspartame to Group 2B in July 2023.
+        "iarc_classification": "Group 2B",
+        "fda_status": "permitted",
+        "fda_cfr_citation": "21 CFR 172.804",
+    },
+    "sucralose": {
+        "type": "additive",
+        "display_name": "Sucralose",
+        "cas_number": "56038-13-2",
+        "aliases": ["sucralose", "e955", "splenda"],
+        "units": "ppb",
+        "risk_thresholds": {"high": 500, "medium": 100, "low": 0},
+        "regulatory_flags": [],
+        "fda_status": "permitted",
+        "fda_cfr_citation": "21 CFR 172.830",
+    },
+    "glycidyl_esters": {
+        # Process contaminant formed during refining of edible oils (GE);
+        # not an intentional additive. CR reports it per-serving (mass).
+        "type": "additive",
+        "display_name": "Glycidyl Esters",
+        "cas_number": None,
+        "aliases": ["glycidyl esters", "glycidyl ester", "glycidol esters", "ge"],
+        "units": "ppb",
+        "risk_thresholds": {"high": 500, "medium": 100, "low": 0},
+        "regulatory_flags": [
+            {"jurisdiction": "EU", "flag_type": "regulated_contaminant", "regulatory_body": "EFSA",
+             "notes": "EFSA regulates glycidyl esters as a process contaminant in vegetable oils"},
+        ],
+        # Glycidol (the hydrolysis product) is IARC Group 2A.
+        "iarc_classification": "Group 2A (glycidol)",
+        "fda_status": "monitored",
+    },
+    "3_mcpd": {
+        # 3-Monochloropropane-1,2-diol and its fatty-acid esters — process
+        # contaminant in refined oils and acid-hydrolyzed vegetable protein.
+        "type": "additive",
+        "display_name": "3-MCPD (3-Monochloropropane-1,2-diol)",
+        "cas_number": "96-24-2",
+        "aliases": ["3-mcpd", "3-monochloropropane-1,2-diol", "3-mcpd esters", "3-monochloropropanol"],
+        "units": "ppb",
+        "risk_thresholds": {"high": 500, "medium": 100, "low": 0},
+        "regulatory_flags": [
+            {"jurisdiction": "EU", "flag_type": "regulated_contaminant", "regulatory_body": "EFSA",
+             "notes": "EFSA regulates 3-MCPD and its esters as a process contaminant"},
+        ],
+        "iarc_classification": "Group 2B",
+        "fda_status": "monitored",
+    },
+
+    # ══════════════════════════════════════════
     # HIGH-PRIORITY PESTICIDES (from USDA PDP)
     # These are the most commonly detected pesticides in US food monitoring.
     # Thresholds are generic — specific EPA tolerances vary by commodity.

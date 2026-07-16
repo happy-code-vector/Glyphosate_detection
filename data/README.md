@@ -13,7 +13,7 @@ product results where they actually exist.
 | `db/schema.sql` | Full SQLite schema: 16 tables, 5 views |
 | `db/database.py` | Core DB operations, migrations, inserts |
 | `db/category_aliases.csv` | 712 ingredient strings → canonical categories |
-| `contaminants.py` | Contaminant registry (43 contaminants across 6 types) |
+| `contaminants.py` | Contaminant registry (50 contaminants across 6 types) |
 | `run_pipeline.py` | Master runner — run this |
 | `seed_ingredients.py` | Seed regulatory data (ingredients, flags, commodities) |
 
@@ -77,7 +77,7 @@ Factory: `create_datastore(db_path)`
 See `docs/DATABASE_AND_ENGINE_STATUS.md` for full details.
 
 ### Contaminants
-43 contaminants across 6 types: pesticides (14), heavy metals (4), food dyes (7), additives (7), environmental (9), other (2). Defined in `data/contaminants.py`.
+50 contaminants across 6 types: pesticides (14), heavy metals (4), food dyes (7), additives (14), environmental (9), other (2). Defined in `data/contaminants.py`.
 
 ### Regulatory Coverage Gaps
 Two regulatory sources remain incomplete (food-level MRLs deferred):
